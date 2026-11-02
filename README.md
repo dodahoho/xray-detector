@@ -1,1 +1,1 @@
-# xray
+# xray-detector
