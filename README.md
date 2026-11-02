@@ -1,1 +1,3 @@
-# xray-detector
+# X-ray detector
+
+Se specs.md
