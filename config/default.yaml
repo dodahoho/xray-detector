@@ -1,0 +1,57 @@
+app:
+  dataset: default
+  default_model: yolo26n
+  language: sv
+  data_root: null          # null = <project>/data
+  log_level: INFO
+
+ui:
+  fullscreen: false
+  kiosk: false
+  exit_shortcut: Ctrl+Shift+Q
+  show_cursor: true
+  start_detection_on_launch: true
+
+video:
+  cam0:
+    type: device          # device | file | test_pattern
+    index: 0
+    file: null
+    width: 1920
+    height: 1080
+    fps: 30
+    backend: dshow        # dshow | msmf | auto
+    loop_file: true
+  cam1:
+    type: device
+    index: 1
+    file: null
+    width: 1920
+    height: 1080
+    fps: 30
+    backend: dshow
+    loop_file: true
+
+detection:
+  conf: 0.25
+  iou: 0.45
+  imgsz: 640
+  device: cuda:0
+  half: true
+  max_fps: 30
+
+dataset:
+  jpeg_quality: 95
+  min_box_size: 5
+  train_split: 0.8
+  val_split: 0.2
+  split_seed: 42
+
+training:
+  pause_detection: true
+  epochs: 100
+  batch: 8
+  imgsz: 640
+  learning_rate: 0.01
+  patience: 50
+  workers: 4

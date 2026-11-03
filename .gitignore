@@ -218,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# X-ray detector runtime data
+data/
+*.pt
+*.pth

@@ -1,0 +1,33 @@
+# Available base models. Trained models found under <data_root>/models are
+# added automatically by the model registry.
+models:
+  - id: yolo26n
+    name: YOLO26n
+    family: yolo
+    path: yolo26n.pt
+    description: Ultralytics YOLO26 nano (auto-downloads pretrained weights)
+  - id: yolo26s
+    name: YOLO26s
+    family: yolo
+    path: yolo26s.pt
+    description: Ultralytics YOLO26 small
+  - id: yolo11n
+    name: YOLO11n
+    family: yolo
+    path: yolo11n.pt
+    description: Ultralytics YOLO11 nano (auto-downloads pretrained weights)
+  - id: yolo11s
+    name: YOLO11s
+    family: yolo
+    path: yolo11s.pt
+    description: Ultralytics YOLO11 small
+  - id: rfdetr-base
+    name: RF-DETR Base
+    family: rfdetr
+    path: rfdetr-base
+    description: Roboflow RF-DETR base model (pretrained COCO weights)
+  - id: rfdetr-large
+    name: RF-DETR Large
+    family: rfdetr
+    path: rfdetr-large
+    description: Roboflow RF-DETR large model
