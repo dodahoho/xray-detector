@@ -1,0 +1,31 @@
+[app]
+language = "sv"
+fullscreen = false
+kiosk = false
+hide_cursor = false
+data_dir = "data"
+active_dataset = "default"
+
+[video]
+backend = "dshow"
+width = 1920
+height = 1080
+fps = 30
+camera_left = 0
+camera_right = 1
+preview_fps = 30
+
+[detection]
+model = "yolo11n.pt"
+device = "auto"
+confidence = 0.25
+iou = 0.45
+detection_fps = 10
+class_filter = []
+
+[training]
+default_base_model = "yolo11n.pt"
+epochs = 100
+imgsz = 640
+batch = 8
+workers = 4
