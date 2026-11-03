@@ -1,0 +1,40 @@
+{
+  "info": {
+    "description": "X-ray Detector Working Dataset (COCO format)",
+    "version": "working",
+    "date_created": "2026-11-03 09:46:16",
+    "date_modified": "2026-11-03 09:46:16",
+    "num_images": 0,
+    "num_objects": 0
+  },
+  "licenses": [],
+  "categories": [
+    {
+      "id": 1,
+      "name": "Metallföremål",
+      "supercategory": "xray_object"
+    },
+    {
+      "id": 2,
+      "name": "Batteri",
+      "supercategory": "xray_object"
+    },
+    {
+      "id": 3,
+      "name": "Vätszebehållare",
+      "supercategory": "xray_object"
+    },
+    {
+      "id": 4,
+      "name": "Elektronik",
+      "supercategory": "xray_object"
+    },
+    {
+      "id": 5,
+      "name": "Okänt objekt",
+      "supercategory": "xray_object"
+    }
+  ],
+  "images": [],
+  "annotations": []
+}

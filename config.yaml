@@ -1,0 +1,60 @@
+app:
+  title: "X-ray Detector"
+  kiosk_fullscreen: false
+  inactivity_timeout_minutes: 30
+  night_training_window_start: "23:00"
+  night_training_window_end: "05:00"
+
+cameras:
+  stream_1:
+    device_index: 0
+    name: "Röntgenström 1 (Vy A)"
+    width: 1280
+    height: 720
+    fps: 30
+    use_dshow: true
+    fallback_synthetic: true
+  stream_2:
+    device_index: 1
+    name: "Röntgenström 2 (Vy B)"
+    width: 1280
+    height: 720
+    fps: 30
+    use_dshow: true
+    fallback_synthetic: true
+
+detection:
+  active_model_family: "YOLO26"
+  active_weights_path: ""
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  target_fps: 30
+
+dataset:
+  working_dir: "data/working"
+  exports_dir: "data/datasets"
+  default_classes:
+    - "Metallföremål"
+    - "Batteri"
+    - "Vätszebehållare"
+    - "Elektronik"
+    - "Okänt objekt"
+
+models:
+  models_dir: "models/trained"
+  base_models:
+    - name: "YOLO26-nano (Basmodell)"
+      family: "YOLO26"
+      weights: "yolo26n.pt"
+    - name: "YOLO26-small (Basmodell)"
+      family: "YOLO26"
+      weights: "yolo26s.pt"
+    - name: "YOLO11-nano (Basmodell)"
+      family: "YOLO"
+      weights: "yolo11n.pt"
+    - name: "RF-DETR-base (Basmodell)"
+      family: "RF-DETR"
+      weights: "rf-detr-base.pth"
+    - name: "Simulated X-ray Detector (Snabbtest/Fallback)"
+      family: "SIMULATED"
+      weights: "simulated"
