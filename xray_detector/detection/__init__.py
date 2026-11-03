@@ -1,0 +1,1 @@
+"""Detektion – modellregistry och inferens."""

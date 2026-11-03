@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# xray-detector: data, modeller, körningar, loggar
+data/
+models/
+runs/
+logs/
+*.pt

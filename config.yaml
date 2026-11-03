@@ -1,0 +1,39 @@
+app:
+  fullscreen: true
+  kiosk: false
+
+capture:
+  backend: auto            # auto | dshow | v4l2
+  streams:
+    - index: 0
+      width: 1920
+      height: 1080
+      fps: 30
+    - index: 1
+      width: 1920
+      height: 1080
+      fps: 30
+
+detection:
+  model_left: models/yolo26n.pt
+  model_right: models/yolo26n.pt
+  conf: 0.4
+  iou: 0.5
+  device: 0                # GPU-index, -1 = CPU
+  half: true
+  preprocess: auto         # auto | none | invert | clahe
+
+classes:
+  - cigaretter
+  - cannabis
+  - kniv
+  - handgranat
+
+dataset:
+  root: data/datasets
+
+training:
+  default_epochs: 100
+  default_imgsz: 640
+  default_batch: 16
+  runs_dir: runs
