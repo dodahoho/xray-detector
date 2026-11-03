@@ -86,24 +86,37 @@ class OpenCVVideoSource(VideoSource):
         self._at_end = False
         self._is_file = spec.type == "file"
 
-    def _backend_flag(self) -> int:
-        if self._is_file:
-            return cv2.CAP_ANY
-        backend = (self.spec.backend or "auto").lower()
-        if self._running_windows():
-            if backend == "msmf" and hasattr(cv2, "CAP_MSMF"):
-                return cv2.CAP_MSMF
-            if backend == "dshow" and hasattr(cv2, "CAP_DSHOW"):
-                return cv2.CAP_DSHOW
-        elif hasattr(cv2, "CAP_V4L2"):
-            return cv2.CAP_V4L2
-        return cv2.CAP_ANY
-
     @staticmethod
     def _running_windows() -> bool:
         import os
 
         return os.name == "nt"
+
+    def _candidate_backends(self) -> list[int]:
+        """Return an ordered list of backend flags to try for this source.
+
+        CAP_ANY is tried first because OpenCV's auto-detection is the most
+        reliable path and avoids driver-lock issues that occur when a
+        specific backend fails before a subsequent attempt.
+        """
+        if self._is_file:
+            return [cv2.CAP_ANY]
+        if not self._running_windows():
+            return [cv2.CAP_V4L2 if hasattr(cv2, "CAP_V4L2") else cv2.CAP_ANY]
+        # CAP_ANY first (most reliable on Windows), then specific backends
+        candidates = [cv2.CAP_ANY]
+        preferred = (self.spec.backend or "auto").lower()
+        # Preferred specific backend second
+        if preferred == "msmf" and hasattr(cv2, "CAP_MSMF"):
+            candidates.append(cv2.CAP_MSMF)
+        elif preferred == "dshow" and hasattr(cv2, "CAP_DSHOW"):
+            candidates.append(cv2.CAP_DSHOW)
+        # Remaining specific backends as last resort
+        for name in ("CAP_MSMF", "CAP_DSHOW"):
+            flag = getattr(cv2, name, None)
+            if flag is not None and flag not in candidates:
+                candidates.append(flag)
+        return candidates
 
     def open(self) -> None:
         if self._is_file:
@@ -112,17 +125,27 @@ class OpenCVVideoSource(VideoSource):
             path = Path(self.spec.file)
             if not path.exists():
                 raise FileNotFoundError(f"Video file not found: {path}")
-            self._capture = cv2.VideoCapture(str(path), self._backend_flag())
+            self._capture = cv2.VideoCapture(str(path), cv2.CAP_ANY)
         else:
-            self._capture = cv2.VideoCapture(int(self.spec.index), self._backend_flag())
-            self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, int(self.spec.width))
-            self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, int(self.spec.height))
-            self._capture.set(cv2.CAP_PROP_FPS, int(self.spec.fps))
-        if not self._capture or not self._capture.isOpened():
-            self.close()
-            raise RuntimeError(
-                f"Could not open video source {self.spec.role}: {self.spec.description}"
-            )
+            index = int(self.spec.index)
+            errors: list[str] = []
+            for flag in self._candidate_backends():
+                cap = cv2.VideoCapture(index, flag)
+                if cap and cap.isOpened():
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, int(self.spec.width))
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, int(self.spec.height))
+                    cap.set(cv2.CAP_PROP_FPS, int(self.spec.fps))
+                    self._capture = cap
+                    break
+                cap.release()
+                errors.append(f"0x{flag:04X}")
+                # Brief pause to let the driver release the device
+                time.sleep(0.3)
+            if self._capture is None:
+                raise RuntimeError(
+                    f"Could not open video source {self.spec.role}: "
+                    f"{self.spec.description} (backends tried: {', '.join(errors)})"
+                )
         self._at_end = False
 
     def read(self) -> np.ndarray | None:

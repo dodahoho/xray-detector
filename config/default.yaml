@@ -20,7 +20,7 @@ video:
     width: 1920
     height: 1080
     fps: 30
-    backend: dshow        # dshow | msmf | auto
+    backend: msmf         # dshow | msmf | auto
     loop_file: true
   cam1:
     type: device
@@ -29,7 +29,7 @@ video:
     width: 1920
     height: 1080
     fps: 30
-    backend: dshow
+    backend: msmf
     loop_file: true
 
 detection:
