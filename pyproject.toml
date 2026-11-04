@@ -16,7 +16,7 @@ dependencies = [
 ml = [
     "torch>=2.5",
     "torchvision>=0.20",
-    "ultralytics>=8.4.198",
+    "ultralytics>=8.4.201",
     "rfdetr>=1.0",
 ]
 windows = [
@@ -30,12 +30,27 @@ build = [
 xray-detector = "xray_detector.main:main"
 
 [dependency-groups]
+# ensure ml extra packages resolve torch from the cu128 index
 dev = [
     "pytest>=8.0",
     "pytest-qt>=4.4",
     "ruff>=0.6",
     "pyright>=1.1",
 ]
+
+[tool.uv]
+# Pull torch/torchvision from the PyTorch cu128 index (CUDA 12.8 wheels with
+# native sm_100/Blackwell kernels, e.g. RTX 50xx). Default PyPI wheels are CPU-only.
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+
+[tool.uv.extra-build-dependencies]
+# (none)
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
 
 [build-system]
 requires = ["hatchling"]
