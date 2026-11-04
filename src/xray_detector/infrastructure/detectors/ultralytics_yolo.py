@@ -44,6 +44,7 @@ class UltralyticsYoloDetector(Detector):
     def predict(self, frame_bgr: np.ndarray) -> list[Detection]:
         if self._model is None:
             raise DetectorUnavailable("YOLO model is not loaded")
+        # Ultralytics replaced the legacy `half` flag with `quantize` (16 = FP16, None = FP32).
         half = self.settings.half and not self.settings.device.lower().startswith("cpu")
         results = self._model.predict(
             source=frame_bgr,
@@ -51,7 +52,7 @@ class UltralyticsYoloDetector(Detector):
             iou=self.settings.iou,
             imgsz=self.settings.imgsz,
             device=self.settings.device,
-            half=half,
+            quantize=16 if half else None,
             verbose=False,
         )
         detections: list[Detection] = []
