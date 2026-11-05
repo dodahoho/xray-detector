@@ -198,7 +198,7 @@ class AnnotationCanvas(QWidget):
             return
         self.selected = None
         self.selection_changed.emit(None)
-        if event.button() == Qt.MouseButton.LeftButton and self.class_name:
+        if event.button() == Qt.MouseButton.LeftButton:
             self._mode = "draw"
             self._drag_start = pos
             self._drag_rect = QRect(pos, pos)
@@ -241,7 +241,7 @@ class AnnotationCanvas(QWidget):
                     top_left.y(),
                     bottom_right.x(),
                     bottom_right.y(),
-                    self.class_name,
+                    self.class_name or "objekt",
                 )
                 self.rects.append(item)
                 self.selected = item
@@ -294,6 +294,8 @@ class AnnotationView(QWidget):
         layout.addLayout(panels, 1)
 
     def load_captures(self, captures: list) -> None:
+        for canvas in self.canvases:
+            canvas.set_class_name(self.class_combo.currentText())
         for canvas, capture in zip(self.canvases, captures):
             canvas.load_frame(capture, self.class_combo.currentText())
         for canvas in self.canvases[len(captures):]:

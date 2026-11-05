@@ -62,11 +62,22 @@ class FileSource(VideoSource):
     def __init__(self, path: Path) -> None:
         super().__init__(SourceInfo(label=path.name))
         self.path = path
+        self._last_read = 0.0
+        self._frame_interval = 0.0
 
     def _open(self) -> cv2.VideoCapture:
-        return cv2.VideoCapture(str(self.path))
+        capture = cv2.VideoCapture(str(self.path))
+        fps = capture.get(cv2.CAP_PROP_FPS)
+        self._frame_interval = 1.0 / fps if fps and fps > 0 else 1.0 / 30.0
+        return capture
 
     def read(self) -> np.ndarray | None:
+        import time
+
+        elapsed = time.perf_counter() - self._last_read
+        if elapsed < self._frame_interval:
+            time.sleep(self._frame_interval - elapsed)
+        self._last_read = time.perf_counter()
         frame = super().read()
         if frame is None:
             self._capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
