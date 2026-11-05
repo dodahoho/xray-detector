@@ -162,6 +162,9 @@ class DetectionView(QWidget):
         self.conf_spin.setValue(config.confidence_threshold)
         self.conf_spin.valueChanged.connect(self._on_model_changed)
         bar.addWidget(self.conf_spin)
+        self.device_label = QLabel("Enhet: kontrollerar...")
+        self.device_label.setStyleSheet("font-weight: bold;")
+        bar.addWidget(self.device_label)
         bar.addStretch(1)
         self.capture_button = QPushButton("Fånga bilder")
         self.capture_button.setMinimumHeight(40)
@@ -213,12 +216,27 @@ class DetectionView(QWidget):
             )
             self.camera_service.set_detector(self.detector)
             device_label = getattr(self.detector, "device_label", "")
-            suffix = f" – {device_label}" if device_label else ""
-            self.error_occurred.emit(f"Modell laddad: {spec.label}{suffix}")
+            if device_label:
+                self.device_label.setText(f"Enhet: {device_label}")
+            self.error_occurred.emit(f"Modell laddad: {spec.label}")
         except Exception as exc:
             self.detector = None
             self.camera_service.set_detector(None)
             self.error_occurred.emit(f"Kunde inte ladda modell: {exc}")
+
+    def check_device(self) -> None:
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                self.device_label.setText(f"Enhet: CUDA ({torch.cuda.get_device_name(0)})")
+                self.device_label.setStyleSheet("font-weight: bold; color: #2a8;")
+            else:
+                self.device_label.setText("Enhet: CPU (CUDA ej tillgänglig)")
+                self.device_label.setStyleSheet("font-weight: bold; color: #c33;")
+        except ImportError:
+            self.device_label.setText("Enhet: PyTorch saknas")
+            self.device_label.setStyleSheet("font-weight: bold; color: #c33;")
 
     def _on_capture(self) -> None:
         captures: list[StreamFrame] = []

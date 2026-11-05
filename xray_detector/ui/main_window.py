@@ -42,6 +42,8 @@ class MainWindow(QMainWindow):
         self.fullscreen_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
         self.fullscreen_shortcut.activated.connect(self._toggle_fullscreen)
 
+        self.detection_view.check_device()
+
     def _toggle_fullscreen(self) -> None:
         if self.isFullScreen():
             self.showNormal()
