@@ -15,13 +15,17 @@ def main() -> None:
 
     from ultralytics import YOLO
 
+    from xray_detector.detection.yolo_detector import resolve_device
+
+    device = resolve_device(args.device)
+    print(f"Träning på enhet: {device}")
     model = YOLO(args.weights)
     model.train(
         data=args.dataset,
         epochs=args.epochs,
         imgsz=args.imgsz,
         batch=args.batch,
-        device=args.device,
+        device=device,
         project=args.output,
         name=f"{Path(args.weights).stem}",
         exist_ok=True,

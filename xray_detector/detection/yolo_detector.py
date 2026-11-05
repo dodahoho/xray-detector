@@ -3,6 +3,14 @@ import numpy as np
 from xray_detector.detection.base import BaseDetector, Detection
 
 
+def resolve_device(requested: str) -> str:
+    import torch
+
+    if requested.startswith("cuda") and not torch.cuda.is_available():
+        return "cpu"
+    return requested
+
+
 class YoloDetector(BaseDetector):
     def __init__(
         self,
@@ -16,7 +24,19 @@ class YoloDetector(BaseDetector):
 
         self.model = YOLO(weights)
         self.confidence_threshold = confidence_threshold
-        self.device = device
+        self.device = resolve_device(device)
+
+    @property
+    def device_label(self) -> str:
+        if self.device.startswith("cuda"):
+            import torch
+
+            try:
+                name = torch.cuda.get_device_name(0)
+            except Exception:
+                name = "GPU"
+            return f"CUDA ({name})"
+        return "CPU (CUDA ej tillgänglig)"
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         result = self.model.predict(

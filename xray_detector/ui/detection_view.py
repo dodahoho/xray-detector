@@ -212,7 +212,9 @@ class DetectionView(QWidget):
                 spec, self.config.classes, self.conf_spin.value()
             )
             self.camera_service.set_detector(self.detector)
-            self.error_occurred.emit(f"Modell laddad: {spec.label}")
+            device_label = getattr(self.detector, "device_label", "")
+            suffix = f" – {device_label}" if device_label else ""
+            self.error_occurred.emit(f"Modell laddad: {spec.label}{suffix}")
         except Exception as exc:
             self.detector = None
             self.camera_service.set_detector(None)
