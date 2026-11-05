@@ -47,6 +47,12 @@ class UvcSource(VideoSource):
 
     def _open(self) -> cv2.VideoCapture:
         capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+        if not capture.isOpened():
+            capture.release()
+            capture = cv2.VideoCapture(self.device_index, cv2.CAP_MSMF)
+        if not capture.isOpened():
+            capture.release()
+            capture = cv2.VideoCapture(self.device_index)
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         return capture

@@ -3,7 +3,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -109,7 +109,7 @@ class StreamPanel(QFrame):
                 f"{detection.class_name} {detection.confidence * 100:.0f}%",
             )
         painter.end()
-        scaled = image.scaled(
+        scaled = QPixmap.fromImage(image).scaled(
             self.display.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,

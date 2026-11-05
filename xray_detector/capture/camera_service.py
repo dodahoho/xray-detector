@@ -33,6 +33,12 @@ class StreamWorker(QThread):
     def run(self) -> None:
         self._running = True
         self.source.open()
+        if not self.source.is_open():
+            self.error_occurred.emit(
+                self.source_id, f"Kunde inte öppna {self.source.info.label}"
+            )
+            self.source_lost.emit(self.source_id)
+            return
         while self._running:
             frame = self.source.read()
             if frame is None:
@@ -53,7 +59,9 @@ class StreamWorker(QThread):
 
     def stop(self) -> None:
         self._running = False
-        self.wait(3000)
+        if not self.wait(5000):
+            self.terminate()
+            self.wait(2000)
         self.source.close()
 
 

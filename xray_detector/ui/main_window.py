@@ -1,3 +1,5 @@
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QLabel, QMainWindow, QStatusBar, QTabWidget
 
 from xray_detector.config import AppConfig
@@ -36,6 +38,16 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status)
         self.status_label = QLabel("Klar")
         self.status.addWidget(self.status_label)
+
+        self.fullscreen_shortcut = QShortcut(QKeySequence(Qt.Key.Key_F11), self)
+        self.fullscreen_shortcut.activated.connect(self._toggle_fullscreen)
+
+    def _toggle_fullscreen(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+            self.showMaximized()
+        else:
+            self.showFullScreen()
 
     def _show_status(self, message: str) -> None:
         self.status_label.setText(message)
