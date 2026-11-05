@@ -52,7 +52,7 @@ class DatasetStore:
         source: str = "",
         version: str = "1.0.0",
     ) -> DatasetMetadata:
-        if self.root.exists() and any(self.root.iterdir()):
+        if self.exists:
             raise FileExistsError(f"Datasetet {self.dataset_id} finns redan")
         self.images_dir.mkdir(parents=True, exist_ok=True)
         now = utc_now_iso()

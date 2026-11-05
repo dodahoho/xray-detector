@@ -17,6 +17,8 @@ dependencies = [
 
 [project.optional-dependencies]
 detection = ["ultralytics>=8.3"]
+
+[dependency-groups]
 dev = ["pytest>=8.0", "pyinstaller>=6.0"]
 
 [project.scripts]

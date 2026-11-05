@@ -39,7 +39,7 @@ class UltralyticsDetectorBackend(DetectorBackend):
             from ultralytics import YOLO
         except Exception as exc:  # pragma: no cover - beror pa installation
             raise DetectorError(
-                "Ultralytics ar inte installerat. Kor: pip install -e \".[detection]\""
+                "Ultralytics ar inte installerat. Kor: uv sync --extra detection"
             ) from exc
 
         self.device = self._resolve_device(self.requested_device)

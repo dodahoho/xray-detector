@@ -21,8 +21,9 @@ för arkitektur och implementationsplan.
 
 Förutsättningar på Windows 11:
 
-- Python 3.11 eller senare (64-bitars) med `python` och `py` i PATH. Använd den
-  version du har installerat, t.ex. `py -3.12 -m venv .venv`.
+- [uv](https://docs.astral.sh/uv/) installerat. Installera med:
+  `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`.
+  Python behöver inte installeras separat – uv hämtar en passande version.
 - Git, om du ska hämta koden från ett repository.
 - Valfritt: NVIDIA-drivrutin med CUDA för GPU-träning och snabbare detektion.
 - Två UVC-kameror inkopplade via USB 3.0.
@@ -30,55 +31,50 @@ Förutsättningar på Windows 11:
 ```powershell
 git clone <repository-url> xray-detector
 cd xray-detector
-py -3.11 -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
+uv sync --extra detection
 ```
 
-Om PowerShell blockerar aktiveringen av virtuella miljön kan du först köra
-`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+`uv sync` skapar `.venv`, installerar projektet och utvecklingsberoendena
+(pytest och PyInstaller). `--extra detection` lägger till Ultralytics och
+PyTorch. Versionerna låses i `uv.lock`; kör `uv sync` igen när `pyproject.toml`
+eller `uv.lock` har ändrats. Nya beroenden läggs till med `uv add <paket>`.
 
-Installera applikationen med detektions- och träningsstöd:
+Vill du använda NVIDIA-GPU bör du installera rätt CUDA-byggd PyTorch enligt
+instruktionerna på pytorch.org. Nedan är ett exempel – kontrollera att
+CUDA-versionen matchar din drivrutin:
 
 ```powershell
-pip install -e ".[detection]"
+uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
 
-`.[detection]` installerar Ultralytics och PyTorch. Vill du använda NVIDIA-GPU
-bör du först installera rätt CUDA-byggd PyTorch enligt instruktionerna på
-pytorch.org. Nedan är ett exempel – kontrollera att CUDA-versionen matchar din
-drivrutin:
-
-```powershell
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-pip install -e ".[detection]"
-```
+Om du senare kör `uv sync` kan PyTorch ersättas av den låsta CPU-versionen – kör
+i så fall `uv pip install`-kommandot igen.
 
 Kontrollera sedan att PyTorch ser GPU:n:
 
 ```powershell
-python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+uv run python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
 ```
 
-Utan `.[detection]` startar applikationen och visar video, men detektion och
+Utan `--extra detection` startar applikationen och visar video, men detektion och
 träning är avstängda. Vid första detektionen laddar Ultralytics ner standardmodellen
 `yolo11n.pt` om den inte redan finns lokalt.
 
 ## Starta
 
-Från projektroten med den virtuella miljön aktiverad:
+Från projektroten:
 
 ```powershell
-xray-detector
+uv run xray-detector
 ```
 
-eller direkt från källkoden utan installerat paket:
+eller direkt från källkoden:
 
 ```powershell
-$env:PYTHONPATH = "src"
-python -m xray_detector
+uv run python -m xray_detector
 ```
 
+`uv run` ser till att miljön är synkad och kör kommandot i projektets `.venv`.
 Vid första starten skapas `data/` automatiskt i den aktuella katalogen.
 
 Användbara argument:
@@ -117,8 +113,8 @@ mittenknappen panorerar.
   inställningarna, eller anslut kamerorna till olika USB-kontroller.
 - **`torch.cuda.is_available()` ger `False`:** installera CUDA-byggd PyTorch och
   kontrollera NVIDIA-drivrutinen.
-- **Detektion/träning är avstängd:** installera `.[detection]` i den aktiva
-  virtuella miljön och starta om applikationen.
+- **Detektion/träning är avstängd:** kör `uv sync --extra detection` och starta
+  om applikationen.
 
 ## Datastruktur
 
@@ -143,8 +139,8 @@ Ett dataset får ny version vid export eller inför träning om det finns ospara
 ## Tester
 
 ```powershell
-pip install -e ".[detection,dev]"
-pytest
+uv sync --extra detection
+uv run pytest
 ```
 
 GUI-testerna körs headless med Qt:s offscreen-plattform och kräver ingen kamera.
@@ -154,12 +150,11 @@ bildpar, konfiguration samt datasetkonvertering och modellmetadata för träning
 
 ## Paketering (Windows, experimentell)
 
-En fristående build kan skapas med PyInstaller från en miljö där beroendena är
-installerade:
+En fristående build kan skapas med PyInstaller via uv:
 
 ```powershell
-pip install -e ".[detection,dev]"
-pyinstaller --noconfirm --windowed --name xray-detector --paths src --collect-all ultralytics launcher.py
+uv sync --extra detection
+uv run pyinstaller --noconfirm --windowed --name xray-detector --paths src --collect-all ultralytics launcher.py
 ```
 
 `launcher.py` finns i projektroten. Bygget är främst avsett för detektion och

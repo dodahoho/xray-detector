@@ -222,7 +222,7 @@ class TrainingView(QWidget):
             QMessageBox.critical(
                 self,
                 "Ultralytics saknas",
-                "Ultralytics är inte installerat.\n\nKör: pip install -e \".[detection]\"",
+                "Ultralytics är inte installerat.\n\nKör: uv sync --extra detection",
             )
             return
         dataset_id = self.dataset_combo.currentData()
