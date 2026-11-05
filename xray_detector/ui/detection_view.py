@@ -10,9 +10,14 @@ import time
 import cv2
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QImage, QPixmap, QPainter, QColor, QPen, QFont
+from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSizePolicy,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 from xray_detector.detection.model_registry import Detection
@@ -20,6 +25,8 @@ from xray_detector.detection.model_registry import Detection
 
 class StreamLabel(QLabel):
     """Visar ett frame med detektions-overlay."""
+
+    retry_requested = Signal()
 
     def __init__(self, title: str, parent=None):
         super().__init__(parent)
@@ -29,20 +36,88 @@ class StreamLabel(QLabel):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._pixmap: QPixmap | None = None
         self._dets: list[Detection] = []
+        self._error_text: str | None = None
         self._fps = 0.0
         self._last_frame_time = 0.0
         self._fps_counter = 0
         self._fps_time = time.time()
+
+        # Knapp som visas i videofönstret när källan inte kunde anslutas.
+        self._retry_btn = QPushButton("Försök igen", self)
+        self._retry_btn.setCursor(Qt.PointingHandCursor)
+        self._retry_btn.setStyleSheet(
+            "QPushButton {"
+            " color: #fff; background: #b33939; border: 1px solid #e06c6c;"
+            " border-radius: 4px; padding: 8px 18px; font-size: 14px;"
+            "}"
+            "QPushButton:hover { background: #d64545; }"
+            "QPushButton:pressed { background: #8f2b2b; }"
+        )
+        self._retry_btn.clicked.connect(self.retry_requested.emit)
+        self._retry_btn.setVisible(False)
         self._show_placeholder()
 
     def _show_placeholder(self) -> None:
         self.setText(f"{self.title}\n(väntar på video...)")
         self.setStyleSheet("color: #888; font-size: 16px; background: #111;")
 
+    def show_connecting(self, attempt: int = 0, max_attempts: int = 0) -> None:
+        """Visa att ett anslutningsförsök pågår (utan retry-knapp)."""
+        self._pixmap = None
+        self._dets = []
+        self._error_text = None
+        self._retry_btn.setVisible(False)
+        if attempt and max_attempts:
+            message = f"Ansluter till videokälla... (försök {attempt}/{max_attempts})"
+        else:
+            message = "Ansluter till videokälla..."
+        self.setText(f"{self.title}\n{message}")
+        self.setStyleSheet(
+            "color: #e0b341; font-size: 16px; background: #000;"
+        )
+        self.update()
+
+    def show_error(self, message: str = "Ingen videokälla") -> None:
+        """Visa svart skärm med felmeddelande och en manuell retry-knapp."""
+        self._pixmap = None
+        self._dets = []
+        self._error_text = message
+        self.setText(f"{self.title}\n{message}")
+        self.setStyleSheet(
+            "color: #ff6b6b; font-size: 18px; background: #000;"
+        )
+        self._retry_btn.setVisible(True)
+        self._position_retry_button()
+        self.update()
+
+    def clear_error(self) -> None:
+        if self._error_text is None and self._retry_btn.isHidden():
+            return
+        self._error_text = None
+        self._retry_btn.setVisible(False)
+        self.setStyleSheet("background: #000;")
+        self.update()
+
+    def _position_retry_button(self) -> None:
+        if self._retry_btn.isHidden():
+            return
+        self._retry_btn.adjustSize()
+        x = max(0, (self.width() - self._retry_btn.width()) // 2)
+        y = min(
+            self.height() // 2 + 28,
+            self.height() - self._retry_btn.height() - 8,
+        )
+        self._retry_btn.move(x, max(0, y))
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._position_retry_button()
+
     def update_frame(self, frame: np.ndarray, dets: list[Detection]) -> None:
         """Uppdatera med nytt frame + detektioner."""
         if frame is None:
             return
+        self.clear_error()
         h, w = frame.shape[:2]
         if frame.ndim == 2:
             rgb = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
@@ -116,6 +191,7 @@ class DetectionView(QWidget):
     """Detektionsläget: split screen + fånga-knapp."""
 
     capture_requested = Signal()
+    stream_retry_requested = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -129,6 +205,12 @@ class DetectionView(QWidget):
         split = QHBoxLayout()
         self.left = StreamLabel("Vänster")
         self.right = StreamLabel("Höger")
+        self.left.retry_requested.connect(
+            lambda: self.stream_retry_requested.emit(0)
+        )
+        self.right.retry_requested.connect(
+            lambda: self.stream_retry_requested.emit(1)
+        )
         split.addWidget(self.left)
         split.addWidget(self.right)
         root.addLayout(split, stretch=1)
@@ -148,6 +230,23 @@ class DetectionView(QWidget):
 
     def set_right(self, frame: np.ndarray, dets: list[Detection]) -> None:
         self.right.update_frame(frame, dets)
+
+    def set_stream_connecting(
+        self, index: int, attempt: int = 0, max_attempts: int = 0
+    ) -> None:
+        """Visa pågående anslutningsförsök för en ström."""
+        label = self.left if index == 0 else self.right
+        label.show_connecting(attempt, max_attempts)
+
+    def set_stream_error(self, index: int, message: str = "Ingen videokälla") -> None:
+        """Visa fel/svart skärm för en enskild ström (0 = vänster, 1 = höger)."""
+        label = self.left if index == 0 else self.right
+        label.show_error(message)
+
+    def set_stream_ok(self, index: int) -> None:
+        """Återställ en ström efter att video återigen tagits emot."""
+        label = self.left if index == 0 else self.right
+        label.clear_error()
 
     def set_status(self, text: str) -> None:
         self.status_label.setText(text)

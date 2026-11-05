@@ -11,11 +11,17 @@ from __future__ import annotations
 
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, QRectF, QPointF, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import (
-    QColor, QFont, QBrush, QPen, QImage, QPainter,
+    QBrush,
+    QColor,
+    QFont,
+    QImage,
+    QPainter,
+    QPen,
+    QTransform,
 )
-from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsRectItem
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 
 class RectItem(QGraphicsRectItem):
@@ -86,8 +92,28 @@ class AnnotationCanvas(QGraphicsView):
         self.selection_changed.emit(self.selected_rect())
 
     # ---- Bild ----
-    def set_image(self, image: np.ndarray) -> None:
+    def set_image(self, image: np.ndarray | None) -> None:
+        """Sätt bild, eller rensa vyn om ``image`` är ``None``."""
         self._image = image
+        self._scene.clear()
+        self._image_item = None
+        if image is None:
+            # Saknad videokälla – visa tydlig platshållare.
+            self._scene.setSceneRect(QRectF(0, 0, 640, 480))
+            text = self._scene.addText("Ingen videokälla")
+            text.setDefaultTextColor(QColor(255, 107, 107))
+            font = text.font()
+            font.setPointSize(18)
+            text.setFont(font)
+            bounds = text.boundingRect()
+            text.setPos(
+                (640 - bounds.width()) / 2,
+                (480 - bounds.height()) / 2,
+            )
+            self.fitInView(self._scene.sceneRect(), Qt.KeepAspectRatio)
+            self._scale = self.transform().m11()
+            return
+
         h, w = image.shape[:2]
         # BGR → RGB → QImage (hanterar både gråskala och färg)
         if image.ndim == 2:
@@ -95,7 +121,6 @@ class AnnotationCanvas(QGraphicsView):
         else:
             rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         qimg = QImage(rgb.data, w, h, w * 3, QImage.Format_RGB888).copy()
-        self._scene.clear()
         self._image_item = self._scene.addPixmap(
             _qimage_to_pixmap(qimg)
         )
@@ -122,7 +147,7 @@ class AnnotationCanvas(QGraphicsView):
         """
         if class_name is None:
             class_name = self.default_class
-        item = RectItem(QRectF(x, y, w, h), class_name, self._scene)
+        item = RectItem(QRectF(x, y, w, h), class_name)
         self._scene.addItem(item)
         return item
 
@@ -154,10 +179,17 @@ class AnnotationCanvas(QGraphicsView):
 
     # ---- Mus: rita ny rektangel ----
     def mousePressEvent(self, event) -> None:
+        if self._image is None:
+            # Ingen bild – tillåt inte att rita rektanglar på tom yta.
+            super().mousePressEvent(event)
+            return
         if event.button() == Qt.LeftButton:
             pos = self.mapToScene(event.position().toPoint())
+            # itemAt kräver en deviceTransform (identitet) i PySide6 – pos är
+            # redan i scenkoordinater, så identitet är rätt transform.
+            item_at_pos = self._scene.itemAt(pos, QTransform())
             # Om man klickar på tom yta (inte på en rektangel) → börja rita
-            if self._scene.itemAt(pos) is None or self._scene.itemAt(pos) is self._image_item:
+            if item_at_pos is None or item_at_pos is self._image_item:
                 self._drawing = True
                 self._start = pos
                 self._rubber = self._scene.addRect(

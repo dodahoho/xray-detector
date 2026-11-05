@@ -3,24 +3,35 @@ from __future__ import annotations
 
 import numpy as np
 from loguru import logger
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QMainWindow, QStackedWidget, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFileDialog, QMessageBox,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
-from xray_detector.config import Config, load_config
-from xray_detector.capture.capture_worker import CaptureWorker
-from xray_detector.detection.inference_worker import InferenceWorker
-from xray_detector.detection.model_registry import BaseModel, create_model, Detection
 from xray_detector.annotation.annotation_view import AnnotationView
+from xray_detector.capture.capture_worker import CaptureWorker
+from xray_detector.config import Config
 from xray_detector.dataset.dataset_manager import DatasetManager
 from xray_detector.dataset.yolo_export import export_yolo
+from xray_detector.detection.inference_worker import InferenceWorker
+from xray_detector.detection.model_registry import (
+    BaseModel,
+    Detection,
+    create_model,
+    resolve_device,
+)
 from xray_detector.training.trainer import TrainingWorker
 from xray_detector.training.training_view import TrainingView
-from xray_detector.ui.detection_view import DetectionView
 from xray_detector.ui.dataset_dialog import DatasetDialog
+from xray_detector.ui.detection_view import DetectionView
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +51,8 @@ class MainWindow(QMainWindow):
         self._training_worker: TrainingWorker | None = None
         self._training_active = False
         self._dataset_version: str | None = None
+        self._stream_errors: set[int] = set()
+        self._stream_ready: set[int] = set()
 
         # Dataset
         self.dataset_manager = DatasetManager(config.dataset_root)
@@ -95,6 +108,7 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.detection_view = DetectionView()
         self.detection_view.capture_requested.connect(self._on_capture)
+        self.detection_view.stream_retry_requested.connect(self._on_retry_stream)
         self.stack.addWidget(self.detection_view)  # index 0
 
         self.annotation_view = AnnotationView(self.config.classes)
@@ -149,6 +163,18 @@ class MainWindow(QMainWindow):
         act_train.triggered.connect(lambda: self._set_mode(2))
         self.addAction(act_train)
 
+    def keyPressEvent(self, event) -> None:
+        """Fånga med F – endast i detektionsläget.
+
+        Hanteras här i stället för som QAction så att F kan skrivas som
+        vanlig text i annoteringens textfält (t.ex. nya klassnamn).
+        """
+        if event.key() == Qt.Key_F and self.stack.currentWidget() is self.detection_view:
+            self._on_capture()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def _set_mode(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
         names = {0: "Detektion", 1: "Annotering", 2: "Träning"}
@@ -165,29 +191,28 @@ class MainWindow(QMainWindow):
         """Starta capture- och inference-threads."""
         self.status_label.setText("Startar videoströmmar...")
         det = self.config.detection
+        device = resolve_device(det.device)
+        if device == "cpu":
+            logger.warning(
+                "CUDA är inte tillgänglig – inferens körs på CPU (config device={})",
+                det.device,
+            )
+        else:
+            logger.info("Använder GPU {} för inferens", device)
 
         # Skapa modeller per stream
         models: dict[int, BaseModel] = {}
         try:
-            models[0] = create_model(det.model_left, det.device, det.half)
-            models[1] = create_model(det.model_right, det.device, det.half)
+            models[0] = create_model(det.model_left, device, det.quantize)
+            models[1] = create_model(det.model_right, device, det.quantize)
         except Exception as e:  # noqa: BLE001
             logger.exception("Kunde inte skapa modeller")
             QMessageBox.critical(self, "Modellfel", f"Kunde inte ladda modeller:\n{e}")
             return
 
         # Capture-threads
-        for i, stream in enumerate(self.config.capture.streams):
-            cw = CaptureWorker(
-                index=i,
-                stream=stream,
-                backend=self.config.capture.backend,
-                preprocess_mode=det.preprocess,
-            )
-            cw.frame_ready.connect(self._on_frame)
-            cw.error.connect(self._on_capture_error)
-            cw.start()
-            self._capture_workers.append(cw)
+        for i in range(len(self.config.capture.streams)):
+            self._start_capture_stream(i)
 
         # Inference-thread
         self._inference = InferenceWorker(models, conf=det.conf, iou=det.iou)
@@ -197,11 +222,58 @@ class MainWindow(QMainWindow):
 
         self.status_label.setText(
             f"Detektion aktiv | {det.model_left} | {det.model_right} | "
-            f"conf={det.conf} device={det.device}"
+            f"conf={det.conf} device={device} quantize={det.quantize}"
         )
 
+    def _start_capture_stream(self, index: int) -> None:
+        """Starta en capture-worker för en enskild ström."""
+        cw = CaptureWorker(
+            index=index,
+            stream=self.config.capture.streams[index],
+            backend=self.config.capture.backend,
+            preprocess_mode=self.config.detection.preprocess,
+        )
+        cw.frame_ready.connect(self._on_frame)
+        cw.connecting.connect(self._on_capture_connecting)
+        cw.error.connect(self._on_capture_error)
+        cw.start()
+        self._capture_workers.append(cw)
+
+    def _on_retry_stream(self, index: int) -> None:
+        """Starta om en ström manuellt när användaren trycker 'Försök igen'."""
+        if index < 0 or index >= len(self.config.capture.streams):
+            return
+        # Stoppa och ta bort eventuell tidigare worker för strömmen.
+        for cw in list(self._capture_workers):
+            if cw.index != index:
+                continue
+            if cw.isRunning():
+                cw.stop()
+            self._capture_workers.remove(cw)
+
+        self._stream_errors.discard(index)
+        self._stream_ready.discard(index)
+        self._latest_frames.pop(index, None)
+        self._latest_dets.pop(index, None)
+        self.detection_view.set_stream_connecting(index)
+        self.status_label.setText(f"Försöker ansluta videokälla (stream {index})...")
+        self._start_capture_stream(index)
+
     def _on_frame(self, index: int, frame: np.ndarray) -> None:
+        was_ready = index in self._stream_ready
+        self._stream_ready.add(index)
         self._latest_frames[index] = frame
+        if index in self._stream_errors:
+            self._stream_errors.discard(index)
+            logger.info("Video återupptagen på stream {}", index)
+        if not was_ready:
+            self.detection_view.set_stream_ok(index)
+            if len(self._stream_ready) >= len(self.config.capture.streams):
+                self.status_label.setText(
+                    "Detektion aktiv – alla videokällor anslutna"
+                )
+            else:
+                self.status_label.setText(f"Video ansluten (stream {index})")
         # Skicka frame till inference-workern (nyaste vinner, drop-oldest)
         if self._inference is not None:
             self._inference.push_frame(index, frame)
@@ -209,9 +281,28 @@ class MainWindow(QMainWindow):
     def _on_detections(self, index: int, dets: list[Detection]) -> None:
         self._latest_dets[index] = dets
 
+    def _on_capture_connecting(
+        self, index: int, attempt: int, max_attempts: int
+    ) -> None:
+        self._stream_ready.discard(index)
+        self.detection_view.set_stream_connecting(index, attempt, max_attempts)
+        self.status_label.setText(
+            f"Ansluter videokälla (stream {index}), försök "
+            f"{attempt}/{max_attempts}..."
+        )
+
     def _on_capture_error(self, index: int, msg: str) -> None:
         logger.error("Capture fel stream {}: {}", index, msg)
-        self.status_label.setText(f"Video fel (stream {index}): {msg}")
+        self._stream_errors.add(index)
+        self._stream_ready.discard(index)
+        # Töm gamla frames så att inte en frusen bild visas som "live"
+        self._latest_frames.pop(index, None)
+        self._latest_dets.pop(index, None)
+        self.detection_view.set_stream_error(index, "Ingen videokälla")
+        self.status_label.setText(
+            f"Ingen videokälla (stream {index}): {msg} – "
+            f"använd 'Försök igen' i videofönstret"
+        )
 
     def _on_inference_error(self, index: int, msg: str) -> None:
         logger.error("Inferens fel stream {}: {}", index, msg)
@@ -232,9 +323,13 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------- Fångning
     def _on_capture(self) -> None:
+        # Endast från detektionsläget (F-kortkommandot är visserligen bundet
+        # till detektionsvyn, men knappen kan även trigga via andra vägar).
+        if self.stack.currentWidget() is not self.detection_view:
+            return
         f0 = self._latest_frames.get(0)
         f1 = self._latest_frames.get(1)
-        if f0 is None or f1 is None:
+        if f0 is None and f1 is None:
             QMessageBox.warning(self, "Fånga", "Ingen video ännu – vänta på strömmarna")
             return
         d0 = self._latest_dets.get(0, [])
@@ -248,8 +343,21 @@ class MainWindow(QMainWindow):
         right_img = self.annotation_view.right_image
         left_anns = self.annotation_view.left_annotations
         right_anns = self.annotation_view.right_annotations
-        if left_img is None or right_img is None:
+
+        # Spara de strömmar som faktiskt har en bild. Med bara ett UVC-kort
+        # saknas den andra strömmen och ska inte blockera annoteringen.
+        images: list[np.ndarray] = []
+        annotations: list[list[dict]] = []
+        if left_img is not None:
+            images.append(left_img)
+            annotations.append(left_anns)
+        if right_img is not None:
+            images.append(right_img)
+            annotations.append(right_anns)
+
+        if not images:
             self._set_mode(0)
+            self.status_label.setText("Annotering klar – inga bilder att spara")
             return
 
         # Säkerställ att en datasetversion finns
@@ -261,13 +369,14 @@ class MainWindow(QMainWindow):
 
         added = self.dataset_manager.add_images(
             self._dataset_version,
-            [left_img, right_img],
-            [left_anns, right_anns],
+            images,
+            annotations,
             source="capture",
         )
+        num_objects = sum(len(a) for a in annotations)
         self.status_label.setText(
             f"Sparade {added} bilder i {self._dataset_version} "
-            f"({len(left_anns)} + {len(right_anns)} objekt)"
+            f"({num_objects} objekt)"
         )
         self._set_mode(0)
 
@@ -339,10 +448,11 @@ class MainWindow(QMainWindow):
         if self._inference is not None:
             self._inference.stop()
         det = self.config.detection
+        device = resolve_device(det.device)
         models: dict[int, BaseModel] = {}
         try:
-            models[0] = create_model(det.model_left, det.device, det.half)
-            models[1] = create_model(det.model_right, det.device, det.half)
+            models[0] = create_model(det.model_left, device, det.quantize)
+            models[1] = create_model(det.model_right, device, det.quantize)
         except Exception as e:  # noqa: BLE001
             QMessageBox.critical(self, "Modellfel", str(e))
             return
@@ -358,6 +468,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         if self._training_active:
             return
+        device = resolve_device(device)
         # Exportera dataset till YOLO
         ds = self.dataset_manager.open(ds_version)
         if not ds.images:
@@ -395,7 +506,7 @@ class MainWindow(QMainWindow):
         if self._inference is not None:
             self._inference.set_paused(False)
         self.training_view.set_finished(path)
-        self.status_label.setText(f"Träning klar – detektion återupptagen")
+        self.status_label.setText("Träning klar – detektion återupptagen")
         # Uppdatera modell-lista
         self._refresh_training_datasets()
 

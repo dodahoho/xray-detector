@@ -1,9 +1,9 @@
 """Entry point för xray-detector.
 
 Kör:
-    python main.py
-    python main.py --config path/to/config.yaml
-    python main.py --no-fullscreen
+    uv run python main.py
+    uv run python main.py --config path/to/config.yaml
+    uv run python main.py --no-fullscreen
 """
 from __future__ import annotations
 
@@ -12,11 +12,10 @@ import sys
 from pathlib import Path
 
 from loguru import logger
-
 from PySide6.QtWidgets import QApplication
 
-from xray_detector.config import load_config
 from xray_detector.app import MainWindow
+from xray_detector.config import load_config
 
 
 def parse_args() -> argparse.Namespace:

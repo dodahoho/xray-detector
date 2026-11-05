@@ -66,7 +66,9 @@ Python 3.10+. CUDA 12.x + cuDNN på måldatorn.
 ```
 xray-detector/
 ├── main.py                     # Entry point, startar QApplication
-├── requirements.txt
+├── pyproject.toml              # Projekt + beroenden (uv)
+├── uv.lock                     # Låsta beroenden
+├── setup.sh
 ├── config.yaml                 # kameror, modeller, dataset-path, klasser
 ├── specs.md
 ├── implementation_plan.md
@@ -178,7 +180,7 @@ class TrainingWorker(QThread):
 ## 6. Fasplan
 
 ### Fas 1 – Grundstruktur (dag 1)
-- [ ] `requirements.txt` (PySide6, opencv-python, ultralytics, pydantic, loguru, numpy)
+- [ ] `pyproject.toml` + `uv.lock` (PySide6, opencv-python, ultralytics, pydantic, loguru, numpy) hanteras med uv
 - [ ] `config.yaml` + `config.py` (Pydantic): kameraindex, backend, klasser, paths, trösklar
 - [ ] `main.py` + `app.py`: MainWindow med lägesväxling (stacked widget), fullscreen-toggle (F11), kiosk-läge
 - [ ] Projektstruktur enligt §3.2, `.gitignore` uppdaterad (data/, models/, runs/)
@@ -218,13 +220,13 @@ class TrainingWorker(QThread):
 
 ### Fas 7 – Kiosk & prestanda (dag 10–11)
 - [ ] Fullscreen/kioskläge: auto-start, ingen taskbar, tangentbordsflöde (F=fånga, F11=fullscreen, Esc=avbryt annotation)
-- [ ] Prestanda: mät FPS + inferenslatens, optimera (GPU half-precision, `half=True`, batch=1, `device=0`)
+- [ ] Prestanda: mät FPS + inferenslatens, optimera (GPU half-precision, `quantize="fp16"`, batch=1, `device=0`)
 - [ ] Träningsplanering: "köra träning nattetid" – enkel tidsplanerare (t.ex. starta kl X om ingen aktivitet) eller dokumenterad manuell start
 - [ ] Robusthet: auto-restart av capture vid fel, loggning, crash-säkerhet
 
 ### Fas 8 – Windows-deploy (dag 11–12)
 - [ ] Testa på Windows 11: DSHOW-backend, USB3-bandbredd för två strömmar, CUDA
-- [ ] `setup.sh` → `setup.ps1`/`setup.bat` för Windows (Python, CUDA, pip install)
+- [ ] `setup.sh` → `setup.ps1`/`setup.bat` för Windows (Python, CUDA, `uv sync`)
 - [ ] PyInstaller-spec för exe (inkl. CUDA-libs – kan kräva att CUDA finns installerat systemvänt)
 - [ ] README: installation, konfiguration, drift
 
@@ -253,7 +255,7 @@ detection:
   conf: 0.4
   iou: 0.5
   device: 0                # GPU
-  half: true
+  quantize: fp16
 classes:
   - cigaretter
   - cannabis

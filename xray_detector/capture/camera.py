@@ -44,7 +44,7 @@ class CameraSource:
         """Öppna kameran. Returnerar True vid framgång."""
         self.close()
         api = _pick_backend(self.backend)
-        logger.info(
+        logger.debug(
             "Öppnar kamera index={} backend={} {}x{}@{}fps",
             self.stream.index, self.backend,
             self.stream.width, self.stream.height, self.stream.fps,
@@ -52,13 +52,13 @@ class CameraSource:
         self._cap = cv2.VideoCapture(self.stream.index, api)
         if not self._cap.isOpened():
             # Fallback: försök utan explicit backend
-            logger.warning(
+            logger.debug(
                 "Backend {} misslyckades för index={}, försöker default",
                 self.backend, self.stream.index,
             )
             self._cap = cv2.VideoCapture(self.stream.index)
             if not self._cap.isOpened():
-                logger.error("Kunde inte öppna kamera index={}", self.stream.index)
+                logger.debug("Kunde inte öppna kamera index={}", self.stream.index)
                 self._cap = None
                 return False
         self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.stream.width)

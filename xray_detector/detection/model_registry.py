@@ -6,7 +6,7 @@ YOLO och RF-DETR-vikter med samma API).
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -32,15 +32,77 @@ class Detection:
         }
 
 
+def resolve_device(device: int | str) -> int | str:
+    """Returnera en enhet som Ultralytics kan använda.
+
+    Faller tillbaka på ``"cpu"`` när CUDA inte är tillgängligt eller när ett
+    ogiltigt GPU-index angetts. Config använder ``-1`` för CPU.
+    """
+    if isinstance(device, str):
+        value = device.strip().lower()
+        if value in ("", "cpu"):
+            return "cpu"
+        value = value.removeprefix("cuda:")
+        try:
+            device = int(value)
+        except ValueError:
+            logger.warning("Okänt device '{}' – använder CPU", device)
+            return "cpu"
+
+    if device < 0:
+        return "cpu"
+
+    try:
+        import torch
+    except Exception as e:  # noqa: BLE001
+        logger.warning("PyTorch kunde inte importeras ({}) – använder CPU", e)
+        return "cpu"
+
+    if not torch.cuda.is_available():
+        return "cpu"
+
+    count = torch.cuda.device_count()
+    if device >= count:
+        logger.warning(
+            "GPU-index {} finns inte ({} GPU:er) – använder GPU 0",
+            device, count,
+        )
+        return 0
+    return device
+
+
 class BaseModel(ABC):
     """Abstrakt detektionsmodell."""
 
-    def __init__(self, path: str | Path, device: int = 0, half: bool = True):
+    def __init__(self, path: str | Path, device: int | str = 0, quantize: str = "fp16"):
         self.path = str(path)
         self.device = device
-        self.half = half
+        self.quantize = quantize
         self._model = None
         self._classes: list[str] = []
+        self._runtime_device: int | str | None = None
+
+    def _effective_device(self) -> int | str:
+        """Faktisk enhet – faller tillbaka på CPU om CUDA saknas."""
+        if self._runtime_device is None:
+            self._runtime_device = resolve_device(self.device)
+            if self._runtime_device == "cpu" and self.device not in ("cpu", -1):
+                logger.warning(
+                    "Ingen CUDA-enhet tillgänglig – {} körs på CPU",
+                    Path(self.path).name,
+                )
+        return self._runtime_device
+
+    def _effective_quantize(self) -> str:
+        """Precision som skickas till Ultralytics.
+
+        Endast ``fp16``/``fp32`` är relevanta för inferens. På CPU tvingas
+        FP32 eftersom FP16 inte stöds där.
+        """
+        if self._effective_device() == "cpu":
+            return "fp32"
+        value = str(self.quantize).strip().lower()
+        return "fp16" if value in ("fp16", "16", "half", "true") else "fp32"
 
     @abstractmethod
     def _load(self) -> None:
@@ -48,8 +110,9 @@ class BaseModel(ABC):
 
     def load(self) -> None:
         if self._model is None:
-            logger.info("Laddar modell {} (device={}, half={})",
-                        self.path, self.device, self.half)
+            logger.info("Laddar modell {} (device={}, quantize={})",
+                        self.path, self._effective_device(),
+                        self._effective_quantize())
             self._load()
 
     @property
@@ -78,7 +141,12 @@ class UltralyticsModel(BaseModel):
         # Värm upp (kompilerar CUDA-kärnor)
         try:
             dummy = np.zeros((640, 640, 3), dtype=np.uint8)
-            self._model.predict(dummy, device=self.device, half=self.half, verbose=False)
+            self._model.predict(
+                dummy,
+                device=self._effective_device(),
+                quantize=self._effective_quantize(),
+                verbose=False,
+            )
         except Exception as e:  # noqa: BLE001
             logger.warning("Värmup misslyckades: {}", e)
 
@@ -87,8 +155,8 @@ class UltralyticsModel(BaseModel):
             self.load()
         results = self._model.predict(
             frame,
-            device=self.device,
-            half=self.half,
+            device=self._effective_device(),
+            quantize=self._effective_quantize(),
             conf=conf,
             iou=iou,
             verbose=False,
@@ -106,6 +174,6 @@ class UltralyticsModel(BaseModel):
         return dets
 
 
-def create_model(path: str | Path, device: int = 0, half: bool = True) -> BaseModel:
+def create_model(path: str | Path, device: int | str = 0, quantize: str = "fp16") -> BaseModel:
     """Fabrik: skapar en modell från en .pt-fil."""
-    return UltralyticsModel(path, device=device, half=half)
+    return UltralyticsModel(path, device=device, quantize=quantize)

@@ -19,9 +19,9 @@ detection:
   model_right: models/yolo26n.pt
   conf: 0.4
   iou: 0.5
-  device: 0                # GPU-index, -1 = CPU
-  half: true
-  preprocess: auto         # auto | none | invert | clahe
+  device: 0                # GPU-index, -1 = CPU (faller tillbaka på CPU om CUDA saknas)
+  quantize: fp16           # fp16 | fp32 (fp32 tvingas på CPU)
+  preprocess: none         # auto | none | invert | clahe (auto/clahe bevarar färg)
 
 classes:
   - cigaretter

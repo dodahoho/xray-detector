@@ -6,10 +6,10 @@ projektets rotkatalog (där config.yaml ligger).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -34,8 +34,23 @@ class DetectionConfig(BaseModel):
     conf: float = 0.4
     iou: float = 0.5
     device: int = 0
-    half: bool = True
+    quantize: Literal["fp16", "fp32"] = "fp16"
     preprocess: Literal["auto", "none", "invert", "clahe"] = "auto"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_half(cls, data: Any) -> Any:
+        """Mappa äldre ``half: true/false`` till ``quantize: fp16/fp32``.
+
+        ``half`` är deprecated i Ultralytics. Vi behåller det som alias så att
+        befintliga config-filer fortsätter fungera.
+        """
+        if isinstance(data, dict) and "half" in data:
+            data = dict(data)
+            legacy = data.pop("half")
+            if "quantize" not in data and legacy is not None:
+                data["quantize"] = "fp16" if legacy else "fp32"
+        return data
 
 
 class AppConfig(BaseModel):

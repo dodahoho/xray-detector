@@ -20,31 +20,75 @@ Se `specs.md` för krav och `implementation_plan.md` för arkitektur.
 ## Krav
 
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (hanterar Python, `.venv` och låsta beroenden)
 - NVIDIA GPU med CUDA 12.x + cuDNN (för GPU-inferens/träning)
 - OpenCV med DSHOW (Windows) / V4L2 (Linux)
 - Två UVC capture-kort via USB3 (på måldatorn)
 
 ## Installation
 
+Projektet använder [uv](https://docs.astral.sh/uv/). `uv sync` skapar `.venv`
+och installerar exakta versioner från `uv.lock`.
+
+Installera uv om det saknas:
+
+```bash
+# Linux/macOS
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
 ### Linux (utveckling)
 
 ```bash
 ./setup.sh
-source .venv/bin/activate
-python main.py
+uv run python main.py
 ```
 
 ### Windows 11 (mål)
 
 ```powershell
-py -3.10 -m venv .venv
-.venv\Scripts\Activate
-pip install -r requirements.txt
-python main.py
+uv sync
+uv run python main.py
 ```
+
+`uv sync` laddar automatiskt ner den Python-version som `.python-version` anger
+(om filen finns) om den inte redan är installerad. Du behöver inte aktivera
+`.venv` – `uv run` använder projektets miljö automatiskt.
 
 Säkerställ att CUDA 12 + cuDNN är installerat systemvänt för GPU-stöd.
 UVC-kort används via OpenCV:s DSHOW-backend (väljs automatiskt på Windows).
+
+## Beroenden
+
+Beroenden deklareras i `pyproject.toml` och låses i `uv.lock`.
+
+```bash
+uv add <paket>            # lägg till ett beroende
+uv sync                   # uppdatera .venv från låsfilen
+uv lock --upgrade         # uppdatera låsta versioner
+uv run python main.py     # kör i projektets miljö
+```
+
+### GPU (CUDA)
+
+`pyproject.toml` hämtar CUDA-byggda `torch`/`torchvision` från PyTorchs
+`cu130`-index (kräver NVIDIA-drivrutin med CUDA 13.x). Det behövs för RTX
+50-serien (sm_120) och annan modern NVIDIA-hårdvara.
+
+Kontrollera efter `uv sync`:
+
+```bash
+uv run python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda.is_available())"
+```
+
+Vid äldre drivrutin: byt `cu130` mot `cu128` i `pyproject.toml` och kör
+`uv lock && uv sync`. Saknas CUDA helt faller appen automatiskt tillbaka på CPU
+(och loggar en varning).
 
 ## Konfiguration
 
@@ -53,21 +97,30 @@ Se filen för alla alternativ. Viktigaste:
 
 - `capture.streams` – index/resolution/FPS per capture-kort
 - `detection.model_left` / `model_right` – .pt-vikter per ström
-- `detection.preprocess` – `auto` (gråskala+CLAHE), `invert`, `none`, `clahe`
+- `detection.device` – GPU-index (`-1` = CPU; faller tillbaka på CPU automatiskt)
+- `detection.quantize` – `fp16` (default på GPU) eller `fp32` (tvingas på CPU)
+- `detection.preprocess` – `auto` (CLAHE, bevarar färg), `invert`, `none`, `clahe`
 - `classes` – initial klasslista
+
+Äldre `detection.half: true/false` fungerar fortfarande och mappas automatiskt
+till `quantize: fp16/fp32`.
 
 ## Användning
 
 | Tangent | Funktion |
 |---|---|
-| `F` | Fånga bilder från båda strömmarna → annotering |
+| `F` | Fånga bilder → annotering (fungerar även med bara en ansluten ström) |
 | `F11` | Fullscreen på/av |
 | `1` | Detektionsläge |
 | `3` | Träningsläge |
 | `Delete` | Ta bort markerad rektangel (i annotering) |
 
 Flöde: **Detektera → Fånga (F) → Annotera → Spara → (Dataset) Exportera YOLO →
-Träna → Ladda ny modell → Detektera.**
+Träna → Ladda ny modell → Detektera.** När annoteringen sparas återgår appen
+automatiskt till detektionsläget.
+
+Om bara ett capture-kort är anslutet visas den anslutna strömmen som vanligt
+medan den andra visar en svart skärm med texten **Ingen videokälla**.
 
 ## Dataset
 
@@ -82,7 +135,8 @@ Träna → Ladda ny modell → Detektera.**
 xray-detector/
 ├── main.py                  # Entry point
 ├── config.yaml              # Konfiguration
-├── requirements.txt
+├── pyproject.toml           # Projekt + beroenden
+├── uv.lock                  # Låsta beroenden
 ├── setup.sh
 ├── specs.md
 ├── implementation_plan.md

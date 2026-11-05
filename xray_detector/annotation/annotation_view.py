@@ -7,13 +7,18 @@ Flöde:
 """
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QComboBox, QLineEdit,
-    QPushButton, QLabel, QSizePolicy,
-)
-
 import numpy as np
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 from xray_detector.annotation.annotation_canvas import AnnotationCanvas, RectItem
 from xray_detector.detection.model_registry import Detection
@@ -80,18 +85,24 @@ class AnnotationView(QWidget):
     # ---- Datainmatning ----
     def set_images(
         self,
-        left: np.ndarray,
-        right: np.ndarray,
+        left: np.ndarray | None,
+        right: np.ndarray | None,
         left_dets: list[Detection] | None = None,
         right_dets: list[Detection] | None = None,
     ) -> None:
-        """Sätt frysta bilder och förinrita befintliga detektioner."""
+        """Sätt frysta bilder och förinrita befintliga detektioner.
+
+        En sida får vara ``None`` när motsvarande videokälla saknas; vyn visar
+        då "Ingen videokälla" och inga rektanglar kan ritas där.
+        """
         self.canvas_left.set_image(left)
         self.canvas_right.set_image(right)
-        for d in (left_dets or []):
-            self.canvas_left.add_rect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1, d.class_name)
-        for d in (right_dets or []):
-            self.canvas_right.add_rect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1, d.class_name)
+        if left is not None:
+            for d in (left_dets or []):
+                self.canvas_left.add_rect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1, d.class_name)
+        if right is not None:
+            for d in (right_dets or []):
+                self.canvas_right.add_rect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1, d.class_name)
 
     # ---- Klasshantering ----
     def _add_new_class(self) -> None:

@@ -35,7 +35,7 @@ class TrainingWorker(QThread):
         epochs: int,
         imgsz: int,
         batch: int,
-        device: int,
+        device: int | str,
         project_dir: Path,
         parent=None,
     ):
@@ -82,7 +82,7 @@ class TrainingWorker(QThread):
                 f"Startar träning: epochs={self.epochs} imgsz={self.imgsz} "
                 f"batch={self.batch} device={self.device}"
             )
-            results = model.train(
+            model.train(
                 data=self.data_yaml,
                 epochs=self.epochs,
                 imgsz=self.imgsz,
