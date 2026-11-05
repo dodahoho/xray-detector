@@ -25,10 +25,11 @@ class TrainingView(QWidget):
     training_finished = Signal()
     status_changed = Signal(str)
 
-    def __init__(self, config: AppConfig, store: DatasetStore, parent=None) -> None:
+    def __init__(self, config: AppConfig, store: DatasetStore, settings, parent=None) -> None:
         super().__init__(parent)
         self.config = config
         self.store = store
+        self.settings = settings
         self.worker: TrainingWorker | None = None
         layout = QVBoxLayout(self)
         layout.addLayout(self._build_settings())
@@ -86,6 +87,35 @@ class TrainingView(QWidget):
         row.addWidget(self.export_yolo_button)
         row.addStretch(1)
         return row
+
+    def restore_settings(self) -> None:
+        weights = self.settings.value("training/base_model", type=str)
+        if weights:
+            index = self.model_combo.findData(weights)
+            if index >= 0:
+                self.model_combo.setCurrentIndex(index)
+        for key, spin, default in (
+            ("epochs", self.epochs_spin, 100),
+            ("imgsz", self.imgsz_spin, 640),
+            ("batch", self.batch_spin, 16),
+        ):
+            value = self.settings.value(f"training/{key}", default, type=int)
+            if value:
+                spin.setValue(value)
+        version = self.settings.value("training/version", type=int)
+        if version:
+            index = self.version_combo.findData(version)
+            if index >= 0:
+                self.version_combo.setCurrentIndex(index)
+
+    def save_settings(self) -> None:
+        self.settings.setValue("training/base_model", self.model_combo.currentData())
+        self.settings.setValue("training/epochs", self.epochs_spin.value())
+        self.settings.setValue("training/imgsz", self.imgsz_spin.value())
+        self.settings.setValue("training/batch", self.batch_spin.value())
+        version = self.version_combo.currentData()
+        if version is not None:
+            self.settings.setValue("training/version", version)
 
     def refresh_versions(self) -> None:
         self.version_combo.blockSignals(True)

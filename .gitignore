@@ -218,3 +218,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Projektdata och tränade modeller (skapas vid körning)
+data/
+models/
+logs/
+*.pt
+*.onnx
+
+# GUI-inställningar om datamappen pekas in i repot
+settings.ini

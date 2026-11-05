@@ -84,6 +84,7 @@ class DatasetStore:
         coco = self._load_coco(version)
         image_id = max((img["id"] for img in coco["images"]), default=0) + 1
         annotation_id = max((ann["id"] for ann in coco["annotations"]), default=0) + 1
+        group_id = max((img.get("group", 0) for img in coco["images"]), default=0) + 1
         for sample in samples:
             image_name = f"img_{image_id:06d}.png"
             cv2.imwrite(str(path / "images" / image_name), sample.frame)
@@ -94,6 +95,7 @@ class DatasetStore:
                     "file_name": image_name,
                     "width": width,
                     "height": height,
+                    "group": group_id,
                 }
             )
             for annotation in sample.annotations:
@@ -113,6 +115,20 @@ class DatasetStore:
 
     def metadata(self, version: int) -> dict:
         return self._load_coco(version)["info"]
+
+    def delete_images(self, version: int, image_ids: list[int]) -> None:
+        coco = self._load_coco(version)
+        ids = set(image_ids)
+        file_names = {
+            img["file_name"] for img in coco["images"] if img["id"] in ids
+        }
+        coco["images"] = [img for img in coco["images"] if img["id"] not in ids]
+        coco["annotations"] = [
+            ann for ann in coco["annotations"] if ann["image_id"] not in ids
+        ]
+        self._save_coco(version, coco)
+        for name in file_names:
+            (self.version_dir(version) / "images" / name).unlink(missing_ok=True)
 
     def load_coco(self, version: int) -> dict:
         return self._load_coco(version)

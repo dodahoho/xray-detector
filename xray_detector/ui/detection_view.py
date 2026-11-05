@@ -40,6 +40,7 @@ class StreamPanel(QFrame):
         super().__init__(parent)
         self.source_id = source_id
         self.latest: StreamFrame | None = None
+        self._active: tuple[str, object] = ("none", None)
         self.setMinimumSize(2, 2)
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
@@ -63,6 +64,7 @@ class StreamPanel(QFrame):
 
     def _on_source_changed(self, text: str) -> None:
         if text == NO_SOURCE:
+            self._active = ("none", None)
             self.source_requested.emit(self.source_id, "none", None)
             self._show_no_source()
         elif text == OPEN_FILE:
@@ -70,14 +72,34 @@ class StreamPanel(QFrame):
                 self, "Välj videofil", "", "Videofiler (*.mp4 *.avi *.mkv *.mov)"
             )
             if path:
+                self._active = ("file", path)
                 self.source_requested.emit(self.source_id, "file", Path(path))
                 self.source_combo.setItemText(self.source_combo.currentIndex(), Path(path).name)
             else:
                 self.source_combo.setCurrentIndex(0)
         elif text.startswith(UVC_PREFIX):
             index = int(text.removeprefix(UVC_PREFIX))
+            self._active = ("uvc", index)
             self.source_requested.emit(self.source_id, "uvc", index)
         self.latest = None
+
+    def current_source(self) -> tuple[str, object]:
+        return self._active
+
+    def restore_source(self, kind: str, value) -> None:
+        if kind == "uvc" and value is not None:
+            index = self.source_combo.findText(f"{UVC_PREFIX}{value}")
+            if index >= 0:
+                self.source_combo.setCurrentIndex(index)
+        elif kind == "file" and value:
+            open_index = self.source_combo.findText(OPEN_FILE)
+            if open_index >= 0:
+                self.source_combo.setItemText(open_index, Path(value).name)
+                self.source_combo.setCurrentIndex(open_index)
+                self._active = ("file", value)
+                self.source_requested.emit(self.source_id, "file", Path(value))
+        else:
+            self.source_combo.setCurrentIndex(0)
 
     def _show_no_source(self) -> None:
         self.display.setText(NO_SOURCE)
@@ -137,9 +159,10 @@ class DetectionView(QWidget):
     capture_requested = Signal(object)
     error_occurred = Signal(str)
 
-    def __init__(self, config: AppConfig, parent=None) -> None:
+    def __init__(self, config: AppConfig, settings, parent=None) -> None:
         super().__init__(parent)
         self.config = config
+        self.settings = settings
         self.camera_service = CameraService()
         self.detector: BaseDetector | None = None
         layout = QVBoxLayout(self)
@@ -178,6 +201,29 @@ class DetectionView(QWidget):
             panel.source_requested.connect(self._on_source_requested)
             panels.addWidget(panel, 1)
         layout.addLayout(panels, 1)
+
+    def restore_settings(self) -> None:
+        model_key = self.settings.value("detection/model", type=str)
+        if model_key:
+            index = self.model_combo.findData(model_key)
+            if index >= 0:
+                self.model_combo.setCurrentIndex(index)
+        confidence = self.settings.value("detection/confidence", type=float)
+        if confidence:
+            self.conf_spin.setValue(confidence)
+        for panel in (self.left, self.right):
+            kind = self.settings.value(f"detection/source_{panel.source_id}_kind", type=str)
+            value = self.settings.value(f"detection/source_{panel.source_id}_value")
+            if kind:
+                panel.restore_source(kind, value)
+
+    def save_settings(self) -> None:
+        self.settings.setValue("detection/model", self.model_combo.currentData())
+        self.settings.setValue("detection/confidence", self.conf_spin.value())
+        for panel in (self.left, self.right):
+            kind, value = panel.current_source()
+            self.settings.setValue(f"detection/source_{panel.source_id}_kind", kind)
+            self.settings.setValue(f"detection/source_{panel.source_id}_value", value)
 
     def _on_source_requested(self, source_id: str, kind: str, value: object) -> None:
         from xray_detector.capture.source import FileSource, UvcSource
