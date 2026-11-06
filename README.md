@@ -2,6 +2,20 @@
 
 Applikation för detektion av objekt i video med röntgenbilder. Se `specs.md` för krav och `PLAN.md` för implementeringsplan.
 
+## Utveckla
+
+Under utveckling testas olika kodagenter och ramverk. Koden är till största del skapad med AI-verktyg.  
+
+För hålla koll på uppgifter (tasks) används [Backlog.md](https://github.com/MrLesk/Backlog.md)  
+
+För kontinuerlig översikt arkitektur och monitorering av förändringar används [Groma.md](https://github.com/MrLesk/Groma.md)  
+
+Konfiguration för både Backlog och Groma sparas i detta repo. Kommandoverktyg installeras med t ex npm. GUI för browser startas enligt nedan.  
+```bash
+$ backlog browser
+$ groma web
+```
+
 ## Köra
 
 Kräver Python 3.11+ och [uv](https://docs.astral.sh/uv/). CUDA-rekommenderas för detektion och träning.
