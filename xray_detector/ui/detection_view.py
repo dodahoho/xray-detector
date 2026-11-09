@@ -37,6 +37,7 @@ class StreamPanel(QFrame):
         self.known_classes: list[str] = []
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
+        self._base_title = title
         self.setMinimumSize(2, 2)
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
@@ -106,10 +107,13 @@ class StreamPanel(QFrame):
     def _show_no_source(self) -> None:
         self.display.setText(NO_SOURCE)
         self.display.setStyleSheet("color: #888; font-size: 24px; background: #222;")
+        self.title_label.setText(self._base_title)
         self.latest = None
 
     def show_frame(self, stream_frame: StreamFrame) -> None:
         self.latest = stream_frame
+        if stream_frame.fps:
+            self.title_label.setText(f"{self._base_title} · {stream_frame.fps:.1f} fps")
         image = self._to_qimage(stream_frame.frame)
         painter = QPainter(image)
         pen = QPen()

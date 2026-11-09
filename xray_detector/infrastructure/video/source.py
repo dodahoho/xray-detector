@@ -55,6 +55,8 @@ class UvcSource(VideoSource):
             capture = cv2.VideoCapture(self.device_index)
         capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        # Drivrutinens interna buffert haller bara senaste ramen: lag latens.
+        capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return capture
 
 

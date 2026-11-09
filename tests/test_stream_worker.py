@@ -6,7 +6,7 @@ import pytest
 from PySide6.QtCore import QTimer
 
 from tests.conftest import synthetic_frame
-from xray_detector.infrastructure.video.camera_service import StreamWorker
+from xray_detector.infrastructure.video.camera_service import FPS_WINDOW_FRAMES, StreamWorker
 from xray_detector.infrastructure.video.source import FileSource
 
 
@@ -77,3 +77,53 @@ def test_stream_worker_without_detector_emits_empty_detections(qapp, video_file)
         worker.stop()
     assert received[0].detections == []
     assert np.asarray(received[0].frame).dtype == np.uint8
+
+
+def test_stream_worker_numbers_frames_monotonically(qapp, video_file, fake_detector):
+    worker = StreamWorker("left", FileSource(video_file))
+    received = []
+    worker.frame_ready.connect(lambda frame: received.append(frame))
+    worker.set_detector(fake_detector)
+    worker.start()
+    try:
+        assert wait_for(qapp, lambda: len(received) >= 3), "inga ramer togs emot"
+    finally:
+        worker.stop()
+    sequences = [frame.sequence for frame in received]
+    assert sequences == sorted(sequences) and len(set(sequences)) == len(sequences)
+    assert sequences[0] >= 1
+
+
+def test_stream_worker_measures_fps(qapp, video_file):
+    worker = StreamWorker("left", FileSource(video_file))
+    received = []
+    worker.frame_ready.connect(lambda frame: received.append(frame))
+    worker.start()
+    try:
+        assert wait_for(qapp, lambda: len(received) >= FPS_WINDOW_FRAMES), "for fa ramar for fps-matning"
+    finally:
+        worker.stop()
+    fps_values = [frame.fps for frame in received if frame.fps]
+    assert fps_values and all(value > 0 for value in fps_values)
+
+
+def test_stream_frame_defaults_backward_compatible():
+    from xray_detector.domain.capture import StreamFrame as SF
+    import numpy as np
+
+    frame = SF(source_id="x", frame=np.zeros((4, 4, 3), np.uint8), detections=[], source_label="l")
+    assert frame.sequence == 0
+    assert frame.fps is None
+
+
+def test_panel_title_shows_fps(qapp):
+    from PySide6.QtCore import Signal
+    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.domain.capture import StreamFrame
+    from tests.conftest import synthetic_frame
+
+    panel = StreamPanel("left", "Ström 1")
+    panel._show_no_source()
+    assert panel.title_label.text() == "Ström 1"
+    panel.show_frame(StreamFrame("left", synthetic_frame(), [], "k", sequence=1, fps=29.321))
+    assert "29.3 fps" in panel.title_label.text()

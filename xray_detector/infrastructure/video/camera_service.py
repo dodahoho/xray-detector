@@ -1,8 +1,12 @@
+import time
+
 from PySide6.QtCore import QThread, Signal
 
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.video.source import VideoSource
+
+FPS_WINDOW_FRAMES = 30
 
 
 class StreamWorker(QThread):
@@ -16,9 +20,28 @@ class StreamWorker(QThread):
         self.source = source
         self._detector: BaseDetector | None = None
         self._running = False
+        self._sequence = 0
+        self._fps_window_start = time.perf_counter()
+        self._fps_window_count = 0
+        self._fps: float | None = None
 
     def set_detector(self, detector: BaseDetector | None) -> None:
         self._detector = detector
+
+    def _next_sequence(self) -> int:
+        self._sequence += 1
+        return self._sequence
+
+    def _measure_fps(self) -> float | None:
+        """Faktisk uppspelningshastighet, uppmätt över glidande 30 ramar."""
+        self._fps_window_count += 1
+        if self._fps_window_count >= FPS_WINDOW_FRAMES:
+            elapsed = time.perf_counter() - self._fps_window_start
+            if elapsed > 0:
+                self._fps = self._fps_window_count / elapsed
+            self._fps_window_start = time.perf_counter()
+            self._fps_window_count = 0
+        return self._fps
 
     def run(self) -> None:
         self._running = True
@@ -44,7 +67,14 @@ class StreamWorker(QThread):
                     self.msleep(500)
                     continue
             self.frame_ready.emit(
-                StreamFrame(self.source_id, frame, detections, self.source.info.label)
+                StreamFrame(
+                    self.source_id,
+                    frame,
+                    detections,
+                    self.source.info.label,
+                    sequence=self._next_sequence(),
+                    fps=self._measure_fps(),
+                )
             )
 
     def stop(self) -> None:

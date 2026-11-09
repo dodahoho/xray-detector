@@ -11,3 +11,5 @@ class StreamFrame:
     frame: np.ndarray
     detections: list[Detection]
     source_label: str
+    sequence: int = 0
+    fps: float | None = None
