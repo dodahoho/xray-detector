@@ -468,7 +468,8 @@ class AnnotationView(QWidget):
             self.class_combo.setCurrentIndex(0)
         self.save_settings()
 
-    def load_captures(self, captures: list) -> None:
+    def load_captures(self, captures: list, pending_group_id: str | None = None) -> None:
+        self.pending_group_id = pending_group_id
         for canvas in self.canvases:
             canvas.set_class_name(self.class_combo.currentText())
         for canvas, capture in zip(self.canvases, captures):
@@ -518,6 +519,9 @@ class AnnotationView(QWidget):
                 return
         version = self.dataset_service.current_version() or self.dataset_service.new_version()
         self.dataset_service.add_samples(version, samples)
+        if getattr(self, "pending_group_id", None):
+            self.dataset_service.remove_pending(self.pending_group_id)
+            self.pending_group_id = None
         self.mark_clean()
         for canvas in self.canvases:
             canvas.image = None

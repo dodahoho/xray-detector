@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         self.training_view.training_started.connect(self._on_training_started)
         self.training_view.training_finished.connect(self._on_training_finished)
         self.training_view.status_changed.connect(self._show_status)
-        self.dataset_view.open_annotation_requested.connect(self._on_capture)
+        self.dataset_view.open_annotation_requested.connect(self._on_open_from_dataset)
         self.dataset_view.status_changed.connect(self._show_status)
 
         self.status = QStatusBar()
@@ -125,7 +125,19 @@ class MainWindow(QMainWindow):
         logging.getLogger("xray").info("status: %s", message)
 
     def _on_capture(self, captures) -> None:
-        self.annotation_view.load_captures(captures)
+        # TASK-12: krascsaker skrivning av fangsten direkt vid knapptryck
+        pending_group_id = self.dataset_service.save_pending(captures)
+        self.annotation_view.load_captures(captures, pending_group_id)
+        self.tabs.setTabEnabled(1, True)
+        self.tabs.setCurrentIndex(1)
+
+    def _on_open_from_dataset(self, payload) -> None:
+        # Fran datasetvyn: antingen en ramlisa (sparade bilder) eller en
+        # PendingCapture (osparad fangst, TASK-12). Osp rad fangst behaller sitt
+        # grupp-id sa ingen ny pending-kopia skrivs vid ateroppning.
+        frames = payload.frames if hasattr(payload, "frames") else payload
+        pending_group_id = getattr(payload, "group_id", None)
+        self.annotation_view.load_captures(frames, pending_group_id)
         self.tabs.setTabEnabled(1, True)
         self.tabs.setCurrentIndex(1)
 

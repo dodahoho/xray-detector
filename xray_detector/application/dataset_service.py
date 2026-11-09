@@ -9,6 +9,12 @@ from xray_detector.infrastructure.dataset_store.export import (
     export_yolo,
     train_val_split,
 )
+from xray_detector.infrastructure.dataset_store.pending import (
+    PendingCapture,
+    list_pending,
+    remove_pending,
+    save_pending,
+)
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
@@ -17,6 +23,7 @@ class DatasetService:
 
     def __init__(self, root: Path, classes: list[str]) -> None:
         self.store = DatasetStore(root, classes)
+        self.data_dir = Path(root).parent
 
     def versions(self) -> list[int]:
         return self.store.versions()
@@ -55,3 +62,15 @@ class DatasetService:
         """Antal bilder i train respektive val för den seedade grupp-delningen."""
         train, val = train_val_split(self.load_coco(version), ratio, seed)
         return len(train), len(val)
+
+
+    # --- Pending-kn (TASK-12) ---
+
+    def pending_captures(self) -> list[PendingCapture]:
+        return list_pending(self.data_dir)
+
+    def save_pending(self, frames) -> str:
+        return save_pending(self.data_dir, frames)
+
+    def remove_pending(self, group_id: str) -> None:
+        remove_pending(self.data_dir, group_id)

@@ -25,10 +25,11 @@ class Thumbnail(QWidget):
     clicked = Signal(object)
     double_clicked = Signal(object)
 
-    def __init__(self, image_id: int, group_id: int, pixmap: QPixmap, caption: str, parent=None) -> None:
+    def __init__(self, image_id, group_id, pixmap: QPixmap, caption: str, pending: bool = False, parent=None) -> None:
         super().__init__(parent)
         self.image_id = image_id
         self.group_id = group_id
+        self.pending = pending
         self.selected = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         layout = QVBoxLayout(self)
@@ -36,7 +37,9 @@ class Thumbnail(QWidget):
         self.picture = QLabel()
         self.picture.setPixmap(pixmap)
         self.picture.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.caption = QLabel(caption)
+        self.caption = QLabel("OSPÅRAD · " + caption if pending else caption)
+        if pending:
+            self.caption.setStyleSheet("color: #e5a52a; font-weight: bold;")
         self.caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.caption.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         layout.addWidget(self.picture)
@@ -111,11 +114,14 @@ class DatasetView(QWidget):
                 item.widget().deleteLater()
         self._thumbs = []
         self._groups = {}
+        self._pending_by_group: dict[str, object] = {}
 
+        self._add_pending_section()
         version_data = self.version_combo.currentData()
         if version_data is None:
             self._coco = None
-            self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
+            if not self._thumbs:
+                self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
             self.content_layout.addStretch(1)
             return
         version = int(version_data)
@@ -166,13 +172,54 @@ class DatasetView(QWidget):
             self.content_layout.addWidget(frame)
         self.content_layout.addStretch(1)
 
-    def _selected_ids(self) -> list[int]:
+    def _add_pending_section(self) -> None:
+        """Osparade fangster fran pending-kon (krascsakra, TASK-12)."""
+        captures = self.dataset_service.pending_captures()
+        for capture in captures:
+            self._pending_by_group[capture.group_id] = capture
+            header = QLabel(f"Osparad fångst {capture.group_id} · {len(capture.frames)} bild(er)")
+            header.setStyleSheet("font-weight: bold; color: #e5a52a;")
+            frame_box = QFrame()
+            frame_box.setFrameShape(QFrame.Shape.Box)
+            frame_box.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
+            inner = QVBoxLayout(frame_box)
+            inner.setContentsMargins(8, 8, 8, 8)
+            inner.addWidget(header)
+            row = QHBoxLayout()
+            row.addStretch(1)
+            for index, stream_frame in enumerate(capture.frames):
+                height, width = stream_frame.frame.shape[:2]
+                from PySide6.QtGui import QImage
+
+                rgb = stream_frame.frame[:, :, ::-1].copy()
+                image = QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888).copy()
+                pixmap = QPixmap.fromImage(image).scaledToHeight(
+                    THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
+                )
+                count = len(stream_frame.detections)
+                caption = f"{stream_frame.source_label} · {count} detektion(er)"
+                thumb = Thumbnail(capture.group_id, capture.group_id, pixmap, caption, pending=True)
+                thumb.clicked.connect(self._on_thumb_clicked)
+                thumb.double_clicked.connect(self._on_thumb_double_clicked)
+                row.addWidget(thumb)
+                self._thumbs.append(thumb)
+            row.addStretch(1)
+            inner.addLayout(row)
+            self.content_layout.addWidget(frame_box)
+
+    def _selected_ids(self) -> list:
         return [thumb.image_id for thumb in self._thumbs if thumb.selected]
 
     def _on_thumb_clicked(self, thumb: Thumbnail) -> None:
         thumb.set_selected(not thumb.selected)
 
     def _on_thumb_double_clicked(self, thumb: Thumbnail) -> None:
+        if thumb.pending:
+            capture = self._pending_by_group.get(thumb.group_id)
+            if capture is None:
+                return
+            self.open_annotation_requested.emit(capture)
+            return
         group = self._groups.get(thumb.group_id, [thumb])
         frames: list[StreamFrame] = []
         for member in group:
@@ -203,18 +250,23 @@ class DatasetView(QWidget):
         return int(self.version_combo.currentData())
 
     def _on_delete(self) -> None:
-        ids = self._selected_ids()
-        if not ids:
+        pending_ids = [thumb.group_id for thumb in self._thumbs if thumb.selected and thumb.pending]
+        ids = [id_ for id_ in self._selected_ids() if not isinstance(id_, str)]
+        if not ids and not pending_ids:
             self.status_changed.emit("Markera bilder att ta bort först")
             return
+        count = len(ids) + len(pending_ids)
         answer = QMessageBox.question(
             self,
             "Ta bort bilder",
-            f"Ta bort {len(ids)} bild(er) med tillhörande annoteringar? Det går inte att ångra.",
+            f"Ta bort {count} bild(er) med tillhörande annoteringar? Det går inte att ångra.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.dataset_service.delete_images(self._current_version(), ids)
-        self.status_changed.emit(f"Tog bort {len(ids)} bild(er) från datasetet")
+        if ids:
+            self.dataset_service.delete_images(self._current_version(), ids)
+        for group_id in pending_ids:
+            self.dataset_service.remove_pending(group_id)
+        self.status_changed.emit(f"Tog bort {count} bild(er) från datasetet")
         self.refresh()
