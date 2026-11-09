@@ -1,3 +1,5 @@
+import logging
+
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QStatusBar, QTabWidget
@@ -120,6 +122,7 @@ class MainWindow(QMainWindow):
 
     def _show_status(self, message: str) -> None:
         self.status_label.setText(message)
+        logging.getLogger("xray").info("status: %s", message)
 
     def _on_capture(self, captures) -> None:
         self.annotation_view.load_captures(captures)
