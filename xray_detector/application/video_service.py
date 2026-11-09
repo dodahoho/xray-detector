@@ -2,14 +2,20 @@ from pathlib import Path
 
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.video.camera_service import CameraService
+from xray_detector.infrastructure.video.devices import DeviceInfo, list_devices
 from xray_detector.infrastructure.video.source import FileSource, UvcSource, VideoSource
 
 
 class VideoService:
-    """Bygger videokällor och hanterar strömmen bakom CameraService."""
+    """Bygger videokällor och delegerar till kameratrådarna."""
 
     def __init__(self) -> None:
         self.camera_service = CameraService()
+
+    @staticmethod
+    def list_devices() -> list[DeviceInfo]:
+        """Tillgängliga UVC-enheter med namn (pygrabber) eller indexfallback."""
+        return list_devices()
 
     def set_source(self, source_id: str, kind: str, value: object):
         source: VideoSource | None = None

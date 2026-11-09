@@ -14,6 +14,9 @@ dependencies = [
 rfdetr = [
     "rfdetr>=1.0",
 ]
+windows = [
+    "pygrabber>=0.2",
+]
 cu128 = [
     "torch>=2.7",
     "torchvision>=0.22",

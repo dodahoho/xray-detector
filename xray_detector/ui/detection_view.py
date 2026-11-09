@@ -30,9 +30,10 @@ from xray_detector.ui.colors import class_color
 class StreamPanel(QFrame):
     source_requested = Signal(str, str, object)
 
-    def __init__(self, source_id: str, title: str, parent=None) -> None:
+    def __init__(self, source_id: str, title: str, devices=None, parent=None) -> None:
         super().__init__(parent)
         self.source_id = source_id
+        self.devices = list(devices or [])
         self.known_classes: list[str] = []
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
@@ -43,11 +44,14 @@ class StreamPanel(QFrame):
         self.title_label = QLabel(title)
         self.title_label.setFont(QFont("", 12, QFont.Weight.Bold))
         self.source_combo = QComboBox()
-        self.source_combo.addItem(NO_SOURCE)
-        self.source_combo.addItem(f"{UVC_PREFIX}0")
-        self.source_combo.addItem(f"{UVC_PREFIX}1")
-        self.source_combo.addItem(OPEN_FILE)
-        self.source_combo.currentTextChanged.connect(self._on_source_changed)
+        self.source_combo.addItem(NO_SOURCE, "none")
+        for device in self.devices:
+            label = f"{UVC_PREFIX}{device.index}"
+            if device.name and not device.name.startswith("Video "):
+                label = f"{label} · {device.name}"
+            self.source_combo.addItem(label, f"uvc:{device.index}")
+        self.source_combo.addItem(OPEN_FILE, "file")
+        self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         top.addWidget(self.title_label)
         top.addStretch(1)
         top.addWidget(self.source_combo)
@@ -57,12 +61,15 @@ class StreamPanel(QFrame):
         layout.addWidget(self.display, 1)
         self._show_no_source()
 
-    def _on_source_changed(self, text: str) -> None:
-        if text == NO_SOURCE:
+    def _on_source_changed(self, *_args) -> None:
+        data = self.source_combo.currentData() or "none"
+        kind, _, value = data.partition(":")
+        value = int(value) if value.isdigit() else None
+        if kind == "none":
             self._active = ("none", None)
             self.source_requested.emit(self.source_id, "none", None)
             self._show_no_source()
-        elif text == OPEN_FILE:
+        elif kind == "file":
             path, _ = QFileDialog.getOpenFileName(
                 self, "Välj videofil", "", "Videofiler (*.mp4 *.avi *.mkv *.mov)"
             )
@@ -72,10 +79,10 @@ class StreamPanel(QFrame):
                 self.source_combo.setItemText(self.source_combo.currentIndex(), Path(path).name)
             else:
                 self.source_combo.setCurrentIndex(0)
-        elif text.startswith(UVC_PREFIX):
-            index = int(text.removeprefix(UVC_PREFIX))
-            self._active = ("uvc", index)
-            self.source_requested.emit(self.source_id, "uvc", index)
+        elif kind == "uvc":
+            self._active = ("uvc", value)
+            self.source_requested.emit(self.source_id, "uvc", value)
+
         self.latest = None
 
     def current_source(self) -> tuple[str, object]:
@@ -83,11 +90,11 @@ class StreamPanel(QFrame):
 
     def restore_source(self, kind: str, value) -> None:
         if kind == "uvc" and value is not None:
-            index = self.source_combo.findText(f"{UVC_PREFIX}{value}")
+            index = self.source_combo.findData(f"uvc:{int(value)}")
             if index >= 0:
                 self.source_combo.setCurrentIndex(index)
         elif kind == "file" and value:
-            open_index = self.source_combo.findText(OPEN_FILE)
+            open_index = self.source_combo.findData("file")
             if open_index >= 0:
                 self.source_combo.setItemText(open_index, Path(value).name)
                 self.source_combo.setCurrentIndex(open_index)
@@ -187,8 +194,9 @@ class DetectionView(QWidget):
         bar.addWidget(self.capture_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
-        self.left = StreamPanel("left", "Ström 1")
-        self.right = StreamPanel("right", "ström 2")
+        devices = self.video_service.list_devices()
+        self.left = StreamPanel("left", "Ström 1", devices)
+        self.right = StreamPanel("right", "ström 2", devices)
         for panel in (self.left, self.right):
             panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):
