@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from json import load as json_load
+from pathlib import Path
 
 from xray_detector.infrastructure.detectors.base import BaseDetector
 
@@ -40,6 +42,29 @@ def spec_by_key(key: str) -> ModelSpec:
         if spec.key == key:
             return spec
     raise ValueError(f"Okänd modell: {key}")
+
+
+def trained_models(models_dir: Path) -> list[ModelSpec]:
+    """Listar nytränade modeller utifrån training_manifest.json i models/v*/."""
+    specs: list[ModelSpec] = []
+    for manifest_path in sorted(models_dir.glob("v*/training_manifest.json")):
+        try:
+            with open(manifest_path, encoding="utf-8") as file:
+                manifest = json_load(file)
+            weights = manifest_path.parent / manifest.get("weights_relative", "")
+            if not weights.exists():
+                continue
+        except (OSError, ValueError):
+            continue
+        version_dir = manifest_path.parent.name
+        base = Path(manifest.get("base_weights", "modell")).stem
+        classes = ", ".join(manifest.get("classes", []))
+        label = f"Tränad {version_dir} ({base})" + (f" [{classes}]" if classes else "")
+        specs.append(
+            ModelSpec(key=f"trained-{version_dir}", label=label,
+                      family="yolo", weights=str(weights))
+        )
+    return specs
 
 
 def device_status() -> tuple[str, str]:

@@ -108,7 +108,8 @@ class MainWindow(QMainWindow):
 
     def _on_training_finished(self) -> None:
         self.detection_view.resume_detection()
-        self._show_status("Träning avslutad – detektion återupptagen")
+        self.detection_view.refresh_models()
+        self._show_status("Träning avslutad – detektion återupptagen; modellväljaren uppdaterad")
 
     def closeEvent(self, event) -> None:
         geometry = self.normalGeometry() if self.isFullScreen() or self.isMaximized() else self.geometry()

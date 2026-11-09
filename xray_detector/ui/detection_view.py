@@ -169,10 +169,7 @@ class DetectionView(QWidget):
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
         self.model_combo = QComboBox()
-        from xray_detector.application.model_registry import MODEL_SPECS
-
-        for spec in MODEL_SPECS:
-            self.model_combo.addItem(spec.label, spec.key)
+        self.refresh_models()
         index = self.model_combo.findData(config.default_model)
         if index >= 0:
             self.model_combo.setCurrentIndex(index)
@@ -201,6 +198,25 @@ class DetectionView(QWidget):
             panel.source_requested.connect(self._on_source_requested)
             panels.addWidget(panel, 1)
         layout.addLayout(panels, 1)
+
+    def refresh_models(self) -> None:
+        """Fyller modellväljaren med statiska specar plus nytränade modeller."""
+        from xray_detector.application.model_registry import MODEL_SPECS, trained_models
+
+        current = self.model_combo.currentData()
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+        self._specs = {}
+        for spec in MODEL_SPECS:
+            self.model_combo.addItem(spec.label, spec.key)
+            self._specs[spec.key] = spec
+        for spec in trained_models(self.config.models_dir):
+            self.model_combo.addItem(spec.label, spec.key)
+            self._specs[spec.key] = spec
+        index = self.model_combo.findData(current) if current else -1
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+        self.model_combo.blockSignals(False)
 
     def restore_settings(self) -> None:
         model_key = self.settings.value("detection/model", type=str)
@@ -245,11 +261,11 @@ class DetectionView(QWidget):
         self.error_occurred.emit(f"Detektorfel ({source_id}): {message}")
 
     def _on_model_changed(self) -> None:
-        from xray_detector.application.model_registry import create_detector, spec_by_key
+        from xray_detector.application.model_registry import create_detector
 
         self.error_occurred.emit("Laddar modell...")
         try:
-            spec = spec_by_key(self.model_combo.currentData())
+            spec = self._specs[self.model_combo.currentData()]
             self.detector = create_detector(
                 spec, self.config.classes, self.conf_spin.value()
             )
