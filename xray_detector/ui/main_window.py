@@ -45,6 +45,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.training_view, "Träning")
         self.tabs.addTab(self.settings_view, "Inställningar")
         self.tabs.setTabEnabled(1, False)
+        self._tab_guard = False
+        self.tabs.currentChanged.connect(self._on_tab_changed)
         self.setCentralWidget(self.tabs)
         self.detection_view.restore_settings()
         self.annotation_view.restore_settings()
@@ -83,6 +85,39 @@ class MainWindow(QMainWindow):
         else:
             self.showFullScreen()
 
+    def _confirm_unsaved(self) -> str:
+        """Frågar om osparade annoteringar; returnerar 'save'/'discard'/'cancel'."""
+        from PySide6.QtWidgets import QMessageBox
+
+        answer = QMessageBox.question(
+            self,
+            "Osparade annoteringar",
+            "Det finns osparade annoteringar. Spara dem?",
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel,
+        )
+        if answer == QMessageBox.StandardButton.Save:
+            return "save"
+        if answer == QMessageBox.StandardButton.Discard:
+            return "discard"
+        return "cancel"
+
+    def _on_tab_changed(self, index: int) -> None:
+        if self._tab_guard or index == 1:
+            return
+        if not (self.tabs.isTabEnabled(1) and self.annotation_view.is_dirty()):
+            return
+        choice = self._confirm_unsaved()
+        if choice == "save":
+            self.annotation_view._on_save()
+        elif choice == "discard":
+            self.annotation_view.mark_clean()
+        else:
+            self._tab_guard = True
+            self.tabs.setCurrentIndex(1)
+            self._tab_guard = False
+
     def _show_status(self, message: str) -> None:
         self.status_label.setText(message)
 
@@ -112,7 +147,16 @@ class MainWindow(QMainWindow):
         self._show_status("Träning avslutad – detektion återupptagen; modellväljaren uppdaterad")
 
     def closeEvent(self, event) -> None:
-        geometry = self.normalGeometry() if self.isFullScreen() or self.isMaximized() else self.geometry()
+        if self.tabs.isTabEnabled(1) and self.annotation_view.is_dirty():
+            choice = self._confirm_unsaved()
+            if choice == "cancel":
+                event.ignore()
+                return
+            if choice == "save":
+                self.annotation_view._on_save()
+            else:
+                self.annotation_view.mark_clean()
+        geometry = (self.normalGeometry() if self.isFullScreen() or self.isMaximized() else self.geometry())
         self.settings.setValue("window/x", geometry.x())
         self.settings.setValue("window/y", geometry.y())
         self.settings.setValue("window/width", geometry.width())

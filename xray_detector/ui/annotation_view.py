@@ -10,6 +10,8 @@ from xray_detector.ui.colors import class_color
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
+ZOOM_MIN = 0.2
+ZOOM_MAX = 5.0
 
 
 class RectItem:
@@ -25,6 +27,7 @@ class RectItem:
 
 class AnnotationCanvas(QWidget):
     selection_changed = Signal(object)
+    changed = Signal()
 
     def __init__(self, title: str, parent=None) -> None:
         super().__init__(parent)
@@ -39,6 +42,10 @@ class AnnotationCanvas(QWidget):
         self._handle = ""
         self._move_offset = QPoint()
         self.class_name = ""
+        self._zoom = 1.0
+        self._pan = QPoint(0, 0)
+        self._pan_start = QPoint()
+        self.dirty = False
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
 
@@ -46,6 +53,7 @@ class AnnotationCanvas(QWidget):
         self.class_name = class_name
         if self.selected is not None:
             self.selected.class_name = class_name
+            self._mark_dirty()
             self.update()
 
     def load_frame(self, stream_frame: StreamFrame, default_class: str) -> None:
@@ -62,6 +70,9 @@ class AnnotationCanvas(QWidget):
             for d in stream_frame.detections
         ]
         self.selected = None
+        self.dirty = False
+        self._zoom = 1.0
+        self._pan = QPoint(0, 0)
         self.selection_changed.emit(None)
         self.update()
 
@@ -83,13 +94,40 @@ class AnnotationCanvas(QWidget):
         ]
         return AnnotatedImage(frame=frame, annotations=annotations)
 
-    def _scale(self) -> float:
+    def _base_scale(self) -> float:
         if self.image is None:
             return 1.0
         return min(
             self.width() / self.image.width(),
             self.height() / self.image.height(),
         )
+
+    def _scale(self) -> float:
+        return self._base_scale() * self._zoom
+
+    def zoom_at(self, pos: QPoint, factor: float) -> None:
+        """Zoomar kring muspositionen; bildpunkten under pekaren blir kvar."""
+        if self.image is None:
+            return
+        image_point = self._to_image(pos - self._image_origin())
+        new_zoom = max(ZOOM_MIN, min(ZOOM_MAX, self._zoom * factor))
+        self._zoom = new_zoom
+        scale = self._scale()
+        desired_origin = pos - QPoint(int(image_point.x() * scale), int(image_point.y() * scale))
+        self._pan = desired_origin - self._base_origin()
+
+    def reset_view(self) -> None:
+        self._zoom = 1.0
+        self._pan = QPoint(0, 0)
+        self.update()
+
+    def wheelEvent(self, event) -> None:
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            factor = 1.25 if event.angleDelta().y() > 0 else 0.8
+            self.zoom_at(event.position().toPoint(), factor)
+            event.accept()
+            return
+        super().wheelEvent(event)
 
     def _to_widget(self, point: QPoint) -> QPoint:
         scale = self._scale()
@@ -99,13 +137,16 @@ class AnnotationCanvas(QWidget):
         scale = self._scale()
         return QPoint(int(point.x() / scale), int(point.y() / scale))
 
-    def _image_origin(self) -> QPoint:
+    def _base_origin(self) -> QPoint:
         if self.image is None:
             return QPoint(0, 0)
-        scale = self._scale()
+        scale = self._base_scale()
         x = (self.width() - int(self.image.width() * scale)) // 2
         y = (self.height() - int(self.image.height() * scale)) // 2
         return QPoint(x, y)
+
+    def _image_origin(self) -> QPoint:
+        return self._base_origin() + self._pan
 
     def _handle_points(self, rect: QRect) -> dict[str, QPoint]:
         top_left = self._to_widget(QPoint(rect.x(), rect.y())) + self._image_origin()
@@ -216,6 +257,11 @@ class AnnotationCanvas(QWidget):
         if self.image is None:
             return
         pos = event.position().toPoint()
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._mode = "pan"
+            self._pan_start = pos
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return
         handle = self._hit_handle(pos)
         if handle:
             self._mode = "resize"
@@ -248,6 +294,11 @@ class AnnotationCanvas(QWidget):
         if self.image is None:
             return
         pos = event.position().toPoint()
+        if self._mode == "pan":
+            self._pan += pos - self._pan_start
+            self._pan_start = pos
+            self.update()
+            return
         if self._mode == "idle":
             self.setCursor(self._hover_cursor(pos))
             return
@@ -288,16 +339,30 @@ class AnnotationCanvas(QWidget):
                 )
                 self.rects.append(item)
                 self.selected = item
+                self._mark_dirty()
                 self.selection_changed.emit(item)
+        if self._mode in ("move", "resize") and self.selected is not None:
+            self._mark_dirty()
+        if self._mode == "pan":
+            self._mode = "idle"
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.update()
+            return
         self._mode = "idle"
         self._drag_rect = None
         self.setCursor(self._hover_cursor(event.position().toPoint()))
         self.update()
 
+    def _mark_dirty(self) -> None:
+        if not self.dirty:
+            self.dirty = True
+            self.changed.emit()
+
     def delete_selected(self) -> None:
         if self.selected is not None:
             self.rects.remove(self.selected)
             self.selected = None
+            self._mark_dirty()
             self.selection_changed.emit(None)
             self.update()
 
@@ -426,6 +491,13 @@ class AnnotationView(QWidget):
             else:
                 self.class_combo.setEditText(item.class_name)
 
+    def is_dirty(self) -> bool:
+        return any(canvas.dirty for canvas in self.canvases)
+
+    def mark_clean(self) -> None:
+        for canvas in self.canvases:
+            canvas.dirty = False
+
     def _on_delete(self) -> None:
         for canvas in self.canvases:
             canvas.delete_selected()
@@ -435,10 +507,21 @@ class AnnotationView(QWidget):
         samples = [sample for sample in samples if sample is not None]
         if not samples:
             return
+        if not any(canvas.rects for canvas in self.canvases if canvas.image is not None):
+            answer = QMessageBox.question(
+                self,
+                "Negativt exempel",
+                "Inga objekt är markerade. Spara bilderna som negativa exempel (tomma annoteringar)?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         version = self.dataset_service.current_version() or self.dataset_service.new_version()
         self.dataset_service.add_samples(version, samples)
+        self.mark_clean()
         for canvas in self.canvases:
             canvas.image = None
             canvas.rects = []
+            canvas.reset_view()
             canvas.update()
         self.saved.emit()
