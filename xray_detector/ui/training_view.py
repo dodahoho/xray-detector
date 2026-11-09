@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QEvent, QObject, Signal
+from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
@@ -32,6 +33,10 @@ class TrainingView(QWidget):
         self.settings = settings
         self.training_service = TrainingService()
         self.worker = None
+        self.training_service.worker_created.connect(self._on_worker_created)
+        self.training_service.scheduler().status_changed.connect(self.status_changed.emit)
+        self._activity_filter = _ActivityFilter(self.training_service.scheduler().record_activity)
+        QApplication.instance().installEventFilter(self._activity_filter)
         layout = QVBoxLayout(self)
         layout.addLayout(self._build_settings())
         layout.addLayout(self._build_export_row())
@@ -81,6 +86,11 @@ class TrainingView(QWidget):
         self.batch_spin.setRange(1, 128)
         self.batch_spin.setValue(16)
         form.addRow("Batch:", self.batch_spin)
+        self.run_combo = QComboBox()
+        self.run_combo.addItem("Direkt", "direct")
+        self.run_combo.addItem("Nattetid (schema)", "night")
+        self.run_combo.addItem("Efter inaktivitet", "inactivity")
+        form.addRow("Kör:", self.run_combo)
         self.start_button = QPushButton("Starta träning")
         self.start_button.setMinimumHeight(40)
         self.start_button.clicked.connect(self._on_start)
@@ -201,21 +211,38 @@ class TrainingView(QWidget):
             batch=self.batch_spin.value(),
             family=family,
         )
-        self.worker = self.training_service.create_worker(config)
-        self.worker.progress.connect(self.log.appendPlainText)
-        self.worker.finished_training.connect(self._on_finished)
+        run_mode = self.run_combo.currentData()
+        if run_mode == "direct":
+            self.training_service.create_worker(config)
+            return
+        scheduler = self.training_service.scheduler()
+        scheduler.queue_job(
+            config,
+            run_mode,
+            inactivity_minutes=int(self.settings.value("training/inactivity_minutes", 30, type=int)),
+            night_start=str(self.settings.value("training/night_start", "23:00")),
+            night_end=str(self.settings.value("training/night_end", "05:00")),
+        )
+
+    def _on_worker_created(self, worker) -> None:
+        """Kopplar en (direkt eller schemalagd) worker till loggen och startar den."""
+        self.worker = worker
+        worker.progress.connect(self.log.appendPlainText)
+        worker.finished_training.connect(self._on_finished)
         self.start_button.setEnabled(False)
         self.abort_button.setEnabled(True)
         self.log.appendPlainText(
-            f"Startar träning: {config.weights} på dataset v{version} "
-            f"({config.epochs} epoker, imgsz {config.imgsz}, batch {config.batch})"
+            f"Startar träning: {worker.config.weights} på {worker.config.dataset_yaml} "
+            f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, batch {worker.config.batch})"
         )
-        self.worker.start()
+        worker.start()
         self.training_started.emit()
 
     def _on_abort(self) -> None:
-        if self.worker is not None:
+        if self.worker is not None and self.worker.is_running():
             self.training_service.cancel()
+        elif self.training_service.scheduler().has_queued():
+            self.training_service.scheduler().cancel()
 
     def active_worker(self):
         return self.worker
@@ -226,3 +253,21 @@ class TrainingView(QWidget):
         self.abort_button.setEnabled(False)
         self.training_finished.emit()
         self.refresh_versions()
+
+
+class _ActivityFilter(QObject):
+    """Globalt mus-/tangentfilter som rapporterar användaraktivitet."""
+
+    def __init__(self, on_activity, parent=None) -> None:
+        super().__init__(parent)
+        self._on_activity = on_activity
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() in (
+            QEvent.Type.MouseMove,
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.KeyPress,
+            QEvent.Type.Wheel,
+        ):
+            self._on_activity()
+        return False
