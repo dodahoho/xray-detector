@@ -45,6 +45,7 @@ class StreamPanel(QFrame):
         self._active: tuple[str, object] = ("none", None)
         self._base_title = title
         self._lost_attempts = 0
+        self._last_selected_index = 0
         self.setMinimumSize(2, 2)
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
@@ -86,26 +87,58 @@ class StreamPanel(QFrame):
     def _on_source_changed(self, *_args) -> None:
         data = self.source_combo.currentData() or "none"
         kind, _, value = data.partition(":")
-        value = int(value) if value.isdigit() else None
+        if value:
+            value = int(value) if kind == "uvc" else value
+        else:
+            value = None
         if kind == "none":
             self._active = ("none", None)
             self.source_requested.emit(self.source_id, "none", None)
             self._show_no_source()
+        elif kind == "file" and value:
+            # sparad/vald fil: starta direkt utan dialog (TASK-23)
+            self._activate_file(value)
         elif kind == "file":
+            pressed_index = self._last_selected_index
             path, _ = QFileDialog.getOpenFileName(
                 self, "Välj videofil", "", "Videofiler (*.mp4 *.avi *.mkv *.mov)"
             )
             if path:
-                self._active = ("file", path)
-                self.source_requested.emit(self.source_id, "file", Path(path))
-                self.source_combo.setItemText(self.source_combo.currentIndex(), Path(path).name)
+                self._activate_file(path)
             else:
-                self.source_combo.setCurrentIndex(0)
+                # avbruten dialog: aterhall det tidigare valet utan att emitetra
+                self.source_combo.blockSignals(True)
+                self.source_combo.setCurrentIndex(pressed_index)
+                self.source_combo.blockSignals(False)
+            self._last_selected_index = self.source_combo.currentIndex()
+            self.latest = None
+            return
         elif kind == "uvc":
             self._active = ("uvc", value)
             self.source_requested.emit(self.source_id, "uvc", value)
 
+        self._last_selected_index = self.source_combo.currentIndex()
         self.latest = None
+
+    def _activate_file(self, path) -> None:
+        """Aktiverar en videofilskalla utan dialog och staller in komboposten."""
+        item_data = f"file:{path}"
+        self.source_combo.blockSignals(True)
+        for index in reversed(range(self.source_combo.count())):
+            data = str(self.source_combo.itemData(index) or "")
+            if data.startswith("file:") and data != item_data:
+                self.source_combo.removeItem(index)
+        index = self.source_combo.findData(item_data)
+        if index < 0:
+            name = Path(path).name
+            open_index = self.source_combo.findData("file")
+            self.source_combo.insertItem(open_index, f"Videofil: {name}", item_data)
+            index = self.source_combo.findData(item_data)
+        self.source_combo.setCurrentIndex(index)
+        self.source_combo.blockSignals(False)
+        self._last_selected_index = index
+        self._active = ("file", path)
+        self.source_requested.emit(self.source_id, "file", Path(path))
 
     def current_source(self) -> tuple[str, object]:
         return self._active
@@ -116,12 +149,7 @@ class StreamPanel(QFrame):
             if index >= 0:
                 self.source_combo.setCurrentIndex(index)
         elif kind == "file" and value:
-            open_index = self.source_combo.findData("file")
-            if open_index >= 0:
-                self.source_combo.setItemText(open_index, Path(value).name)
-                self.source_combo.setCurrentIndex(open_index)
-                self._active = ("file", value)
-                self.source_requested.emit(self.source_id, "file", Path(value))
+            self._activate_file(value)
         else:
             self.source_combo.setCurrentIndex(0)
 
@@ -167,8 +195,12 @@ class StreamPanel(QFrame):
         if self._lost_attempts:
             self.reset_connection_state()
         self.latest = stream_frame
+        parts = [self._base_title]
+        if self._active[0] == "file" and stream_frame.source_label:
+            parts.append(stream_frame.source_label)
         if stream_frame.fps:
-            self.title_label.setText(f"{self._base_title} · {stream_frame.fps:.1f} fps")
+            parts.append(f"{stream_frame.fps:.1f} fps")
+        self.title_label.setText(" · ".join(parts))
         image = self._to_qimage(stream_frame.frame)
         painter = QPainter(image)
         pen = QPen()

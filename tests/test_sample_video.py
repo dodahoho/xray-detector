@@ -107,5 +107,5 @@ def test_gui_panel_selects_sample_video(qapp, monkeypatch):
     index = panel.source_combo.findData("file")
     panel.source_combo.setCurrentIndex(index)
     assert emitted == [("file", Path(TOP))], emitted
-    assert panel.source_combo.currentText() == "xray_slideshow_top.mp4"
+    assert panel.source_combo.currentText() == "Videofil: xray_slideshow_top.mp4"
     assert panel.current_source() == ("file", str(TOP))
