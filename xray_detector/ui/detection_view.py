@@ -306,12 +306,24 @@ class DetectionView(QWidget):
         self.capture_requested.emit(captures)
 
     def pause_detection(self) -> None:
+        """Pausar detekteringen och slapper detektorns GPU-minne (TASK-6)."""
         self.video_service.set_detector(None)
+        self.detector = None
         for panel in (self.left, self.right):
             panel.clear_overlay()
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except ImportError:
+            pass
 
     def resume_detection(self) -> None:
-        if self.detector is not None:
+        if self.detector is None:
+            # detektorn slappes vid paus for VRAM-frigoring: abygg fran modellvalet
+            self._on_model_changed()
+        else:
             self.video_service.set_detector(self.detector)
 
     def stop(self) -> None:

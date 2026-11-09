@@ -4,7 +4,7 @@ title: 'Röntgenförbehandling: CLAHE och inversion innan inferens'
 status: To Do
 assignee: []
 created_date: '2026-11-06T14:05:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T12:20:00Z'
 labels:
   - detektion
   - röntgen
@@ -13,7 +13,7 @@ dependencies: []
 references:
   - detectors
   - settings-theme
-priority: medium
+priority: low
 type: feature
 ordinal: 9000
 ---

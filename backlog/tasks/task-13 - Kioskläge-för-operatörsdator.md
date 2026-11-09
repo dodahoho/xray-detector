@@ -4,7 +4,7 @@ title: Kioskläge för operatörsdator
 status: To Do
 assignee: []
 created_date: '2026-11-06T14:06:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T12:20:00Z'
 labels:
   - gui
   - distribution
@@ -12,7 +12,7 @@ dependencies: []
 references:
   - app
   - main-window
-priority: medium
+priority: low
 type: feature
 ordinal: 13000
 ---

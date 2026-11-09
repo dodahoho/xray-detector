@@ -4,7 +4,7 @@ title: Återanslutningsknapp direkt i strömpanelen
 status: To Do
 assignee: []
 created_date: '2026-11-06T14:06:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T12:23:00Z'
 labels:
   - video
   - gui
@@ -13,7 +13,7 @@ dependencies: []
 references:
   - detection-view
   - video-capture
-priority: low
+priority: medium
 type: enhancement
 ordinal: 19000
 ---

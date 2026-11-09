@@ -150,6 +150,20 @@ class MainWindow(QMainWindow):
         self._show_status("Träning avslutad – detektion återupptagen; modellväljaren uppdaterad")
 
     def closeEvent(self, event) -> None:
+        worker = self.training_view.active_worker()
+        if worker is not None and worker.is_running():
+            from PySide6.QtWidgets import QMessageBox
+
+            answer = QMessageBox.question(
+                self,
+                "Träning pågår",
+                "En träning körs just nu. Avbryta träningen och avsluta?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+            worker.cancel()
         if self.tabs.isTabEnabled(1) and self.annotation_view.is_dirty():
             choice = self._confirm_unsaved()
             if choice == "cancel":

@@ -215,7 +215,10 @@ class TrainingView(QWidget):
 
     def _on_abort(self) -> None:
         if self.worker is not None:
-            self.worker.cancel()
+            self.training_service.cancel()
+
+    def active_worker(self):
+        return self.worker
 
     def _on_finished(self, ok: bool, message: str) -> None:
         self.log.appendPlainText(message)

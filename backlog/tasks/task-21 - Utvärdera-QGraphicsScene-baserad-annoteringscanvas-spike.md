@@ -4,7 +4,7 @@ title: Utvärdera QGraphicsScene-baserad annoteringscanvas (spike)
 status: To Do
 assignee: []
 created_date: '2026-11-06T14:06:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T12:24:00Z'
 labels:
   - annotation
   - arkitektur
@@ -12,8 +12,8 @@ labels:
 dependencies: []
 references:
   - annotation-view
-priority: low
-type: spike
+priority: medium
+type: enhancement
 ordinal: 21000
 ---
 
