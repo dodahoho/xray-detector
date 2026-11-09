@@ -2,7 +2,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -23,6 +23,12 @@ from xray_detector.domain.config import AppConfig
 NO_SOURCE = "Ingen videokälla"
 OPEN_FILE = "Öppna videofil..."
 UVC_PREFIX = "UVC "
+MAX_AUTO_RETRIES = 2
+RETRY_TIMEOUT_MS = 1500
+S_LOST = "Källa tappad"
+S_CONNECTING = "Ansluter  (försök {0}/{1})"
+S_LOST_AFTER = "Källan tappad efter {0} försök"
+S_RETRY = "Försök igen"
 
 from xray_detector.ui.colors import class_color
 
@@ -38,6 +44,7 @@ class StreamPanel(QFrame):
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
         self._base_title = title
+        self._lost_attempts = 0
         self.setMinimumSize(2, 2)
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
@@ -60,6 +67,20 @@ class StreamPanel(QFrame):
         self.display = QLabel()
         self.display.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.display, 1)
+        self.lost_widget = QWidget()
+        lost_layout = QVBoxLayout(self.lost_widget)
+        lost_layout.addStretch(1)
+        self.lost_label = QLabel(S_LOST)
+        self.lost_label.setStyleSheet("color: #c33; font-size: 16px; font-weight: bold;")
+        self.lost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.retry_button = QPushButton(S_RETRY)
+        self.retry_button.setMinimumHeight(36)
+        self.retry_button.clicked.connect(self._on_retry)
+        lost_layout.addWidget(self.lost_label)
+        lost_layout.addWidget(self.retry_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        lost_layout.addStretch(1)
+        self.lost_widget.hide()
+        layout.addWidget(self.lost_widget, 1)
         self._show_no_source()
 
     def _on_source_changed(self, *_args) -> None:
@@ -107,10 +128,44 @@ class StreamPanel(QFrame):
     def _show_no_source(self) -> None:
         self.display.setText(NO_SOURCE)
         self.display.setStyleSheet("color: #888; font-size: 24px; background: #222;")
+        self.display.show()
+        self.lost_widget.hide()
         self.title_label.setText(self._base_title)
         self.latest = None
 
+    def show_source_lost(self) -> None:
+        """Kallan tappad: rakna upp, automatiska forsok och sedan knapp (TASK-19)."""
+        self._lost_attempts += 1
+        self.display.hide()
+        self.lost_widget.show()
+        if self._lost_attempts <= MAX_AUTO_RETRIES:
+            self.lost_label.setText(S_CONNECTING.format(self._lost_attempts, MAX_AUTO_RETRIES + 1))
+            self.retry_button.hide()
+            QTimer.singleShot(RETRY_TIMEOUT_MS, self._on_retry)
+        else:
+            self.lost_label.setText(S_LOST_AFTER.format(self._lost_attempts))
+            self.retry_button.show()
+
+    def _on_retry(self) -> None:
+        """Aterstartar senaste kallval utan att oppna menyn."""
+        kind, value = self._active
+        if kind == "none":
+            self.display.hide()
+            self.lost_widget.show()
+            self.lost_label.setText(S_LOST)
+            self.retry_button.show()
+            return
+        self.retry_button.hide()
+        self.source_requested.emit(self.source_id, kind, value)
+
+    def reset_connection_state(self) -> None:
+        self._lost_attempts = 0
+        self.lost_widget.hide()
+        self.display.show()
+
     def show_frame(self, stream_frame: StreamFrame) -> None:
+        if self._lost_attempts:
+            self.reset_connection_state()
         self.latest = stream_frame
         if stream_frame.fps:
             self.title_label.setText(f"{self._base_title} · {stream_frame.fps:.1f} fps")
@@ -144,8 +199,6 @@ class StreamPanel(QFrame):
         )
         self.display.setPixmap(scaled)
 
-    def show_source_lost(self) -> None:
-        self._show_no_source()
 
     def clear_overlay(self) -> None:
         if self.latest is not None:
