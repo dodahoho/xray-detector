@@ -20,3 +20,4 @@ Val av basmodell (YOLO26 n/s/m, RF-DETR), datasetversion, epoker, bildstorlek oc
 | --- | --- | --- | --- |
 | [xray_detector/ui/training_view.py](../../../../../../xray_detector/ui/training_view.py) | [xray_detector/dataset/export.py](../../../../../../xray_detector/dataset/export.py) | Exporterar YOLO-dataset | direkt anrop |
 | [xray_detector/ui/training_view.py](../../../../../../xray_detector/ui/training_view.py) | [xray_detector/training/trainer.py](../../../../../../xray_detector/training/trainer.py) | Startar träningsjobb | QThread |
+| [xray_detector/ui/training_view.py](../../../../../../xray_detector/ui/training_view.py) | [xray_detector/application/training_service.py](../../../../../../xray_detector/application/training_service.py) | Startar träningsjobb | direkt anrop |

@@ -1,16 +1,10 @@
 import json
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 import cv2
-import numpy as np
 
-
-@dataclass
-class AnnotatedImage:
-    frame: np.ndarray
-    annotations: list[dict]
+from xray_detector.domain.dataset import AnnotatedImage
 
 
 class DatasetStore:

@@ -2,8 +2,8 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QStatusBar, QTabWidget
 
-from xray_detector.config import AppConfig
-from xray_detector.dataset.store import DatasetStore
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.domain.config import AppConfig
 from xray_detector.ui.annotation_view import AnnotationView
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.detection_view import DetectionView
@@ -16,7 +16,7 @@ class MainWindow(QMainWindow):
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
         self.setWindowTitle("X-ray detector")
-        self.store = DatasetStore(config.dataset_dir, config.classes)
+        self.dataset_service = DatasetService(config.dataset_dir, config.classes)
         self.settings = QSettings(
             str(config.data_dir / "settings.ini"), QSettings.Format.IniFormat
         )
@@ -29,9 +29,9 @@ class MainWindow(QMainWindow):
             )
 
         self.detection_view = DetectionView(config, self.settings)
-        self.annotation_view = AnnotationView(config, self.store, self.settings)
-        self.dataset_view = DatasetView(self.store)
-        self.training_view = TrainingView(config, self.store, self.settings)
+        self.annotation_view = AnnotationView(config, self.dataset_service, self.settings)
+        self.dataset_view = DatasetView(self.dataset_service)
+        self.training_view = TrainingView(config, self.dataset_service, self.settings)
         self.settings_view = SettingsView(self.settings)
 
         self.tabs = QTabWidget()

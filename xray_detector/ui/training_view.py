@@ -14,10 +14,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xray_detector.config import AppConfig
-from xray_detector.dataset.export import export_coco, export_yolo
-from xray_detector.dataset.store import DatasetStore
-from xray_detector.training.trainer import TrainConfig, TrainingWorker
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.application.training_service import TrainingService
+from xray_detector.domain.config import AppConfig
+from xray_detector.domain.training import TrainConfig
 
 
 class TrainingView(QWidget):
@@ -25,12 +25,13 @@ class TrainingView(QWidget):
     training_finished = Signal()
     status_changed = Signal(str)
 
-    def __init__(self, config: AppConfig, store: DatasetStore, settings, parent=None) -> None:
+    def __init__(self, config: AppConfig, dataset: DatasetService, settings, parent=None) -> None:
         super().__init__(parent)
         self.config = config
-        self.store = store
+        self.dataset_service = dataset
         self.settings = settings
-        self.worker: TrainingWorker | None = None
+        self.training_service = TrainingService()
+        self.worker = None
         layout = QVBoxLayout(self)
         layout.addLayout(self._build_settings())
         layout.addLayout(self._build_export_row())
@@ -42,7 +43,7 @@ class TrainingView(QWidget):
     def _build_settings(self) -> QFormLayout:
         form = QFormLayout()
         self.model_combo = QComboBox()
-        from xray_detector.detection.registry import MODEL_SPECS
+        from xray_detector.application.model_registry import MODEL_SPECS
 
         for spec in MODEL_SPECS:
             self.model_combo.addItem(spec.label, spec.weights)
@@ -120,7 +121,7 @@ class TrainingView(QWidget):
     def refresh_versions(self) -> None:
         self.version_combo.blockSignals(True)
         self.version_combo.clear()
-        for version in self.store.versions():
+        for version in self.dataset_service.versions():
             self.version_combo.addItem(f"v{version}", version)
         self.version_combo.blockSignals(False)
         self._on_version_changed()
@@ -130,7 +131,7 @@ class TrainingView(QWidget):
         if data is None:
             self.version_info.setText("-")
             return
-        info = self.store.metadata(data)
+        info = self.dataset_service.metadata(data)
         self.version_info.setText(
             f"Bilder: {info['num_images']}  Objekt: {info['num_objects']}  "
             f"Uppdaterad: {info['updated'][:10]}"
@@ -144,14 +145,14 @@ class TrainingView(QWidget):
         version = self._current_version()
         if version is None:
             return
-        out = export_coco(self.store, version, self.config.export_dir)
+        out = self.dataset_service.export_coco(version, self.config.export_dir)
         self.status_changed.emit(f"Exporterade COCO till {out}")
 
     def _on_export_yolo(self) -> None:
         version = self._current_version()
         if version is None:
             return
-        out = export_yolo(self.store, version, self.config.export_dir)
+        out = self.dataset_service.export_yolo(version, self.config.export_dir)
         self.status_changed.emit(f"Exporterade YOLO till {out}")
 
     def _on_start(self) -> None:
@@ -159,7 +160,7 @@ class TrainingView(QWidget):
         if version is None:
             self.status_changed.emit("Ingen datasetversion vald")
             return
-        export_yolo(self.store, version, self.config.export_dir)
+        self.dataset_service.export_yolo(version, self.config.export_dir)
         dataset_yaml = self.config.export_dir / f"v{version}_yolo" / "data.yaml"
         config = TrainConfig(
             dataset_yaml=Path(dataset_yaml),
@@ -169,7 +170,7 @@ class TrainingView(QWidget):
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),
         )
-        self.worker = TrainingWorker(config)
+        self.worker = self.training_service.create_worker(config)
         self.worker.progress.connect(self.log.appendPlainText)
         self.worker.finished_training.connect(self._on_finished)
         self.start_button.setEnabled(False)

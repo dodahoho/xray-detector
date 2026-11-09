@@ -16,9 +16,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xray_detector.capture.camera_service import CameraService, StreamFrame
-from xray_detector.config import AppConfig
-from xray_detector.detection.base import BaseDetector, Detection
+from xray_detector.application.video_service import VideoService
+from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.config import AppConfig
 
 NO_SOURCE = "Ingen videokälla"
 OPEN_FILE = "Öppna videofil..."
@@ -163,13 +163,13 @@ class DetectionView(QWidget):
         super().__init__(parent)
         self.config = config
         self.settings = settings
-        self.camera_service = CameraService()
-        self.detector: BaseDetector | None = None
+        self.video_service = VideoService()
+        self.detector = None
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
         self.model_combo = QComboBox()
-        from xray_detector.detection.registry import MODEL_SPECS
+        from xray_detector.application.model_registry import MODEL_SPECS
 
         for spec in MODEL_SPECS:
             self.model_combo.addItem(spec.label, spec.key)
@@ -226,14 +226,7 @@ class DetectionView(QWidget):
             self.settings.setValue(f"detection/source_{panel.source_id}_value", value)
 
     def _on_source_requested(self, source_id: str, kind: str, value: object) -> None:
-        from xray_detector.capture.source import FileSource, UvcSource
-
-        source = None
-        if kind == "uvc":
-            source = UvcSource(int(value))
-        elif kind == "file":
-            source = FileSource(Path(value))
-        worker = self.camera_service.set_source(source_id, source)
+        worker = self.video_service.set_source(source_id, kind, value)
         if worker is not None:
             worker.frame_ready.connect(self._on_frame)
             worker.source_lost.connect(self._on_source_lost)
@@ -252,7 +245,7 @@ class DetectionView(QWidget):
         self.error_occurred.emit(f"Detektorfel ({source_id}): {message}")
 
     def _on_model_changed(self) -> None:
-        from xray_detector.detection.registry import create_detector, spec_by_key
+        from xray_detector.application.model_registry import create_detector, spec_by_key
 
         self.error_occurred.emit("Laddar modell...")
         try:
@@ -260,29 +253,22 @@ class DetectionView(QWidget):
             self.detector = create_detector(
                 spec, self.config.classes, self.conf_spin.value()
             )
-            self.camera_service.set_detector(self.detector)
+            self.video_service.set_detector(self.detector)
             device_label = getattr(self.detector, "device_label", "")
             if device_label:
                 self.device_label.setText(f"Enhet: {device_label}")
             self.error_occurred.emit(f"Modell laddad: {spec.label}")
         except Exception as exc:
             self.detector = None
-            self.camera_service.set_detector(None)
+            self.video_service.set_detector(None)
             self.error_occurred.emit(f"Kunde inte ladda modell: {exc}")
 
     def check_device(self) -> None:
-        try:
-            import torch
+        from xray_detector.application.model_registry import device_status
 
-            if torch.cuda.is_available():
-                self.device_label.setText(f"Enhet: CUDA ({torch.cuda.get_device_name(0)})")
-                self.device_label.setStyleSheet("font-weight: bold; color: #2a8;")
-            else:
-                self.device_label.setText("Enhet: CPU (CUDA ej tillgänglig)")
-                self.device_label.setStyleSheet("font-weight: bold; color: #c33;")
-        except ImportError:
-            self.device_label.setText("Enhet: PyTorch saknas")
-            self.device_label.setStyleSheet("font-weight: bold; color: #c33;")
+        text, color = device_status()
+        self.device_label.setText(text)
+        self.device_label.setStyleSheet(f"font-weight: bold; color: {color};")
 
     def _on_capture(self) -> None:
         captures: list[StreamFrame] = []
@@ -295,13 +281,13 @@ class DetectionView(QWidget):
         self.capture_requested.emit(captures)
 
     def pause_detection(self) -> None:
-        self.camera_service.set_detector(None)
+        self.video_service.set_detector(None)
         for panel in (self.left, self.right):
             panel.clear_overlay()
 
     def resume_detection(self) -> None:
         if self.detector is not None:
-            self.camera_service.set_detector(self.detector)
+            self.video_service.set_detector(self.detector)
 
     def stop(self) -> None:
-        self.camera_service.stop_all()
+        self.video_service.stop_all()

@@ -1,7 +1,4 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-
-import numpy as np
 
 
 @dataclass
@@ -20,12 +17,3 @@ class Detection:
     @property
     def height(self) -> float:
         return self.y2 - self.y1
-
-
-class BaseDetector(ABC):
-    def __init__(self, name: str, class_names: list[str]) -> None:
-        self.name = name
-        self.class_names = class_names
-
-    @abstractmethod
-    def detect(self, frame: np.ndarray) -> list[Detection]: ...

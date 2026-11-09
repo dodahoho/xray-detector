@@ -1,18 +1,8 @@
-from dataclasses import dataclass
-
-import numpy as np
 from PySide6.QtCore import QThread, Signal
 
-from xray_detector.capture.source import VideoSource
-from xray_detector.detection.base import BaseDetector, Detection
-
-
-@dataclass
-class StreamFrame:
-    source_id: str
-    frame: np.ndarray
-    detections: list[Detection]
-    source_label: str
+from xray_detector.domain.capture import StreamFrame
+from xray_detector.infrastructure.detectors.base import BaseDetector
+from xray_detector.infrastructure.video.source import VideoSource
 
 
 class StreamWorker(QThread):
@@ -45,7 +35,7 @@ class StreamWorker(QThread):
                 self.source_lost.emit(self.source_id)
                 self.msleep(500)
                 continue
-            detections: list[Detection] = []
+            detections = []
             if self._detector is not None:
                 try:
                     detections = self._detector.detect(frame)

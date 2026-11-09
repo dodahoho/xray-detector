@@ -13,9 +13,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xray_detector.capture.camera_service import StreamFrame
-from xray_detector.dataset.store import DatasetStore
-from xray_detector.detection.base import Detection
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.detection import Detection
 
 THUMB_HEIGHT = 170
 SELECTED_BORDER = "#2a82da"
@@ -64,9 +64,9 @@ class DatasetView(QWidget):
     open_annotation_requested = Signal(object)
     status_changed = Signal(str)
 
-    def __init__(self, store: DatasetStore, parent=None) -> None:
+    def __init__(self, dataset: DatasetService, parent=None) -> None:
         super().__init__(parent)
-        self.store = store
+        self.dataset_service = dataset
         self._thumbs: list[Thumbnail] = []
         self._groups: dict[int, list[Thumbnail]] = {}
         self._coco: dict | None = None
@@ -97,7 +97,7 @@ class DatasetView(QWidget):
     def refresh_versions(self) -> None:
         self.version_combo.blockSignals(True)
         self.version_combo.clear()
-        for version in self.store.versions():
+        for version in self.dataset_service.versions():
             self.version_combo.addItem(f"v{version}", version)
         self.version_combo.blockSignals(False)
         if self.version_combo.count() > 0 and self.version_combo.currentIndex() < 0:
@@ -119,7 +119,7 @@ class DatasetView(QWidget):
             self.content_layout.addStretch(1)
             return
         version = int(version_data)
-        coco = self.store.load_coco(version)
+        coco = self.dataset_service.load_coco(version)
         self._coco = coco
         annotations_by_image: dict[int, list[dict]] = {}
         for annotation in coco["annotations"]:
@@ -145,7 +145,7 @@ class DatasetView(QWidget):
             row = QHBoxLayout()
             row.addStretch(1)
             for image in images:
-                pixmap = QPixmap(str(self.store.version_dir(version) / "images" / image["file_name"]))
+                pixmap = QPixmap(str(self.dataset_service.version_dir(version) / "images" / image["file_name"]))
                 pixmap = pixmap.scaledToHeight(THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation)
                 count = len(annotations_by_image.get(image["id"], []))
                 classes = sorted(
@@ -177,7 +177,7 @@ class DatasetView(QWidget):
         frames: list[StreamFrame] = []
         for member in group:
             entry = next(img for img in self._coco["images"] if img["id"] == member.image_id)
-            frame = cv2.imread(str(self.store.version_dir(self._current_version()) / "images" / entry["file_name"]))
+            frame = cv2.imread(str(self.dataset_service.version_dir(self._current_version()) / "images" / entry["file_name"]))
             if frame is None:
                 continue
             detections = []
@@ -215,6 +215,6 @@ class DatasetView(QWidget):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.store.delete_images(self._current_version(), ids)
+        self.dataset_service.delete_images(self._current_version(), ids)
         self.status_changed.emit(f"Tog bort {len(ids)} bild(er) från datasetet")
         self.refresh()

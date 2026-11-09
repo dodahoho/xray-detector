@@ -11,7 +11,11 @@ groma:
     - scanner: python
       file: xray_detector/dataset/export.py
     - scanner: python
-      file: xray_detector/dataset/__init__.py
+      file: xray_detector/infrastructure/dataset_store/store.py
+    - scanner: python
+      file: xray_detector/infrastructure/dataset_store/export.py
+    - scanner: python
+      file: xray_detector/infrastructure/dataset_store/__init__.py
   group: Dataset och träning
   technology: COCO JSON, PNG, YOLO-txt
 description: Versionshanterade COCO-dataset samt YOLO/COCO-export.

@@ -9,4 +9,4 @@ groma:
 description: Fristående process som tränar en YOLO-modell på exporterat dataset.
 ---
 
-Körs som "python -m xray_detector.training.train_task" av TrainingWorker i GUI-processen. Läser dataset/weights/epochs-parametrar på kommandoraden, väljer CUDA med CPU-fallback via resolve_device, tränar med ultralytics YOLO och skriver ut TRAINING_DONE vid lyckat slut; GUI-processen bevakar stdout-raderna som framsteg.
+Körs som "python -m xray_detector.infrastructure.training.train_task" av TrainingWorker i GUI-processen. Läser dataset/weights/epochs-parametrar på kommandoraden, väljer CUDA med CPU-fallback via resolve_device, tränar med ultralytics YOLO och skriver ut TRAINING_DONE vid lyckat slut; GUI-processen bevakar stdout-raderna som framsteg.

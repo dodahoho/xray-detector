@@ -9,6 +9,9 @@ groma:
     - scanner: python
       file: xray_detector/training/train_task.py
       symbol: main
+    - scanner: python
+      file: xray_detector/infrastructure/training/train_task.py
+      symbol: main
 description: Själva YOLO-träningen i egen process.
 ---
 

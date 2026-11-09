@@ -3,8 +3,9 @@ from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
-from xray_detector.capture.camera_service import StreamFrame
-from xray_detector.dataset.store import AnnotatedImage, DatasetStore
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.dataset import AnnotatedImage
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
@@ -303,10 +304,10 @@ class AnnotationView(QWidget):
     saved = Signal()
     cancelled = Signal()
 
-    def __init__(self, config, store: DatasetStore, settings, parent=None) -> None:
+    def __init__(self, config, dataset: DatasetService, settings, parent=None) -> None:
         super().__init__(parent)
         self.config = config
-        self.store = store
+        self.dataset_service = dataset
         self.settings = settings
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
@@ -432,8 +433,8 @@ class AnnotationView(QWidget):
         samples = [sample for sample in samples if sample is not None]
         if not samples:
             return
-        version = self.store.current_version() or self.store.new_version()
-        self.store.add_samples(version, samples)
+        version = self.dataset_service.current_version() or self.dataset_service.new_version()
+        self.dataset_service.add_samples(version, samples)
         for canvas in self.canvases:
             canvas.image = None
             canvas.rects = []

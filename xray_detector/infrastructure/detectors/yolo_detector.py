@@ -1,6 +1,7 @@
 import numpy as np
 
-from xray_detector.detection.base import BaseDetector, Detection
+from xray_detector.domain.detection import Detection
+from xray_detector.infrastructure.detectors.base import BaseDetector
 
 
 def resolve_device(requested: str) -> str:

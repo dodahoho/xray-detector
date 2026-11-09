@@ -1,6 +1,6 @@
 import sys
 
-from xray_detector.config import load_config
+from xray_detector.domain.config import load_config
 from xray_detector.ui.main_window import MainWindow
 
 

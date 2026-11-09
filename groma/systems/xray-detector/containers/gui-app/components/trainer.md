@@ -9,15 +9,11 @@ groma:
     - scanner: python
       file: xray_detector/training/trainer.py
     - scanner: python
-      file: xray_detector/training/__init__.py
+      file: xray_detector/infrastructure/training/trainer.py
+    - scanner: python
+      file: xray_detector/infrastructure/training/__init__.py
   group: Dataset och träning
 description: QThread-wrapper som startar och bevakar träningsprocessen.
 ---
 
 TrainConfig-dataklass och TrainingWorker (QThread) som kör "python -m xray_detector.training.train_task" som subprocess: skickar parametrar, lyssnar rad-för-rad på stdout som framstegssignaler, väntar på TRAINING_DONE och kan avbrytas med terminate(). Skriver vikter till models/v<version>/.
-
-## Relationships
-
-| Source | Target | Description | Technology |
-| --- | --- | --- | --- |
-| [xray_detector/training/trainer.py](../../../../../../xray_detector/training/trainer.py) | [xray_detector/training/train_task.py](../../../../../../xray_detector/training/train_task.py) | Startar träningsprocess | subprocess python -m |

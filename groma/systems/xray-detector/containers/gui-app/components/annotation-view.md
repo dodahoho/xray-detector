@@ -19,3 +19,4 @@ Två AnnotationCanvas med handritad markering: ritning genom drag, flytt/storlek
 | Source | Target | Description | Technology |
 | --- | --- | --- | --- |
 | [xray_detector/ui/annotation_view.py](../../../../../../xray_detector/ui/annotation_view.py) | [xray_detector/dataset/store.py](../../../../../../xray_detector/dataset/store.py) | Sparar annoterade bilder | direkt anrop (add_samples) |
+| [xray_detector/ui/annotation_view.py](../../../../../../xray_detector/ui/annotation_view.py) | [xray_detector/application/dataset_service.py](../../../../../../xray_detector/application/dataset_service.py) | Sparar annoterade bilder | direkt anrop |

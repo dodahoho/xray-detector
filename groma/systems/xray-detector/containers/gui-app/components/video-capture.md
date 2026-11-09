@@ -11,7 +11,13 @@ groma:
     - scanner: python
       file: xray_detector/capture/source.py
     - scanner: python
-      file: xray_detector/capture/__init__.py
+      file: xray_detector/infrastructure/video/camera_service.py
+    - scanner: python
+      file: xray_detector/infrastructure/video/source.py
+    - scanner: python
+      file: xray_detector/infrastructure/video/__init__.py
+    - scanner: python
+      file: xray_detector/infrastructure/__init__.py
   group: Video och detektion
   technology: OpenCV VideoCapture, QThread
 description: Läser två parallella videoströmmar i trådar.

@@ -1,19 +1,11 @@
 import subprocess
 import sys
-from dataclasses import dataclass
-from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 
+from xray_detector.domain.training import TrainConfig
 
-@dataclass
-class TrainConfig:
-    dataset_yaml: Path
-    weights: str
-    output_dir: Path
-    epochs: int = 100
-    imgsz: int = 640
-    batch: int = 16
+TRAINING_MODULE = "xray_detector.infrastructure.training.train_task"
 
 
 class TrainingWorker(QThread):
@@ -29,7 +21,7 @@ class TrainingWorker(QThread):
         command = [
             sys.executable,
             "-m",
-            "xray_detector.training.train_task",
+            TRAINING_MODULE,
             "--dataset",
             str(self.config.dataset_yaml),
             "--weights",

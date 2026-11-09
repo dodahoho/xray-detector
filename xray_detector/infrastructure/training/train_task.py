@@ -15,7 +15,7 @@ def main() -> None:
 
     from ultralytics import YOLO
 
-    from xray_detector.detection.yolo_detector import resolve_device
+    from xray_detector.infrastructure.detectors.yolo_detector import resolve_device
 
     device = resolve_device(args.device)
     print(f"Träning på enhet: {device}")

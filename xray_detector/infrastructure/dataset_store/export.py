@@ -3,7 +3,7 @@ import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
-from xray_detector.dataset.store import DatasetStore
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
 def _category_map(coco: dict) -> dict[int, str]:

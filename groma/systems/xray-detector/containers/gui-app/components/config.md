@@ -8,6 +8,8 @@ groma:
   code:
     - scanner: python
       file: xray_detector/config.py
+    - scanner: python
+      file: xray_detector/domain/config.py
 description: 'Appens standardvärden: klasser, datkataloger och trösklar.'
 ---
 
