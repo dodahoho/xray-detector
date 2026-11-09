@@ -1,10 +1,10 @@
 ---
 id: TASK-16
 title: Global kraschdialog via excepthook
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:06:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T13:46:00Z'
 labels:
   - robusthet
   - gui
@@ -13,7 +13,7 @@ references:
   - app
 priority: low
 type: enhancement
-ordinal: 16000
+ordinal: 1000
 ---
 
 ## Description
