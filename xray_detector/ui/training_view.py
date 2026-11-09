@@ -132,8 +132,10 @@ class TrainingView(QWidget):
             self.version_info.setText("-")
             return
         info = self.dataset_service.metadata(data)
+        num_train, num_val = self.dataset_service.train_val_counts(int(data))
         self.version_info.setText(
             f"Bilder: {info['num_images']}  Objekt: {info['num_objects']}  "
+            f"Train/val: {num_train}/{num_val}  "
             f"Uppdaterad: {info['updated'][:10]}"
         )
 

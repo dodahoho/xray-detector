@@ -1,10 +1,10 @@
 ---
 id: TASK-4
 title: Bygg testsvit (enhet + GUI-smoke utan hårdvara)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:04:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:24:00Z'
 labels:
   - test
   - kvalitet

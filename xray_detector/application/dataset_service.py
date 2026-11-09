@@ -1,7 +1,13 @@
 from pathlib import Path
 
 from xray_detector.domain.dataset import AnnotatedImage
-from xray_detector.infrastructure.dataset_store.export import export_coco, export_yolo
+from xray_detector.infrastructure.dataset_store.export import (
+    SPLIT_RATIO,
+    SPLIT_SEED,
+    export_coco,
+    export_yolo,
+    train_val_split,
+)
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
@@ -40,3 +46,8 @@ class DatasetService:
 
     def export_coco(self, version: int, export_root: Path) -> Path:
         return export_coco(self.store, version, export_root)
+
+    def train_val_counts(self, version: int, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
+        """Antal bilder i train respektive val för den seedade grupp-delningen."""
+        train, val = train_val_split(self.load_coco(version), ratio, seed)
+        return len(train), len(val)

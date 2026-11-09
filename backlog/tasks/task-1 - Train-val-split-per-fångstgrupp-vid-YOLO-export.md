@@ -1,10 +1,11 @@
 ---
 id: TASK-1
 title: Train/val-split per fångstgrupp vid YOLO-export
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@glm53'
 created_date: '2026-11-06T14:03:00Z'
-updated_date: '2026-11-06T14:04:00Z'
+updated_date: '2026-11-09T09:30:00Z'
 labels:
   - arkitektur
   - dataläckage
@@ -12,6 +13,10 @@ labels:
 dependencies: []
 references:
   - dataset
+modified_files:
+  - xray_detector/infrastructure/dataset_store/export.py
+  - xray_detector/application/dataset_service.py
+  - xray_detector/ui/training_view.py
 priority: high
 type: feature
 ordinal: 1000
@@ -29,8 +34,14 @@ Vibe-glm53 har redan capture-group-id i datasetet (group i dataset.json), vilket
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 export_yolo() delar upp bilderna i train- och val-uppsättningar (default 80/20, seedat och reproducerbart)
-- [ ] #2 bilder med samma group-id hamnar alltid i samma delmängd (train eller val)
-- [ ] #3 data.yaml pekar ut train: och val: på olika kataloger
-- [ ] #4 träningsvyn visar fördelningen (antal train/val-bilder) innan start
+- [x] #1 export_yolo() delar upp bilderna i train- och val-uppsättningar (default 80/20, seedat och reproducerbart)
+- [x] #2 bilder med samma group-id hamnar alltid i samma delmängd (train eller val)
+- [x] #3 data.yaml pekar ut train: och val: på olika kataloger
+- [x] #4 träningsvyn visar fördelningen (antal train/val-bilder) innan start
 <!-- AC:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+export_yolo delar upp bilder i images/train och images/val med seedad (42) 80/20-split per capture-grupp, sa valSter- och hogerbild fran samta fingst aldrig hamnar pa olika sidor. data.yaml pekar ut train: images/train och val: images/val (fallback till train om val tomt vid ensam grupp). Manifestet far num_train/num_val och tranningsvyn visar Train/val-redovisning i versioninformationen fore start. Verifierat headlost: 6 grupper -> 10/1, grupper odelade over split, reproducibart.
+<!-- SECTION:FINAL_SUMMARY:END -->
