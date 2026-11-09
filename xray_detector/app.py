@@ -20,6 +20,9 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
+    from xray_detector.ui.crash_dialog import install_exception_dialog
+
+    install_exception_dialog()
     app.setApplicationName("X-ray detector")
     config, config_file = load_config_with_yaml(config_dir=None, workdir=Path.cwd())
     config.ensure_dirs()
