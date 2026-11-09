@@ -1,10 +1,10 @@
 ---
 id: TASK-10
 title: 'Videopipeline: BUFFERSIZE=1, faktisk FPS-visning och ramsekvensnummer'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:05:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:37:00Z'
 labels:
   - video
   - prestanda
@@ -15,7 +15,7 @@ references:
   - detection-view
 priority: medium
 type: enhancement
-ordinal: 10000
+ordinal: 7000
 ---
 
 ## Description

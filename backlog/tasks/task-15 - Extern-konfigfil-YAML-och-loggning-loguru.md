@@ -1,10 +1,10 @@
 ---
 id: TASK-15
 title: Extern konfigfil (YAML) och loggning (loguru)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:06:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:38:00Z'
 labels:
   - arkitektur
   - konfiguration
@@ -15,7 +15,7 @@ references:
   - app
 priority: low
 type: task
-ordinal: 15000
+ordinal: 10000
 ---
 
 ## Description

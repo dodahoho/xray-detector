@@ -1,10 +1,10 @@
 ---
 id: TASK-8
 title: Enhetsupptäckt med riktiga kameranamn (pygrabber)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:04:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:36:00Z'
 labels:
   - video
   - ux
@@ -15,7 +15,7 @@ references:
   - video-capture
 priority: medium
 type: enhancement
-ordinal: 8000
+ordinal: 5000
 ---
 
 ## Description

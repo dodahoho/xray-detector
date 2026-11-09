@@ -27,6 +27,10 @@ class MainWindow(QMainWindow):
                 int(self.settings.value("window/width", type=int)),
                 int(self.settings.value("window/height", type=int)),
             )
+        apply_theme(
+            QApplication.instance(),
+            self.settings.value("ui/theme", "system", type=str),
+        )
 
         self.detection_view = DetectionView(config, self.settings)
         self.annotation_view = AnnotationView(config, self.dataset_service, self.settings)
@@ -65,10 +69,6 @@ class MainWindow(QMainWindow):
         self.fullscreen_shortcut.activated.connect(self._toggle_fullscreen)
 
         self.detection_view.check_device()
-        apply_theme(
-            QApplication.instance(),
-            self.settings.value("ui/theme", "system", type=str),
-        )
 
     def show_window(self) -> None:
         if self.settings.value("window/maximized", True, type=bool):

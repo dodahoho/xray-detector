@@ -1,10 +1,10 @@
 ---
 id: TASK-11
 title: 'Fullständigt RF-DETR-stöd: träning och datasetexport'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:05:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:38:00Z'
 labels:
   - detektion
   - träning
@@ -16,7 +16,7 @@ references:
   - dataset
 priority: medium
 type: feature
-ordinal: 11000
+ordinal: 9000
 ---
 
 ## Description

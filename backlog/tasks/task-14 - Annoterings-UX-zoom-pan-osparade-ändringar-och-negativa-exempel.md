@@ -1,10 +1,10 @@
 ---
 id: TASK-14
 title: 'Annoterings-UX: zoom/pan, osparade ändringar och negativa exempel'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:06:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:37:00Z'
 labels:
   - annotation
   - gui
@@ -14,7 +14,7 @@ references:
   - annotation-view
 priority: medium
 type: enhancement
-ordinal: 14000
+ordinal: 8000
 ---
 
 ## Description

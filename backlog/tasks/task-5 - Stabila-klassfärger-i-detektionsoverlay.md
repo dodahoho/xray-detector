@@ -1,10 +1,10 @@
 ---
 id: TASK-5
 title: Stabila klassfärger i detektionsoverlay
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-06T14:04:00Z'
-updated_date: '2026-11-06T14:07:00Z'
+updated_date: '2026-11-09T09:36:00Z'
 labels:
   - bug
   - detektion
@@ -15,7 +15,7 @@ references:
   - detectors
 priority: high
 type: bug
-ordinal: 5000
+ordinal: 6000
 ---
 
 ## Description
