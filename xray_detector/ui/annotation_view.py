@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPush
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.ui.colors import class_color
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
@@ -20,7 +21,6 @@ class RectItem:
             int(abs(y2 - y1)),
         )
         self.class_name = class_name
-        self.color = QColor(255, 200, 60)
 
 
 class AnnotationCanvas(QWidget):
@@ -174,7 +174,9 @@ class AnnotationCanvas(QWidget):
         font.setBold(True)
         painter.setFont(font)
         for item in self.rects:
-            pen.setColor(item.color if item is not self.selected else QColor(255, 120, 0))
+            pen.setColor(
+                class_color(item.class_name) if item is not self.selected else QColor(255, 120, 0)
+            )
             painter.setPen(pen)
             top_left = self._to_widget(QPoint(item.rect.x(), item.rect.y())) + origin
             bottom_right = self._to_widget(

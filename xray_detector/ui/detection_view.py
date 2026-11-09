@@ -24,13 +24,7 @@ NO_SOURCE = "Ingen videokälla"
 OPEN_FILE = "Öppna videofil..."
 UVC_PREFIX = "UVC "
 
-CLASS_COLORS = [
-    QColor(255, 80, 80),
-    QColor(80, 200, 120),
-    QColor(80, 140, 255),
-    QColor(255, 200, 60),
-    QColor(220, 100, 255),
-]
+from xray_detector.ui.colors import class_color
 
 
 class StreamPanel(QFrame):
@@ -39,6 +33,7 @@ class StreamPanel(QFrame):
     def __init__(self, source_id: str, title: str, parent=None) -> None:
         super().__init__(parent)
         self.source_id = source_id
+        self.known_classes: list[str] = []
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
         self.setMinimumSize(2, 2)
@@ -115,7 +110,7 @@ class StreamPanel(QFrame):
         font = QFont()
         font.setPointSize(10)
         for detection in stream_frame.detections:
-            color = CLASS_COLORS[hash(detection.class_name) % len(CLASS_COLORS)]
+            color = class_color(detection.class_name, self.known_classes)
             pen.setColor(color)
             painter.setPen(pen)
             painter.drawRect(
@@ -194,6 +189,8 @@ class DetectionView(QWidget):
         panels = QHBoxLayout()
         self.left = StreamPanel("left", "Ström 1")
         self.right = StreamPanel("right", "ström 2")
+        for panel in (self.left, self.right):
+            panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):
             panel.source_requested.connect(self._on_source_requested)
             panels.addWidget(panel, 1)
