@@ -39,6 +39,21 @@ class TrainingView(QWidget):
         self.log.setReadOnly(True)
         layout.addWidget(self.log, 1)
         self.refresh_versions()
+        self._disable_missing_rfdetr()
+
+    def _disable_missing_rfdetr(self) -> None:
+        """Avstanger RF-DETR posten nar paketet inte ar installerat."""
+        import importlib.util
+
+        if importlib.util.find_spec("rfdetr") is None:
+            model = self.model_combo.model()
+            for row in range(model.rowCount()):
+                if str(self.model_combo.itemData(row)).startswith("rfdetr"):
+                    item = model.item(row)
+                    item.setEnabled(False)
+                    self.model_combo.setItemText(
+                        row, f"{item.text()} (rfdetr ej installerat)"
+                    )
 
     def _build_settings(self) -> QFormLayout:
         form = QFormLayout()
@@ -158,19 +173,33 @@ class TrainingView(QWidget):
         self.status_changed.emit(f"Exporterade YOLO till {out}")
 
     def _on_start(self) -> None:
+        import importlib.util
+
         version = self._current_version()
         if version is None:
             self.status_changed.emit("Ingen datasetversion vald")
             return
-        self.dataset_service.export_yolo(version, self.config.export_dir)
-        dataset_yaml = self.config.export_dir / f"v{version}_yolo" / "data.yaml"
+        weights = str(self.model_combo.currentData())
+        family = "rfdetr" if weights.startswith("rfdetr") else "yolo"
+        if family == "rfdetr":
+            if importlib.util.find_spec("rfdetr") is None:
+                self.status_changed.emit(
+                    "RF-DETR kraver rfdetr-paketet (uv sync --extra rfdetr)"
+                )
+                return
+            dataset_dir = self.dataset_service.export_rfdetr(version, self.config.export_dir)
+            dataset_path = dataset_dir
+        else:
+            self.dataset_service.export_yolo(version, self.config.export_dir)
+            dataset_path = self.config.export_dir / f"v{version}_yolo" / "data.yaml"
         config = TrainConfig(
-            dataset_yaml=Path(dataset_yaml),
-            weights=self.model_combo.currentData(),
+            dataset_yaml=Path(dataset_path),
+            weights=weights,
             output_dir=self.config.models_dir / f"v{version}",
             epochs=self.epochs_spin.value(),
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),
+            family=family,
         )
         self.worker = self.training_service.create_worker(config)
         self.worker.progress.connect(self.log.appendPlainText)

@@ -10,3 +10,4 @@ class TrainConfig:
     epochs: int = 100
     imgsz: int = 640
     batch: int = 16
+    family: str = "yolo"

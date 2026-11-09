@@ -115,3 +115,46 @@ def write_manifest(out_dir: Path, coco: dict, version: int, export_format: str, 
     }
     with open(out_dir / "manifest.json", "w", encoding="utf-8") as file:
         json.dump(manifest, file, ensure_ascii=False, indent=2)
+
+
+def _coco_for_split(coco: dict, images: list[dict]) -> dict:
+    """COCO-dokument för en delmängd bilder (RF-DETR:s per-split json)."""
+    ids = {image["id"] for image in images}
+    return {
+        "info": dict(coco.get("info", {})),
+        "licenses": coco.get("licenses", []),
+        "categories": coco["categories"],
+        "images": [dict(image) for image in images],
+        "annotations": [
+            dict(annotation) for annotation in coco["annotations"]
+            if annotation["image_id"] in ids
+        ],
+    }
+
+
+def export_rfdetr(store: DatasetStore, version: int, export_root: Path) -> Path:
+    """Exporterar i RF-DETR:s forvantalade format: train/valid/test med _annotations.coco.json."""
+    import json
+
+    coco = store.load_coco(version)
+    out_dir = export_root / f"v{version}_rfdetr"
+    source_images = store.version_dir(version) / "images"
+    train, val = train_val_split(coco)
+
+    for split, images in (("train", train), ("valid", val), ("test", val)):
+        split_dir = out_dir / split
+        (split_dir / "images").mkdir(parents=True, exist_ok=True)
+        for image in images:
+            shutil.copy2(
+                source_images / image["file_name"],
+                split_dir / "images" / image["file_name"],
+            )
+        split_coco = _coco_for_split(coco, images)
+        for image in split_coco["images"]:
+            image["file_name"] = f"images/{image['file_name']}"
+        with open(split_dir / "_annotations.coco.json", "w", encoding="utf-8") as file:
+            json.dump(split_coco, file, ensure_ascii=False, indent=2)
+
+    write_manifest(out_dir, coco, version, "rfdetr",
+                   num_train=len(train), num_val=len(val), num_test=len(val))
+    return out_dir

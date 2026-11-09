@@ -17,8 +17,9 @@ class TrainingWorker(QThread):
         self.config = config
         self._process: subprocess.Popen | None = None
 
-    def run(self) -> None:
-        command = [
+    def command(self) -> list[str]:
+        """Kommandorad for träningsprocessen (testbar)."""
+        return [
             sys.executable,
             "-m",
             TRAINING_MODULE,
@@ -34,7 +35,12 @@ class TrainingWorker(QThread):
             str(self.config.imgsz),
             "--batch",
             str(self.config.batch),
+            "--family",
+            str(self.config.family),
         ]
+
+    def run(self) -> None:
+        command = self.command()
         self._process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,

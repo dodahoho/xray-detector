@@ -5,6 +5,7 @@ from xray_detector.infrastructure.dataset_store.export import (
     SPLIT_RATIO,
     SPLIT_SEED,
     export_coco,
+    export_rfdetr,
     export_yolo,
     train_val_split,
 )
@@ -46,6 +47,9 @@ class DatasetService:
 
     def export_coco(self, version: int, export_root: Path) -> Path:
         return export_coco(self.store, version, export_root)
+
+    def export_rfdetr(self, version: int, export_root: Path) -> Path:
+        return export_rfdetr(self.store, version, export_root)
 
     def train_val_counts(self, version: int, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
         """Antal bilder i train respektive val för den seedade grupp-delningen."""
