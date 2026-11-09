@@ -5,6 +5,7 @@ from pathlib import Path
 import cv2
 
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 
 
 class DatasetStore:
@@ -60,9 +61,7 @@ class DatasetStore:
         coco["info"]["updated"] = datetime.now(UTC).isoformat()
         coco["info"]["num_images"] = len(coco["images"])
         coco["info"]["num_objects"] = len(coco["annotations"])
-        path = self.version_dir(version) / "dataset.json"
-        with open(path, "w", encoding="utf-8") as file:
-            json.dump(coco, file, ensure_ascii=False, indent=2)
+        atomic_write_json(self.version_dir(version) / "dataset.json", coco)
 
     def _category_id(self, coco: dict, class_name: str) -> int:
         for category in coco["categories"]:

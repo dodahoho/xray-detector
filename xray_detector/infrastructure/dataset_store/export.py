@@ -4,6 +4,7 @@ import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
+from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 SPLIT_RATIO = 0.8
@@ -98,8 +99,7 @@ def export_coco(store: DatasetStore, version: int, export_root: Path) -> Path:
     source_images = store.version_dir(version) / "images"
     for image in coco["images"]:
         shutil.copy2(source_images / image["file_name"], out_dir / "images" / image["file_name"])
-    with open(out_dir / "dataset.json", "w", encoding="utf-8") as file:
-        json.dump(coco, file, ensure_ascii=False, indent=2)
+    atomic_write_json(out_dir / "dataset.json", coco)
     write_manifest(out_dir, coco, version, "coco")
     return out_dir
 
@@ -113,8 +113,7 @@ def write_manifest(out_dir: Path, coco: dict, version: int, export_format: str, 
         "num_objects": len(coco["annotations"]),
         **extra,
     }
-    with open(out_dir / "manifest.json", "w", encoding="utf-8") as file:
-        json.dump(manifest, file, ensure_ascii=False, indent=2)
+    atomic_write_json(out_dir / "manifest.json", manifest)
 
 
 def _coco_for_split(coco: dict, images: list[dict]) -> dict:
@@ -152,8 +151,7 @@ def export_rfdetr(store: DatasetStore, version: int, export_root: Path) -> Path:
         split_coco = _coco_for_split(coco, images)
         for image in split_coco["images"]:
             image["file_name"] = f"images/{image['file_name']}"
-        with open(split_dir / "_annotations.coco.json", "w", encoding="utf-8") as file:
-            json.dump(split_coco, file, ensure_ascii=False, indent=2)
+        atomic_write_json(split_dir / "_annotations.coco.json", split_coco)
 
     write_manifest(out_dir, coco, version, "rfdetr",
                    num_train=len(train), num_val=len(val), num_test=len(val))

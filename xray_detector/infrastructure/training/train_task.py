@@ -68,9 +68,9 @@ def _write_manifest(args, run_dir: Path) -> None:
         "metrics": _read_metrics(run_dir / "results.csv"),
         "date": datetime.now(UTC).isoformat(),
     }
-    manifest_path = args.output_path / "training_manifest.json"
-    with open(manifest_path, "w", encoding="utf-8") as file:
-        json.dump(manifest, file, ensure_ascii=False, indent=2)
+    from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
+
+    atomic_write_json(args.output_path / "training_manifest.json", manifest)
 
 
 def main() -> None:
