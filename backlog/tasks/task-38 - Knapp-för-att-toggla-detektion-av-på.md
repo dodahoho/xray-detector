@@ -1,10 +1,10 @@
 ---
 id: TASK-38
 title: Knapp för att toggla detektion av/på
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-10T20:11:00Z'
-updated_date: '2026-11-10T20:17:00Z'
+updated_date: '2026-11-10T20:18:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -36,7 +36,7 @@ Kan finnas tillfällen där man vill slå av objektdetektion. Lägg in knapp lä
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
