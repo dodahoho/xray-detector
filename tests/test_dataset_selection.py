@@ -60,14 +60,41 @@ def test_delete_button_reflects_selection(view):
 
 def test_selected_capture_is_visually_marked(view):
     thumb = view._thumbs[0]
-    assert thumb.badge.isHidden()
     assert SELECTED_BORDER not in thumb.styleSheet()
 
     view._on_thumb_clicked(thumb)
 
     for member in view._thumbs:
-        assert not member.badge.isHidden()
         assert SELECTED_BORDER in member.styleSheet()
+
+
+def test_no_markerad_row_on_thumbnails(view):
+    """Markeringen ska sitta i rubrikraden, inte som en rad per bild (TASK-29)."""
+    from PySide6.QtWidgets import QLabel
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    for thumb in view._thumbs:
+        texts = [label.text() for label in thumb.findChildren(QLabel)]
+        assert not any("MARKERAD" in text for text in texts)
+
+
+def test_header_is_filled_and_marked(view):
+    header, frame, base_text = view._group_headers[1]
+    assert header.text() == base_text
+    assert "Markerad" not in header.text()
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert header.text() == f"{base_text} · Markerad"
+    assert SELECTED_BORDER in header.styleSheet()
+    assert SELECTED_BORDER in frame.styleSheet()
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert header.text() == base_text
+    assert SELECTED_BORDER not in header.styleSheet()
+    assert SELECTED_BORDER not in frame.styleSheet()
 
 
 def test_delete_removes_whole_capture(view, service, monkeypatch):

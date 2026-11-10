@@ -45,14 +45,6 @@ class Thumbnail(QWidget):
             self.caption.setStyleSheet("color: #e5a52a; font-weight: bold;")
         self.caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.caption.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.badge = QLabel("MARKERAD")
-        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.badge.setStyleSheet(
-            f"background: {SELECTED_BORDER}; color: #10202e; font-weight: bold; "
-            "border-radius: 3px; padding: 1px 4px;"
-        )
-        self.badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(self.badge)
         layout.addWidget(self.picture)
         layout.addWidget(self.caption)
         self._apply_style()
@@ -65,7 +57,6 @@ class Thumbnail(QWidget):
             f"Thumbnail {{ background: {background}; border: {width}px solid {border}; "
             "border-radius: 6px; }"
         )
-        self.badge.setVisible(self.selected)
 
     def set_selected(self, selected: bool) -> None:
         self.selected = selected
@@ -87,6 +78,7 @@ class DatasetView(QWidget):
         self.dataset_service = dataset
         self._thumbs: list[Thumbnail] = []
         self._groups: dict[int, list[Thumbnail]] = {}
+        self._group_headers: dict = {}
         self._coco: dict | None = None
 
         layout = QVBoxLayout(self)
@@ -129,6 +121,7 @@ class DatasetView(QWidget):
                 item.widget().deleteLater()
         self._thumbs = []
         self._groups = {}
+        self._group_headers = {}
         self._pending_by_group: dict[str, object] = {}
 
         self._add_pending_section()
@@ -161,6 +154,7 @@ class DatasetView(QWidget):
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
             frame.setStyleSheet("QFrame { border: 1px solid #666; border-radius: 8px; }")
+            self._group_headers[key] = (header, frame, header.text())
             inner = QVBoxLayout(frame)
             inner.setContentsMargins(8, 8, 8, 8)
             inner.addWidget(header)
@@ -199,6 +193,7 @@ class DatasetView(QWidget):
             frame_box = QFrame()
             frame_box.setFrameShape(QFrame.Shape.Box)
             frame_box.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
+            self._group_headers[capture.group_id] = (header, frame_box, header.text())
             inner = QVBoxLayout(frame_box)
             inner.setContentsMargins(8, 8, 8, 8)
             inner.addWidget(header)
@@ -227,15 +222,39 @@ class DatasetView(QWidget):
     def _on_thumb_clicked(self, thumb: Thumbnail) -> None:
         """Markerar hela fångsten - bilderna hanteras alltid som ett par (TASK-25)."""
         selected = not thumb.selected
-        for member in self._group_thumbs(thumb):
+        for member in self._thumbs_for_group(thumb.group_id):
             member.set_selected(selected)
+        self._update_group_header(thumb.group_id)
         self._update_delete_button()
 
-    def _group_thumbs(self, thumb: Thumbnail) -> list[Thumbnail]:
-        """Alla bilder som hör till samma fångst som thumb."""
-        if thumb.pending:
-            return [t for t in self._thumbs if t.pending and t.group_id == thumb.group_id]
-        return self._groups.get(thumb.group_id, [thumb])
+    def _thumbs_for_group(self, group_id) -> list[Thumbnail]:
+        """Alla bilder som hör till samma fångst."""
+        return [thumb for thumb in self._thumbs if thumb.group_id == group_id]
+
+    def _update_group_header(self, group_id) -> None:
+        """Fyller fångstens rubrikrad och avslutar den med 'Markerad' (TASK-29)."""
+        entry = self._group_headers.get(group_id)
+        if entry is None:
+            return
+        header, frame, base_text = entry
+        members = self._thumbs_for_group(group_id)
+        selected = any(thumb.selected for thumb in members)
+        pending = any(thumb.pending for thumb in members)
+        header.setText(f"{base_text} · Markerad" if selected else base_text)
+        if selected:
+            header.setStyleSheet(
+                f"font-weight: bold; color: #10202e; background: {SELECTED_BORDER}; "
+                "border-radius: 3px; padding: 2px 6px;"
+            )
+            frame.setStyleSheet(
+                f"QFrame {{ border: 2px solid {SELECTED_BORDER}; border-radius: 8px; }}"
+            )
+        elif pending:
+            header.setStyleSheet("font-weight: bold; color: #e5a52a;")
+            frame.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
+        else:
+            header.setStyleSheet("font-weight: bold; color: #888;")
+            frame.setStyleSheet("QFrame { border: 1px solid #666; border-radius: 8px; }")
 
     def _update_delete_button(self) -> None:
         count = sum(1 for thumb in self._thumbs if thumb.selected)
