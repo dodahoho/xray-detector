@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe-deepseek41'
 created_date: '2026-11-10T07:34:00Z'
-updated_date: '2026-11-10T07:39:00Z'
+updated_date: '2026-11-10T08:06:00Z'
 labels: []
 dependencies: []
 type: bug
@@ -55,6 +55,8 @@ Rotorsak: två separata fel. (1) rfdetr är ett valfritt extra som inte var inst
 Verifiering: 4 nya tester i tests/test_rfdetr.py (parsning mot fejkad Detections, avstängd post utan paket, aktiverad post med paket, fallback från sparat rfdetr-val). Hela sviten: 105 passed, 1 skipped (träningsvyns avstängningstest hoppar nu när rfdetr är installerat). Riktig inferens på media/xray_slideshow_side.mp4: modellen laddas och detect() ger 24 detektioner vid tröskel 0.05 utan undantag. GUI-körning offscreen: val av RF-DETR base gav RfDetrDetector och statusmeddelandet "Modell laddad: RF-DETR base", inget "Kunde inte ladda modell".
 
 Miljö: rfdetr-extra installerat med uv sync --extra cu128 --extra rfdetr (28 paket, uv.lock oförändrad).
+
+Uppföljning efter granskning: deprecerade RFDETRBase är borttagen ur lösningen. rfdetrs migreringsguide pekar på RFDETRSmall, som nu används både i RfDetrDetector och i träningsgrenen (train_task._train_rfdetr). Modellposten heter 'RF-DETR small' (nyckel rfdetr-small) så etiketten matchar modellen som laddas, och lägsta rfdetr-version är höjd till 1.7 där klassen introducerades. Empiriskt skiljer sig RFDETRSmall från RFDETRBase i 1.11.2: 512 px/patch 16/rf-detr-small.pth mot 560 px/patch 14/rf-detr-base.pth, båda ca 32M parametrar. Verifierat: 105 passed, 1 skipped; riktig inferens gav 56 detektioner vid tröskel 0.05; offscreen-modellbyte gav statusmeddelandet 'Modell laddad: RF-DETR small'; inga rfdetr-deprecation-varningar kvarstår.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
@@ -62,7 +64,9 @@ Miljö: rfdetr-extra installerat med uv sync --extra cu128 --extra rfdetr (28 pa
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 RF-DETR-modellbyte fungerar: RfDetrDetector läser rfdetr-paketets supervision.Detections (xyxy/class_id/confidence) i stället för det tidigare dict-antagandet, konverterar BGR->RGB före predict och använder modellens egna klassnamn med appens klasslista som fallback. Detektionsvyn avstänger RF-DETR-posten och märker den '(rfdetr ej installerat)' när paketet saknas, och ett sparat RF-DETR-val faller tillbaka på en tillgänglig modell i stället för att försöka laddas — därmed inget felladdningsmeddelande i statusbaren.
 
-Verifierat: 4 nya tester (parsning mot fejkad Detections, avstängd/aktiverad post, fallback från sparat val); hela sviten 105 passed, 1 skipped. Riktig inferens på media/xray_slideshow_side.mp4 gav 24 detektioner vid tröskel 0.05 utan undantag, och en offscreen-GUI-körning av modellbytet gav RfDetrDetector med statusmeddelandet 'Modell laddad: RF-DETR base'.
+Deprecerade RFDETRBase är ersatt av RFDETRSmall enligt rfdetrs migreringsguide, i både inferensen och träningsgrenen; modellposten heter nu 'RF-DETR small' och lägsta rfdetr-version är 1.7. Notera att RFDETRSmall inte är identisk med RFDETRBase i 1.11.2 (512 px/patch 16/rf-detr-small.pth mot 560 px/patch 14/rf-detr-base.pth), så bytet ändrar vilka vikter som laddas.
 
-Risker/uppföljning: rfdetr-extra är installerat i .venv (uv sync --extra cu128 --extra rfdetr, uv.lock oförändrad); utan extrat är RF-DETR avstängt i båda vyerna. rfdetr 1.11 varnar att RFDETRBase är deprecated till förmån för nyare API i v2.0 — värt en egen uppgift. Modellen är COCO-förtränad, så klassnamnen på röntgenbilder blir COCO-klasser (samma beteende som YOLO-modellerna).
+Verifierat: 4 nya tester (parsning mot fejkad Detections, avstängd/aktiverad post, fallback från sparat val); hela sviten 105 passed, 1 skipped. Riktig inferens på media/xray_slideshow_side.mp4 gav 56 detektioner vid tröskel 0.05 utan undantag, och en offscreen-GUI-körning av modellbytet gav RfDetrDetector med statusmeddelandet 'Modell laddad: RF-DETR small'. Inga rfdetr-deprecation-varningar kvarstår; endast torch.jit.script-varningar inifrån paketet.
+
+Risker/uppföljning: rfdetr-extra är installerat i .venv (uv sync --extra cu128 --extra rfdetr). Utan extrat är RF-DETR avstängt i båda vyerna. Modellen är COCO-förtränad, så klassnamnen på röntgenbilder blir COCO-klasser (samma beteende som YOLO-modellerna).
 <!-- SECTION:FINAL_SUMMARY:END -->
