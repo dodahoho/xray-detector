@@ -240,3 +240,19 @@ def test_deadline_advances_by_frame_interval(video_file, monkeypatch):
     source.close()
 
     assert abs((second - first) - source._frame_interval) < 1e-6
+
+
+def test_frame_is_emitted_before_detection(qapp, video_file, fake_detector):
+    """Ramen skickas innan detektionen körs så visningen inte fördröjs (TASK-37)."""
+    worker = StreamWorker("left", FileSource(video_file))
+    received = []
+    worker.frame_ready.connect(lambda frame: received.append(frame))
+    worker.set_detector(fake_detector)
+    worker.start()
+    try:
+        assert wait_for(qapp, lambda: len(received) >= 3), "inga ramar togs emot"
+    finally:
+        worker.stop()
+
+    assert received[0].detections == []
+    assert any(frame.detections for frame in received), "detektionerna ska komma på en senare ram"

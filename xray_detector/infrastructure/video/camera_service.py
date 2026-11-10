@@ -3,6 +3,7 @@ import time
 from PySide6.QtCore import QThread, Signal
 
 from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.detectors.smoothing import DetectionSmoother
 from xray_detector.infrastructure.video.source import VideoSource
@@ -57,21 +58,18 @@ class StreamWorker(QThread):
                 )
                 self.source_lost.emit(self.source_id)
                 return
+            detections: list[Detection] = []
             while self._running:
                 frame = self.source.read()
                 if frame is None:
                     self._smoother.reset()
+                    detections = []
                     self.source_lost.emit(self.source_id)
                     self.msleep(500)
                     continue
-                detections = []
-                if self._detector is not None:
-                    try:
-                        detections = self._smoother.update(self._detector.detect(frame))
-                    except Exception as exc:
-                        self.error_occurred.emit(self.source_id, str(exc))
-                        self.msleep(500)
-                        continue
+                # Ramen skickas direkt: detektionens varierande körtid får inte
+                # förskjuta visningen (TASK-37). Overlayn visar därför senaste
+                # ramens detektioner, alltså en ram efter bilden.
                 self.frame_ready.emit(
                     StreamFrame(
                         self.source_id,
@@ -82,6 +80,12 @@ class StreamWorker(QThread):
                         fps=self._measure_fps(),
                     )
                 )
+                if self._detector is not None:
+                    try:
+                        detections = self._smoother.update(self._detector.detect(frame))
+                    except Exception as exc:
+                        self.error_occurred.emit(self.source_id, str(exc))
+                        self.msleep(500)
         finally:
             # Källan stängs i den tråd som öppnade den: DSHOW-fönstret ägs av
             # tråden, och release() från en annan tråd får drivrutinen att
