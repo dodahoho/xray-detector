@@ -79,10 +79,10 @@ def test_stream_worker_with_real_video(qapp, fake_detector):
     worker.set_detector(fake_detector)
     worker.start()
     try:
-        assert wait_for(qapp, lambda: len(received) >= 3), "inga ramar togs emot"
+        assert wait_for(qapp, lambda: any(f.detections for f in received)), "inga detektioner togs emot"
     finally:
         worker.stop()
-    frame = received[0]
+    frame = next(f for f in received if f.detections)
     assert frame.frame.shape == (720, 1280, 3)
     assert frame.detections, "FakeDetector gav inga detektioner pa riktig video"
     assert frame.sequence >= 1

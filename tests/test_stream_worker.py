@@ -55,11 +55,11 @@ def test_stream_worker_emits_frames_with_detections(qapp, video_file, fake_detec
     worker.start()
 
     try:
-        assert wait_for(qapp, lambda: len(received) >= 2), "inga ramer togs emot"
+        assert wait_for(qapp, lambda: any(f.detections for f in received)), "inga detektioner togs emot"
     finally:
         worker.stop()
 
-    frame = received[0]
+    frame = next(f for f in received if f.detections)
     assert frame.source_id == "left"
     assert frame.frame.shape == (48, 64, 3)
     assert frame.detections, "FakeDetector gav inga detektioner"

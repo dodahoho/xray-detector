@@ -4,6 +4,7 @@ from PySide6.QtCore import QThread, Signal
 
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.infrastructure.detectors.base import BaseDetector
+from xray_detector.infrastructure.detectors.smoothing import DetectionSmoother
 from xray_detector.infrastructure.video.source import VideoSource
 
 FPS_WINDOW_FRAMES = 30
@@ -19,6 +20,7 @@ class StreamWorker(QThread):
         self.source_id = source_id
         self.source = source
         self._detector: BaseDetector | None = None
+        self._smoother = DetectionSmoother()
         self._running = True
         self._sequence = 0
         self._fps_window_start = time.perf_counter()
@@ -27,6 +29,7 @@ class StreamWorker(QThread):
 
     def set_detector(self, detector: BaseDetector | None) -> None:
         self._detector = detector
+        self._smoother.reset()
 
     def _next_sequence(self) -> int:
         self._sequence += 1
@@ -57,13 +60,14 @@ class StreamWorker(QThread):
             while self._running:
                 frame = self.source.read()
                 if frame is None:
+                    self._smoother.reset()
                     self.source_lost.emit(self.source_id)
                     self.msleep(500)
                     continue
                 detections = []
                 if self._detector is not None:
                     try:
-                        detections = self._detector.detect(frame)
+                        detections = self._smoother.update(self._detector.detect(frame))
                     except Exception as exc:
                         self.error_occurred.emit(self.source_id, str(exc))
                         self.msleep(500)
