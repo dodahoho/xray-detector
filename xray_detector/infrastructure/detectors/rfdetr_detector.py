@@ -19,9 +19,9 @@ class RfDetrDetector(BaseDetector):
         confidence_threshold: float,
     ) -> None:
         super().__init__(name=f"RF-DETR ({model_name})", class_names=class_names)
-        from rfdetr import RFDETRBase
+        from rfdetr import RFDETRSmall
 
-        self.model = RFDETRBase()
+        self.model = RFDETRSmall()
         self.confidence_threshold = confidence_threshold
 
     def detect(self, frame: np.ndarray) -> list[Detection]:

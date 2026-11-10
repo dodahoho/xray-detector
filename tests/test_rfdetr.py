@@ -47,7 +47,7 @@ def test_trainer_command_includes_family(tmp_path):
 
     config = TrainConfig(
         dataset_yaml=tmp_path / "d.yaml",
-        weights="rfdetr-base",
+        weights="rfdetr-small",
         output_dir=tmp_path / "o",
         epochs=3,
         family="rfdetr",
@@ -102,7 +102,7 @@ class _FakeDetections:
 
 
 class _FakeRfDetrModel:
-    """Ersätter RFDETRBase: registrerar anropet och ger fasta detektioner."""
+    """Ersätter RFDETRSmall: registrerar anropet och ger fasta detektioner."""
 
     def __init__(self):
         self.calls = []
@@ -123,12 +123,12 @@ def test_rfdetr_detector_parses_supervision_detections(monkeypatch):
     import types
 
     fake = types.ModuleType("rfdetr")
-    fake.RFDETRBase = _FakeRfDetrModel
+    fake.RFDETRSmall = _FakeRfDetrModel
     monkeypatch.setitem(sys.modules, "rfdetr", fake)
 
     from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
-    detector = RfDetrDetector("rfdetr-base", ["kniv", "pistol"], 0.4)
+    detector = RfDetrDetector("rfdetr-small", ["kniv", "pistol"], 0.4)
     frame = np.full((20, 30, 3), (10, 20, 30), dtype=np.uint8)  # BGR
     detections = detector.detect(frame)
 
@@ -203,14 +203,14 @@ def test_detection_view_falls_back_from_unavailable_model(qapp, tmp_path, monkey
 
     _patch_rfdetr_presence(monkeypatch, present=False)
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    settings.setValue("detection/model", "rfdetr-base")
+    settings.setValue("detection/model", "rfdetr-small")
     view = _detection_view(tmp_path, settings)
     errors = []
     view.error_occurred.connect(errors.append)
 
     view.restore_settings()
 
-    assert view.model_combo.currentData() != "rfdetr-base"
+    assert view.model_combo.currentData() != "rfdetr-small"
     current = view.model_combo.model().item(view.model_combo.currentIndex())
     assert current.isEnabled()
     assert not [e for e in errors if "Kunde inte ladda modell" in e]

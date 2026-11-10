@@ -12,7 +12,7 @@ dependencies = [
 
 [project.optional-dependencies]
 rfdetr = [
-    "rfdetr>=1.0",
+    "rfdetr>=1.7",
 ]
 windows = [
     "pygrabber>=0.2",

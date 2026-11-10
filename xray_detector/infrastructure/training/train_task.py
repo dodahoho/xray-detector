@@ -116,16 +116,16 @@ def _train_yolo(args, device) -> Path:
 
 
 def _train_rfdetr(args, device) -> Path:
-    """Trainer RF-DETRBase pa exporterat rfdetr-dataset.
+    """Trainer RF-DETR small pa exporterat rfdetr-dataset.
 
     rfdetr-paketet ar valfritt och dess train()-signatur varierar mellan
     versioner: kwargs filtreras därför mot den faktiska signaturen.
     """
     import inspect
 
-    from rfdetr import RFDETRBase
+    from rfdetr import RFDETRSmall
 
-    model = RFDETRBase()
+    model = RFDETRSmall()
     self = model.train
     params = inspect.signature(self).parameters
     wanted = {"dataset_dir": args.dataset, "epochs": args.epochs,

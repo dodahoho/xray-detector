@@ -17,7 +17,7 @@ MODEL_SPECS: list[ModelSpec] = [
     ModelSpec("yolo26n", "YOLO26 nano", "yolo", "yolo26n.pt"),
     ModelSpec("yolo26s", "YOLO26 small", "yolo", "yolo26s.pt"),
     ModelSpec("yolo26m", "YOLO26 medium", "yolo", "yolo26m.pt"),
-    ModelSpec("rfdetr-base", "RF-DETR base", "rfdetr", "rfdetr-base"),
+    ModelSpec("rfdetr-small", "RF-DETR small", "rfdetr", "rfdetr-small"),
 ]
 
 
