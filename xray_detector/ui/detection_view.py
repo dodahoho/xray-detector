@@ -261,9 +261,7 @@ class DetectionView(QWidget):
         bar.addWidget(QLabel("Modell:"))
         self.model_combo = QComboBox()
         self.refresh_models()
-        index = self.model_combo.findData(config.default_model)
-        if index >= 0:
-            self.model_combo.setCurrentIndex(index)
+        self._select_model(config.default_model)
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         bar.addWidget(self.model_combo)
         bar.addWidget(QLabel("Tröskel:"))
@@ -307,17 +305,40 @@ class DetectionView(QWidget):
         for spec in trained_models(self.config.models_dir):
             self.model_combo.addItem(spec.label, spec.key)
             self._specs[spec.key] = spec
-        index = self.model_combo.findData(current) if current else -1
-        if index >= 0:
-            self.model_combo.setCurrentIndex(index)
+        self._disable_unavailable_models()
+        self._select_model(current)
         self.model_combo.blockSignals(False)
+
+    def _disable_unavailable_models(self) -> None:
+        """Avstänger modeller vars paket saknas (samma mönster som träningsvyn)."""
+        import importlib.util
+
+        missing = {"rfdetr": importlib.util.find_spec("rfdetr") is None}
+        model = self.model_combo.model()
+        for row in range(model.rowCount()):
+            spec = self._specs.get(self.model_combo.itemData(row))
+            if spec is None or not missing.get(spec.family, False):
+                continue
+            item = model.item(row)
+            item.setEnabled(False)
+            self.model_combo.setItemText(row, f"{item.text()} (rfdetr ej installerat)")
+
+    def _select_model(self, key: str | None) -> bool:
+        """Väljer modellen om den finns och är tillgänglig."""
+        index = self.model_combo.findData(key) if key else -1
+        if index < 0 or not self._model_enabled(index):
+            return False
+        self.model_combo.setCurrentIndex(index)
+        return True
+
+    def _model_enabled(self, index: int) -> bool:
+        item = self.model_combo.model().item(index)
+        return item is None or item.isEnabled()
 
     def restore_settings(self) -> None:
         model_key = self.settings.value("detection/model", type=str)
         if model_key:
-            index = self.model_combo.findData(model_key)
-            if index >= 0:
-                self.model_combo.setCurrentIndex(index)
+            self._select_model(model_key)
         confidence = self.settings.value("detection/confidence", type=float)
         if confidence:
             self.conf_spin.setValue(confidence)
