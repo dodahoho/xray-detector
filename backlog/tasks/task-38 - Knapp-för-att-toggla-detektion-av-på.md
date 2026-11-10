@@ -1,10 +1,10 @@
 ---
 id: TASK-38
 title: Knapp för att toggla detektion av/på
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-10T20:11:00Z'
-updated_date: '2026-11-10T22:33:00Z'
+updated_date: '2026-11-10T22:34:00Z'
 labels: []
 dependencies: []
 modified_files:
