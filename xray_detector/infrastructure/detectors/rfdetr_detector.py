@@ -4,6 +4,25 @@ import numpy as np
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 
+#: Modellnyckel -> rfdetr-klass. rfdetr 1.7 ersatte RFDETRBase med
+#: storleksspecifika klasser (se rfdetrs migreringsguide).
+RFDETR_VARIANTS = {
+    "rfdetr-nano": "RFDETRNano",
+    "rfdetr-small": "RFDETRSmall",
+    "rfdetr-medium": "RFDETRMedium",
+    "rfdetr-large": "RFDETRLarge",
+}
+
+
+def rfdetr_variant(model_name: str):
+    """Returnerar rfdetr-klassen för en modellnyckel, t.ex. 'rfdetr-small'."""
+    import rfdetr
+
+    class_name = RFDETR_VARIANTS.get(model_name)
+    if class_name is None:
+        raise ValueError(f"Okänd RF-DETR-modell: {model_name}")
+    return getattr(rfdetr, class_name)
+
 
 class RfDetrDetector(BaseDetector):
     """RF-DETR-backend (valfritt rfdetr-paket).
@@ -19,9 +38,7 @@ class RfDetrDetector(BaseDetector):
         confidence_threshold: float,
     ) -> None:
         super().__init__(name=f"RF-DETR ({model_name})", class_names=class_names)
-        from rfdetr import RFDETRSmall
-
-        self.model = RFDETRSmall()
+        self.model = rfdetr_variant(model_name)()
         self.confidence_threshold = confidence_threshold
 
     def detect(self, frame: np.ndarray) -> list[Detection]:

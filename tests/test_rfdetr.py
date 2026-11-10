@@ -214,3 +214,124 @@ def test_detection_view_falls_back_from_unavailable_model(qapp, tmp_path, monkey
     current = view.model_combo.model().item(view.model_combo.currentIndex())
     assert current.isEnabled()
     assert not [e for e in errors if "Kunde inte ladda modell" in e]
+
+
+RFDETR_SIZES = ("rfdetr-nano", "rfdetr-small", "rfdetr-medium", "rfdetr-large")
+
+
+def test_model_registry_lists_all_rfdetr_sizes():
+    from xray_detector.application.model_registry import MODEL_SPECS
+
+    specs = {spec.key: spec for spec in MODEL_SPECS}
+    for key in RFDETR_SIZES:
+        assert key in specs, key
+        assert specs[key].family == "rfdetr"
+        assert specs[key].weights == key
+
+
+def test_rfdetr_variant_maps_every_size(monkeypatch):
+    import sys
+    import types
+
+    from xray_detector.infrastructure.detectors.rfdetr_detector import (
+        RFDETR_VARIANTS,
+        rfdetr_variant,
+    )
+
+    fake = types.ModuleType("rfdetr")
+    for class_name in RFDETR_VARIANTS.values():
+        setattr(fake, class_name, type(class_name, (), {}))
+    monkeypatch.setitem(sys.modules, "rfdetr", fake)
+
+    for key, class_name in RFDETR_VARIANTS.items():
+        assert rfdetr_variant(key).__name__ == class_name
+
+
+def test_rfdetr_variant_rejects_unknown_size(monkeypatch):
+    import sys
+    import types
+
+    import pytest
+
+    from xray_detector.infrastructure.detectors.rfdetr_detector import rfdetr_variant
+
+    monkeypatch.setitem(sys.modules, "rfdetr", types.ModuleType("rfdetr"))
+    with pytest.raises(ValueError, match="Okänd RF-DETR-modell"):
+        rfdetr_variant("rfdetr-huge")
+
+
+def test_rfdetr_detector_uses_selected_size(monkeypatch):
+    import sys
+    import types
+
+    from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
+
+    class _FakeNano:
+        def predict(self, image, threshold=0.5):
+            return _FakeDetections(xyxy=[], class_id=[], confidence=[], class_name=[])
+
+    fake = types.ModuleType("rfdetr")
+    fake.RFDETRNano = _FakeNano
+    monkeypatch.setitem(sys.modules, "rfdetr", fake)
+
+    detector = RfDetrDetector("rfdetr-nano", ["kniv"], 0.4)
+    assert isinstance(detector.model, _FakeNano)
+
+
+def test_train_rfdetr_uses_selected_size(monkeypatch, tmp_path):
+    import sys
+    import types
+
+    used = []
+
+    class _FakeNano:
+        def __init__(self):
+            used.append(type(self).__name__)
+
+        def train(self, **kwargs):
+            return None
+
+    fake = types.ModuleType("rfdetr")
+    fake.RFDETRNano = _FakeNano
+    monkeypatch.setitem(sys.modules, "rfdetr", fake)
+
+    from xray_detector.infrastructure.training.train_task import _train_rfdetr
+
+    args = types.SimpleNamespace(
+        weights="rfdetr-nano",
+        dataset=str(tmp_path / "ds"),
+        epochs=1,
+        batch=1,
+        output_path=tmp_path / "out",
+    )
+    run_dir = _train_rfdetr(args, "cpu")
+
+    assert used == ["_FakeNano"]
+    assert run_dir == tmp_path / "out" / "rfdetr"
+
+
+def test_detection_view_lists_all_rfdetr_sizes(qapp, tmp_path, monkeypatch):
+    _patch_rfdetr_presence(monkeypatch, present=True)
+    view = _detection_view(tmp_path)
+
+    keys = [view.model_combo.itemData(i) for i in range(view.model_combo.count())]
+    for key in RFDETR_SIZES:
+        assert key in keys, key
+
+
+def test_training_view_lists_all_rfdetr_sizes(qapp, tmp_path, monkeypatch):
+    from PySide6.QtCore import QSettings
+
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.training_view import TrainingView
+
+    _patch_rfdetr_presence(monkeypatch, present=True)
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    view = TrainingView(config, DatasetService(config.dataset_dir, config.classes), settings)
+
+    weights = [view.model_combo.itemData(i) for i in range(view.model_combo.count())]
+    for key in RFDETR_SIZES:
+        assert key in weights, key

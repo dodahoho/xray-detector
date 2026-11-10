@@ -1,6 +1,7 @@
 import argparse
 import ast
 import csv
+import inspect
 import json
 from datetime import UTC, datetime
 from json import load as json_load
@@ -116,16 +117,14 @@ def _train_yolo(args, device) -> Path:
 
 
 def _train_rfdetr(args, device) -> Path:
-    """Trainer RF-DETR small pa exporterat rfdetr-dataset.
+    """Trainer vald RF-DETR-storlek pa exporterat rfdetr-dataset.
 
     rfdetr-paketet ar valfritt och dess train()-signatur varierar mellan
     versioner: kwargs filtreras därför mot den faktiska signaturen.
     """
-    import inspect
+    from xray_detector.infrastructure.detectors.rfdetr_detector import rfdetr_variant
 
-    from rfdetr import RFDETRSmall
-
-    model = RFDETRSmall()
+    model = rfdetr_variant(args.weights)()
     self = model.train
     params = inspect.signature(self).parameters
     wanted = {"dataset_dir": args.dataset, "epochs": args.epochs,
