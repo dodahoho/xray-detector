@@ -38,6 +38,11 @@ class RfDetrDetector(BaseDetector):
         confidence_threshold: float,
     ) -> None:
         super().__init__(name=f"RF-DETR ({model_name})", class_names=class_names)
+        from xray_detector.infrastructure.detectors.tuning import (
+            configure_inference_threads,
+        )
+
+        configure_inference_threads()
         self.model = rfdetr_variant(model_name)()
         self.confidence_threshold = confidence_threshold
 

@@ -23,6 +23,11 @@ class YoloDetector(BaseDetector):
         super().__init__(name=f"YOLO ({weights})", class_names=class_names)
         from ultralytics import YOLO
 
+        from xray_detector.infrastructure.detectors.tuning import (
+            configure_inference_threads,
+        )
+
+        configure_inference_threads()
         self.model = YOLO(weights)
         self.confidence_threshold = confidence_threshold
         self.device = resolve_device(device)
