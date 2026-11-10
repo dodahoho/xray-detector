@@ -1,5 +1,7 @@
 """Gemensamma fixtures: Qt-applikation, fake-detektor och syntetiska bilder."""
 
+import gc
+
 import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
@@ -26,6 +28,19 @@ class FakeDetector(BaseDetector):
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+@pytest.fixture(autouse=True)
+def _collect_qt_objects():
+    """River Qt-objekt mellan testerna i stället för inuti processEvents (TASK-34).
+
+    Flera tester skapar MainWindow och DetectionView som aldrig stängs. Lämnas
+    de till garbage collector kan de rivas inuti ett processEvents()-anrop i
+    ett senare test, vilket kraschar med access violation. Genom att samla
+    skräpet efter varje test rivs de på en säker punkt i stället.
+    """
+    yield
+    gc.collect()
 
 
 @pytest.fixture
