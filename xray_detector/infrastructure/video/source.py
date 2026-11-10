@@ -64,24 +64,44 @@ class FileSource(VideoSource):
     def __init__(self, path: Path) -> None:
         super().__init__(SourceInfo(label=path.name))
         self.path = path
-        self._last_read = 0.0
+        self._deadline: float | None = None
         self._frame_interval = 0.0
 
     def _open(self) -> cv2.VideoCapture:
         capture = cv2.VideoCapture(str(self.path))
         fps = capture.get(cv2.CAP_PROP_FPS)
         self._frame_interval = 1.0 / fps if fps and fps > 0 else 1.0 / 30.0
+        self._deadline = None
         return capture
 
     def read(self) -> np.ndarray | None:
-        import time
-
-        elapsed = time.perf_counter() - self._last_read
-        if elapsed < self._frame_interval:
-            time.sleep(self._frame_interval - elapsed)
-        self._last_read = time.perf_counter()
+        self._wait_for_next_frame()
         frame = super().read()
         if frame is None:
+            # loopen: borja om fran forsta ramen och nollstall takten
             self._capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self._deadline = None
             frame = super().read()
         return frame
+
+    def _wait_for_next_frame(self) -> None:
+        """Vantar mot en fast deadline sa att uppspelningen inte driver.
+
+        Tidigare räknades väntetiden från föregående läsning och klockan
+        sattes till den faktiska tiden efter sleep, så sleep-överslaget
+        lades till varje ram: uppspelningen gick 0,6 % för långsamt och
+        fasen drev mot skärmens uppdatering. Nu flyttas deadline fram
+        exakt en ram i taget.
+        """
+        import time
+
+        now = time.perf_counter()
+        if self._deadline is None:
+            self._deadline = now
+        self._deadline += self._frame_interval
+        delay = self._deadline - now
+        if delay > 0:
+            time.sleep(delay)
+        else:
+            # vi ligger efter: borja om fran nu i stallet for att spara skuld
+            self._deadline = time.perf_counter()

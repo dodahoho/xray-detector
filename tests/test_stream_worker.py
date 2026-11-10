@@ -207,3 +207,36 @@ def test_camera_service_switch_closes_old_source_in_worker_thread(qapp, video_fi
 
     assert second.close_thread == second.open_thread
     assert service.worker("left") is None
+
+
+def test_file_source_paces_at_video_rate(video_file):
+    """Uppspelningen ska hålla videons bildfrekvens (TASK-35)."""
+    import time
+
+    source = FileSource(video_file)
+    source.open()
+    source.read()  # första ramen väntar inte
+    start = time.perf_counter()
+    for _ in range(30):
+        source.read()
+    elapsed = time.perf_counter() - start
+    source.close()
+
+    expected = 30 * source._frame_interval
+    assert abs(elapsed - expected) < 0.1, f"{elapsed:.3f} s mot förväntade {expected:.3f} s"
+
+
+def test_deadline_advances_by_frame_interval(video_file, monkeypatch):
+    """Deadline ska flyttas exakt en ram i taget, utan att driva."""
+    import time as time_module
+
+    source = FileSource(video_file)
+    source.open()
+    source.read()
+    first = source._deadline
+    monkeypatch.setattr(time_module, "sleep", lambda seconds: None)
+    source.read()
+    second = source._deadline
+    source.close()
+
+    assert abs((second - first) - source._frame_interval) < 1e-6
