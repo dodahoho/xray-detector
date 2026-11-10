@@ -256,3 +256,28 @@ def test_frame_is_emitted_before_detection(qapp, video_file, fake_detector):
 
     assert received[0].detections == []
     assert any(frame.detections for frame in received), "detektionerna ska komma på en senare ram"
+
+
+def test_detached_detector_leaves_no_stale_detections(qapp, video_file, fake_detector):
+    """Bortkopplad detektor får inte lämna kvar föregående frames rutor (TASK-38)."""
+    import time
+
+    worker = StreamWorker("left", FileSource(video_file))
+    received = []
+    worker.frame_ready.connect(lambda frame: received.append(frame))
+    worker.set_detector(fake_detector)
+    worker.start()
+    try:
+        assert wait_for(qapp, lambda: any(f.detections for f in received)), "inga detektioner togs emot"
+        worker.set_detector(None)
+        # låt redan köade ramar levereras innan mätningen börjar
+        deadline = time.perf_counter() + 0.15
+        while time.perf_counter() < deadline:
+            qapp.processEvents()
+            time.sleep(0.005)
+        received.clear()
+        assert wait_for(qapp, lambda: len(received) >= 5), "inga ramar efter bortkoppling"
+    finally:
+        worker.stop()
+
+    assert all(frame.detections == [] for frame in received), "överlayn ligger kvar efter bortkoppling"

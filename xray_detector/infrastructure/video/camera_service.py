@@ -21,6 +21,7 @@ class StreamWorker(QThread):
         self.source_id = source_id
         self.source = source
         self._detector: BaseDetector | None = None
+        self._detections: list[Detection] = []
         self._smoother = DetectionSmoother()
         self._running = True
         self._sequence = 0
@@ -30,6 +31,9 @@ class StreamWorker(QThread):
 
     def set_detector(self, detector: BaseDetector | None) -> None:
         self._detector = detector
+        # Overlayn visar föregående frames detektioner: utan detektor finns
+        # ingen föregående detektion att visa (TASK-38).
+        self._detections = []
         self._smoother.reset()
 
     def _next_sequence(self) -> int:
@@ -58,12 +62,12 @@ class StreamWorker(QThread):
                 )
                 self.source_lost.emit(self.source_id)
                 return
-            detections: list[Detection] = []
+            detections: list[Detection]
             while self._running:
                 frame = self.source.read()
                 if frame is None:
                     self._smoother.reset()
-                    detections = []
+                    self._detections = []
                     self.source_lost.emit(self.source_id)
                     self.msleep(500)
                     continue
@@ -74,18 +78,22 @@ class StreamWorker(QThread):
                     StreamFrame(
                         self.source_id,
                         frame,
-                        detections,
+                        self._detections,
                         self.source.info.label,
                         sequence=self._next_sequence(),
                         fps=self._measure_fps(),
                     )
                 )
-                if self._detector is not None:
+                detector = self._detector
+                if detector is not None:
                     try:
-                        detections = self._smoother.update(self._detector.detect(frame))
+                        detections = self._smoother.update(detector.detect(frame))
                     except Exception as exc:
                         self.error_occurred.emit(self.source_id, str(exc))
                         self.msleep(500)
+                        detections = []
+                    # detektorn kan ha kopplats bort under körningen (TASK-38)
+                    self._detections = detections if self._detector is detector else []
         finally:
             # Källan stängs i den tråd som öppnade den: DSHOW-fönstret ägs av
             # tråden, och release() från en annan tråd får drivrutinen att

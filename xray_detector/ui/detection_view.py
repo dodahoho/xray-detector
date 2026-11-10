@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from xray_detector.application.video_service import VideoService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
+from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 
 NO_SOURCE = "Ingen videokälla"
@@ -31,6 +32,8 @@ S_LOST = "Källa tappad"
 S_CONNECTING = "Ansluter  (försök {0}/{1})"
 S_LOST_AFTER = "Källan tappad efter {0} försök"
 S_RETRY = "Försök igen"
+DETECTION_ON = "Detektion på"
+DETECTION_OFF = "Detektion av"
 
 from xray_detector.ui.colors import class_color
 
@@ -310,6 +313,7 @@ class DetectionView(QWidget):
         self.settings = settings
         self.video_service = VideoService()
         self.detector = None
+        self.detection_enabled = True
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
@@ -342,6 +346,13 @@ class DetectionView(QWidget):
         self.capture_button.setMinimumHeight(40)
         self.capture_button.clicked.connect(self._on_capture)
         bar.addWidget(self.capture_button)
+        self.detection_button = QPushButton(DETECTION_ON)
+        self.detection_button.setCheckable(True)
+        self.detection_button.setChecked(True)
+        self.detection_button.setMinimumHeight(40)
+        self.detection_button.setToolTip("Slår av och på objektdetektionen i båda strömmarna")
+        self.detection_button.toggled.connect(self._on_detection_toggled)
+        bar.addWidget(self.detection_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
         devices = self.video_service.list_devices()
@@ -456,7 +467,7 @@ class DetectionView(QWidget):
             worker.frame_ready.connect(self._on_frame)
             worker.source_lost.connect(self._on_source_lost)
             worker.error_occurred.connect(self._on_error)
-            worker.set_detector(self.detector)
+            worker.set_detector(self._active_detector())
 
     def _on_frame(self, stream_frame: StreamFrame) -> None:
         panel = self.left if stream_frame.source_id == "left" else self.right
@@ -474,6 +485,23 @@ class DetectionView(QWidget):
         if self.detector is not None:
             self.detector.set_confidence_threshold(self.conf_spin.value())
 
+    def _active_detector(self) -> BaseDetector | None:
+        """Detektorn som ska köra nu; ingen alls när detektionen är avstängd (TASK-38)."""
+        return self.detector if self.detection_enabled else None
+
+    def _on_detection_toggled(self, enabled: bool) -> None:
+        """Slår av/på detektionen utan att modellen laddas om (TASK-38)."""
+        self.detection_enabled = enabled
+        self.detection_button.setText(DETECTION_ON if enabled else DETECTION_OFF)
+        if not enabled:
+            self.video_service.set_detector(None)
+            for panel in (self.left, self.right):
+                panel.clear_overlay()
+        elif self.detector is None:
+            self._on_model_changed()
+        else:
+            self.video_service.set_detector(self.detector)
+
     def _on_model_changed(self) -> None:
         from xray_detector.application.model_registry import create_detector
 
@@ -483,7 +511,7 @@ class DetectionView(QWidget):
             self.detector = create_detector(
                 spec, self.config.classes, self.conf_spin.value()
             )
-            self.video_service.set_detector(self.detector)
+            self.video_service.set_detector(self._active_detector())
             device_label = getattr(self.detector, "device_label", "")
             if device_label:
                 self.device_label.setText(f"Enhet: {device_label}")
@@ -525,6 +553,9 @@ class DetectionView(QWidget):
             pass
 
     def resume_detection(self) -> None:
+        if not self.detection_enabled:
+            # anvandaren har slagit av detektionen: lat den vara av efter traningen
+            return
         if self.detector is None:
             # detektorn slappes vid paus for VRAM-frigoring: abygg fran modellvalet
             self._on_model_changed()
