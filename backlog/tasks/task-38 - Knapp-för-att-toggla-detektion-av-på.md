@@ -1,10 +1,10 @@
 ---
 id: TASK-38
 title: Knapp för att toggla detektion av/på
-status: Done
+status: In Progress
 assignee: []
 created_date: '2026-11-10T20:11:00Z'
-updated_date: '2026-11-10T20:18:00Z'
+updated_date: '2026-11-10T22:33:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -57,14 +57,16 @@ Knappen är en checkbar QPushButton sist i rubrikraden (efter "Fånga bilder") m
 Bug hittad vid verifiering: StreamWorker emitterade föregående frames detektioner även efter att detektorn kopplats bort, eftersom listan var en lokal variabel i run(). Överlayn låg därför kvar med frysta rutor. Detektionerna är nu ett instansfält som nollställs i set_detector(), och ett resultat som blir klart efter bortkopplingen kastas (identitetskontroll på detektorn). Samma fel gjorde att pause_detection() vid träning lämnade kvar rutor i strömmen.
 
 Verifiering: 9 nya tester (8 i tests/test_detection_toggle.py, 1 i tests/test_stream_worker.py). Hela sviten 164 passed, 1 skipped, tre körningar i rad utan flakighet. Regressionstestet fäller utan worker-fixen (kontrollerat genom att tillfälligt återställa camera_service.py). End-to-end mot media/xray_slideshow_side.mp4: 42 av 44 ramar med rutor när detektionen är på, 0 av 45 när den är av, 44 av 46 när den slås på igen. Ruff: inga nya anmärkningar (de fem som finns i berörda filer fanns före ändringen).
+
+Rättelse efter granskning: knapptexten beskriver nu vad ett klick gör i stället för nuvarande läge. Vid start står "Detektion av" (detektionen är igång) och efter klick står "Detektion på". Konstanterna heter DETECTION_TURN_OFF / DETECTION_TURN_ON för att inte förväxlas med läget. Verifierat med klicksekvens: start 'Detektion av' checked=True, klick 1 'Detektion på' checked=False, klick 2 'Detektion av' checked=True. Hela sviten 164 passed, 1 skipped.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Detektionsvyn har fått en checkbar knapp längst till höger i rubrikraden: "Detektion på" / "Detektion av". Avslaget kopplar bort detektorn från båda strömmarna och rensar overlayn, men modellen ligger kvar i minnet, så påslaget sker utan omladdning. Läget styr också nya videokällor, modellbyten och återupptagningen efter en träningspaus, och sparas inte mellan starter.
+Detektionsvyn har fått en checkbar knapp längst till höger i rubrikraden. Knapptexten säger vad ett klick gör: "Detektion av" när detektionen är igång (även vid start) och "Detektion på" när den är av. Avslaget kopplar bort detektorn från båda strömmarna och rensar overlayn, men modellen ligger kvar i minnet, så påslaget sker utan omladdning. Läget styr också nya videokällor, modellbyten och återupptagningen efter en träningspaus, och sparas inte mellan starter.
 
 Verifieringen avslöjade ett fel i StreamWorker: efter att detektorn kopplats bort fortsatte den att emittera föregående frames detektioner, eftersom listan var lokal i run(). Överlayn låg därför kvar med frysta rutor, vilket också drabbade den befintliga pausen vid träning. Detektionerna är nu ett instansfält som nollställs i set_detector(), och ett detektionsresultat som blir klart efter bortkopplingen kastas.
 
-Nio nya tester; hela sviten 164 passed, 1 skipped, stabilt över tre körningar. End-to-end mot en demovideo: 42 av 44 ramar med rutor påslaget, 0 av 45 avslaget, 44 av 46 när det slogs på igen. README beskriver knappen.
+Nio nya tester; hela sviten 164 passed, 1 skipped, stabilt över tre körningar. End-to-end mot en demovideo: 42 av 44 ramar med rutor påslaget, 0 av 45 avslaget, 44 av 46 när det slogs på igen. Klicksekvensen ger 'Detektion av' -> 'Detektion på' -> 'Detektion av'. README beskriver knappen.
 <!-- SECTION:FINAL_SUMMARY:END -->

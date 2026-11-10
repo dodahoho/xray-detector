@@ -32,8 +32,8 @@ S_LOST = "Källa tappad"
 S_CONNECTING = "Ansluter  (försök {0}/{1})"
 S_LOST_AFTER = "Källan tappad efter {0} försök"
 S_RETRY = "Försök igen"
-DETECTION_ON = "Detektion på"
-DETECTION_OFF = "Detektion av"
+DETECTION_TURN_OFF = "Detektion av"
+DETECTION_TURN_ON = "Detektion på"
 
 from xray_detector.ui.colors import class_color
 
@@ -346,7 +346,7 @@ class DetectionView(QWidget):
         self.capture_button.setMinimumHeight(40)
         self.capture_button.clicked.connect(self._on_capture)
         bar.addWidget(self.capture_button)
-        self.detection_button = QPushButton(DETECTION_ON)
+        self.detection_button = QPushButton(DETECTION_TURN_OFF)
         self.detection_button.setCheckable(True)
         self.detection_button.setChecked(True)
         self.detection_button.setMinimumHeight(40)
@@ -492,7 +492,10 @@ class DetectionView(QWidget):
     def _on_detection_toggled(self, enabled: bool) -> None:
         """Slår av/på detektionen utan att modellen laddas om (TASK-38)."""
         self.detection_enabled = enabled
-        self.detection_button.setText(DETECTION_ON if enabled else DETECTION_OFF)
+        # knapptexten säger vad ett klick gör, inte vad läget är
+        self.detection_button.setText(
+            DETECTION_TURN_OFF if enabled else DETECTION_TURN_ON
+        )
         if not enabled:
             self.video_service.set_detector(None)
             for panel in (self.left, self.right):

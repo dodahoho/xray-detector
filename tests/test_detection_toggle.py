@@ -8,7 +8,11 @@ from xray_detector.application import model_registry
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
-from xray_detector.ui.detection_view import DETECTION_OFF, DETECTION_ON, DetectionView
+from xray_detector.ui.detection_view import (
+    DETECTION_TURN_OFF,
+    DETECTION_TURN_ON,
+    DetectionView,
+)
 
 
 @pytest.fixture
@@ -39,7 +43,8 @@ def test_toggle_button_is_last_in_header_row(view):
     assert bar.itemAt(bar.count() - 1).widget() is view.detection_button
     assert view.detection_button.isCheckable()
     assert view.detection_button.isChecked()
-    assert view.detection_button.text() == DETECTION_ON
+    # texten säger vad ett klick gör: detektionen är igång vid start
+    assert view.detection_button.text() == DETECTION_TURN_OFF
 
 
 def test_toggle_off_detaches_detector_without_reloading(view):
@@ -54,7 +59,7 @@ def test_toggle_off_detaches_detector_without_reloading(view):
     assert view.detector is detector, "modellen ska vara kvar för snabb återstart"
     assert view._detector_calls == [None]
     assert view._create_calls == []
-    assert view.detection_button.text() == DETECTION_OFF
+    assert view.detection_button.text() == DETECTION_TURN_ON
 
 
 def test_toggle_off_clears_overlay(view):
@@ -84,7 +89,7 @@ def test_toggle_on_reattaches_same_detector(view):
     assert view.detection_enabled is True
     assert view._detector_calls == [detector]
     assert view._create_calls == []
-    assert view.detection_button.text() == DETECTION_ON
+    assert view.detection_button.text() == DETECTION_TURN_OFF
 
 
 def test_toggle_on_without_detector_loads_model(view, monkeypatch):
