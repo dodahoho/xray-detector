@@ -323,7 +323,7 @@ class DetectionView(QWidget):
         self.conf_spin.setRange(0.05, 0.95)
         self.conf_spin.setSingleStep(0.05)
         self.conf_spin.setValue(config.confidence_threshold)
-        self.conf_spin.valueChanged.connect(self._on_model_changed)
+        self.conf_spin.valueChanged.connect(self._on_threshold_changed)
         bar.addWidget(self.conf_spin)
         self.device_label = QLabel("Enhet: kontrollerar...")
         self.device_label.setStyleSheet("font-weight: bold;")
@@ -468,6 +468,11 @@ class DetectionView(QWidget):
 
     def _on_error(self, source_id: str, message: str) -> None:
         self.error_occurred.emit(f"Detektorfel ({source_id}): {message}")
+
+    def _on_threshold_changed(self) -> None:
+        """Tröskeln ändras utan att modellen laddas om (TASK-36)."""
+        if self.detector is not None:
+            self.detector.set_confidence_threshold(self.conf_spin.value())
 
     def _on_model_changed(self) -> None:
         from xray_detector.application.model_registry import create_detector

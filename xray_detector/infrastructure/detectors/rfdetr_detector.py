@@ -44,7 +44,24 @@ class RfDetrDetector(BaseDetector):
 
         configure_inference_threads()
         self.model = rfdetr_variant(model_name)()
+        self._optimize_for_inference()
         self.confidence_threshold = confidence_threshold
+
+    def _optimize_for_inference(self) -> None:
+        """FP16-optimering på GPU ger cirka 60 % snabbare inferens (TASK-36).
+
+        rfdetr varnar i loggen när modellen inte är optimerad. Optimeringen
+        är en hastighetsvinst, inte ett krav: misslyckas den fortsätter
+        modellen ooptimerad och rfdetr varnar som vanligt.
+        """
+        import torch
+
+        if not torch.cuda.is_available():
+            return
+        try:
+            self.model.inference(dtype=torch.float16)
+        except Exception:
+            pass
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         # rfdetr vantar RGB; ramarna fran OpenCV ar BGR
