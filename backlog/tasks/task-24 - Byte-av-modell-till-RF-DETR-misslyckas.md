@@ -1,7 +1,7 @@
 ---
 id: TASK-24
 title: Byte av modell till RF-DETR misslyckas
-status: In Progress
+status: Done
 assignee:
   - '@vibe-deepseek41'
 created_date: '2026-11-10T07:34:00Z'
@@ -23,16 +23,16 @@ Felmeddelande i statusbar:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Modellbyte ska få igång detektion med den valda modellen
-- [ ] #2 Inget fel ska visas i statusbar
+- [x] #1 Modellbyte ska få igång detektion med den valda modellen
+- [x] #2 Inget fel ska visas i statusbar
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Applikationen fungerar
-- [ ] #2 Tester fungerar
-- [ ] #3 Ändringar commitade
-- [ ] #4 Dokumentation uppdaterad
+- [x] #1 Applikationen fungerar
+- [x] #2 Tester fungerar
+- [x] #3 Ändringar commitade
+- [x] #4 Dokumentation uppdaterad
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -56,3 +56,13 @@ Verifiering: 4 nya tester i tests/test_rfdetr.py (parsning mot fejkad Detections
 
 Miljö: rfdetr-extra installerat med uv sync --extra cu128 --extra rfdetr (28 paket, uv.lock oförändrad).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+RF-DETR-modellbyte fungerar: RfDetrDetector läser rfdetr-paketets supervision.Detections (xyxy/class_id/confidence) i stället för det tidigare dict-antagandet, konverterar BGR->RGB före predict och använder modellens egna klassnamn med appens klasslista som fallback. Detektionsvyn avstänger RF-DETR-posten och märker den '(rfdetr ej installerat)' när paketet saknas, och ett sparat RF-DETR-val faller tillbaka på en tillgänglig modell i stället för att försöka laddas — därmed inget felladdningsmeddelande i statusbaren.
+
+Verifierat: 4 nya tester (parsning mot fejkad Detections, avstängd/aktiverad post, fallback från sparat val); hela sviten 105 passed, 1 skipped. Riktig inferens på media/xray_slideshow_side.mp4 gav 24 detektioner vid tröskel 0.05 utan undantag, och en offscreen-GUI-körning av modellbytet gav RfDetrDetector med statusmeddelandet 'Modell laddad: RF-DETR base'.
+
+Risker/uppföljning: rfdetr-extra är installerat i .venv (uv sync --extra cu128 --extra rfdetr, uv.lock oförändrad); utan extrat är RF-DETR avstängt i båda vyerna. rfdetr 1.11 varnar att RFDETRBase är deprecated till förmån för nyare API i v2.0 — värt en egen uppgift. Modellen är COCO-förtränad, så klassnamnen på röntgenbilder blir COCO-klasser (samma beteende som YOLO-modellerna).
+<!-- SECTION:FINAL_SUMMARY:END -->
