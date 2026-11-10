@@ -1,11 +1,11 @@
 ---
 id: TASK-35
 title: Uppspelningen av videofiler är ryckig
-status: In Progress
+status: Done
 assignee:
   - '@vibe-deepseek41'
 created_date: '2026-11-10T13:18:00Z'
-updated_date: '2026-11-10T15:16:00Z'
+updated_date: '2026-11-10T16:39:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -20,18 +20,18 @@ Undersök orsak och åtgärda om det går att få uppspelningen smooth
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Orsaken till den ryckiga uppspelningen är identifierad och dokumenterad
-- [ ] #2 Uppspelningen håller videons bildfrekvens utan att driva
-- [ ] #3 Ändringen gör inte testsviten mer instabil
+- [x] #1 Orsaken till den ryckiga uppspelningen är identifierad och dokumenterad
+- [x] #2 Uppspelningen håller videons bildfrekvens utan att driva
+- [x] #3 Ändringen gör inte testsviten mer instabil
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -61,4 +61,20 @@ ORSAKEN: pacingen i FileSource.read() driver. Väntetiden räknas från föregå
 NÄSTA STEG: lös TASK-34 först. Därefter är pacing-fixen cirka 10 rader i FileSource.read() och kan verifieras med samma mätning (33,55 -> 33,28 ms).
 
 Blockeraren är löst: TASK-34 är klar och testsviten går 10 av 10 grönt. Jag verifierade pacing-ändringen med fixen applicerad: 3 av 3 gröna körningar, mot 3 av 3 krascher innan. Ändringen är cirka 10 rader i FileSource.read() (byt _last_read mot en _deadline som flyttas fram exakt en ram i taget) och gav 33,55 -> 33,28 ms i displaymätningen. Uppgiften är redo att plockas upp.
+
+Implementerat: FileSource.read() använder nu en deadline som flyttas fram exakt en _frame_interval per ram i stället för att räkna väntetiden från föregående läsning. Deadlinen nollställs i _open() och vid loop (frame is None), och om vi ligger efter startas den om från nu i stället för att spara skuld.
+
+Verifiering: displaymätning över 12 s i tre körningar: period 33,277 / 33,284 / 33,288 ms i snitt och 33,332 / 33,336 / 33,290 i median, mot 33,55 före. Medianen ligger nu på videons exakta 33,333 ms, alltså ingen drift, och std sjönk från 1,55 till 1,44 ms. 359 ramar på 12 s = 29,9 fps mot 29,75 före.
+
+Två nya tester i tests/test_stream_worker.py: pacingen håller videons bildfrekvens över 30 ramar, och deadlinen flyttas exakt en ram i taget (time.sleep monkeypatchas bort så mätningen blir deterministisk).
+
+Hela sviten 10 av 10 gröna med 149 passed, 1 skipped — två fler tester än före och ingen krasch, tack vare TASK-34.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Videouppspelningen driver inte längre. FileSource räknade väntetiden från föregående läsning och satte klockan till den faktiska tiden efter sleep, så sleep-överslaget lades till varje ram: perioden blev 33,55 ms i stället för 33,33, alltså 29,75 fps i stället för 30, och fasen drev mot skärmens uppdatering. Nu flyttas en deadline fram exakt en ram i taget.
+
+Verifierat: period 33,28 ms i snitt och 33,33 i median (videons exakta), std 1,44 ms mot 1,55 före. Två nya tester. Hela sviten 10 av 10 gröna, 149 passed, 1 skipped.
+<!-- SECTION:FINAL_SUMMARY:END -->
