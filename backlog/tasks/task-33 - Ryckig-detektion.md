@@ -1,11 +1,11 @@
 ---
 id: TASK-33
 title: Ryckig detektion
-status: In Progress
+status: Done
 assignee:
   - '@vibe-deepseek41'
 created_date: '2026-11-10T12:28:00Z'
-updated_date: '2026-11-10T12:50:00Z'
+updated_date: '2026-11-10T13:02:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -25,18 +25,18 @@ Hur kan man annars göra så att det upplevs mindre ryckigt men ändå följer m
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Orsaken till ryckigheten är mätt och dokumenterad
-- [ ] #2 Möjliga åtgärder är utvärderade med mätvärden
-- [ ] #3 En rekommenderad åtgärd är vald och planerad
+- [x] #1 Orsaken till ryckigheten är mätt och dokumenterad
+- [x] #2 Möjliga åtgärder är utvärderade med mätvärden
+- [x] #3 En rekommenderad åtgärd är vald och planerad
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -68,4 +68,20 @@ EGEN PROTOTYP (EMA + hysteres, ingen ny dependency, fungerar för båda modeller
 REKOMMENDATION: egen EMA + hysteres i StreamWorker (per ström, ingen delad state, ingen ny dependency, fungerar för YOLO och RF-DETR). Ultralytics-trackern ger något jämnare storlek men kräver modellinstans per ström och fungerar inte för RF-DETR. Fade in/ut i overlayn är ett komplement som bygger på samma identitet.
 
 AVVÄGNING: EMA och hysteres inför en fördröjning på cirka en ram plus två ramar innan en ny ruta visas. På ett löpande band är det 30-60 ms, vilket är försumbart, men det är en produktfråga.
+
+Implementerat: DetectionSmoother i infrastructure/detectors/smoothing.py. Varje detektion matchas mot en spårad ruta med IoU > 0,3 (samma klass), rutan jämnas ut med EMA (alpha 0,5), en ruta visas först efter 2 träffar och släcks efter 3 missade ramar. StreamWorker äger en smoother per ström och nollställer den när detektorn byts eller källan tappas, så strömmarna inte blandas och inga gamla rutor hänger kvar.
+
+Verifiering: 8 nya tester i tests/test_smoothing.py (hysteres, EMA-dämpning, alpha 1,0, kort avbrott, släpp efter max missade, klassseparation, reset, confidence följer senaste). Två befintliga tester uppdaterade att vänta på en ram med detektioner. Riktig mätning på demovideorna med den riktiga klassen: bredddarr 2,96 -> 1,38 px median (-53 %), p95 14,0 -> 10,2 (-27 %), mittpunkt p95 11,2 -> 9,7 (-13 %), antalsbyten 15 -> 7 (-53 %). Hela sviten 147 passed, 1 skipped.
+
+KÄNT PROBLEM (inte från denna uppgift): testsviten kraschar ibland med access violation i test_training_worker.py::test_cancel_terminates_long_running_process. Det händer även på HEAD före denna ändring, och bara när tests/test_resources.py ingår (5/5 gröna utan den, cirka 2/3 krascher med den). Värt en egen uppgift.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Detektionerna jämnas nu ut mellan ramar: en ny DetectionSmoother matchar varje detektion mot en spårad ruta med IoU, jämnar ut rutan med EMA och behåller den tre missade ramar innan den släcks. En ruta visas först när den setts två ramar, så enstaka falska träffar inte fladdrar. Varje ström har sin egen smoother.
+
+Mätt på demovideorna: bredddarret -53 % i median (-27 % p95), mittpunktens p95 -13 % och antalet ramar där antalet detektioner ändras -53 %. Fördröjningen är cirka en ram plus två ramar innan en ny ruta visas.
+
+Verifierat: 8 nya tester, hela sviten 147 passed, 1 skipped. Känd kvarstående flake: testsviten kraschar ibland i test_training_worker, även på HEAD och bara när test_resources.py ingår — värt en egen uppgift.
+<!-- SECTION:FINAL_SUMMARY:END -->
