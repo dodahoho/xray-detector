@@ -5,10 +5,9 @@ status: In Progress
 assignee:
   - '@vibe-deepseek41'
 created_date: '2026-11-10T13:18:00Z'
-updated_date: '2026-11-10T13:43:00Z'
+updated_date: '2026-11-10T15:16:00Z'
 labels: []
-dependencies:
-  - TASK-34
+dependencies: []
 type: enhancement
 ordinal: 33000
 ---
@@ -60,4 +59,6 @@ ORSAKEN: pacingen i FileSource.read() driver. Väntetiden räknas från föregå
 ÅTGÄRD SOM FUNGERAR MEN ÄR BLOCKERAD: deadline-baserad pacing (_deadline += _frame_interval varje ram) ger 33,28 ms i snitt, alltså rätt hastighet, och std sjunker från 1,55 till 1,42 ms. Men ändringen gör den kända testsvitkraschen (TASK-34) deterministisk: 3 av 3 körningar kraschar med ändringen mot 3 av 3 gröna på HEAD, interleaved samma minut. Jag provade även inline-variant, långsammare pacing (+0,25 ms per ram) och att ta bort deadline-reset i _open(); alla kraschade. Orsaken till samverkan är inte klarlagd, så ändringen är backad och ingen kod är ändrad.
 
 NÄSTA STEG: lös TASK-34 först. Därefter är pacing-fixen cirka 10 rader i FileSource.read() och kan verifieras med samma mätning (33,55 -> 33,28 ms).
+
+Blockeraren är löst: TASK-34 är klar och testsviten går 10 av 10 grönt. Jag verifierade pacing-ändringen med fixen applicerad: 3 av 3 gröna körningar, mot 3 av 3 krascher innan. Ändringen är cirka 10 rader i FileSource.read() (byt _last_read mot en _deadline som flyttas fram exakt en ram i taget) och gav 33,55 -> 33,28 ms i displaymätningen. Uppgiften är redo att plockas upp.
 <!-- SECTION:NOTES:END -->
