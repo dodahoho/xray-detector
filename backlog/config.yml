@@ -2,6 +2,7 @@ project_name: "X-ray Detector"
 default_status: "To Do"
 statuses: ["To Do", "In Progress", "Done"]
 labels: []
+definition_of_done: ["Task description completed", "Code reviewed for quality, simplicity, and maintainability", "All tests pass", "Documentation updated", "Code committed"]
 date_format: yyyy-mm-dd
 max_column_width: 20
 auto_open_browser: true
