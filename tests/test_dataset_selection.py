@@ -1,0 +1,121 @@
+"""Markering och borttagning av bildpar i datasetvyn (TASK-25)."""
+
+import numpy as np
+import pytest
+from PySide6.QtWidgets import QMessageBox
+
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.ui.dataset_view import SELECTED_BORDER, DatasetView
+
+
+@pytest.fixture
+def service(tmp_path) -> DatasetService:
+    svc = DatasetService(tmp_path / "datasets", ["kniv"])
+    svc.add_samples(1, [
+        AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
+                       [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),
+        AnnotatedImage(np.full((30, 40, 3), 120, np.uint8),
+                       [{"class_name": "kniv", "bbox": [4, 4, 8, 8]}]),
+    ])
+    return svc
+
+
+@pytest.fixture
+def view(qapp, service) -> DatasetView:
+    view = DatasetView(service)
+    view.refresh_versions()
+    return view
+
+
+def test_click_selects_whole_capture(view):
+    assert len(view._thumbs) == 2
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert all(thumb.selected for thumb in view._thumbs)
+
+
+def test_second_click_deselects_whole_capture(view):
+    view._on_thumb_clicked(view._thumbs[0])
+    view._on_thumb_clicked(view._thumbs[1])
+
+    assert not any(thumb.selected for thumb in view._thumbs)
+
+
+def test_delete_button_reflects_selection(view):
+    assert not view.delete_button.isEnabled()
+    assert view.delete_button.text() == "Ta bort markerade"
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert view.delete_button.isEnabled()
+    assert view.delete_button.text() == "Ta bort markerade (2)"
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert not view.delete_button.isEnabled()
+    assert view.delete_button.text() == "Ta bort markerade"
+
+
+def test_selected_capture_is_visually_marked(view):
+    thumb = view._thumbs[0]
+    assert thumb.badge.isHidden()
+    assert SELECTED_BORDER not in thumb.styleSheet()
+
+    view._on_thumb_clicked(thumb)
+
+    for member in view._thumbs:
+        assert not member.badge.isHidden()
+        assert SELECTED_BORDER in member.styleSheet()
+
+
+def test_delete_removes_whole_capture(view, service, monkeypatch):
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    view._on_thumb_clicked(view._thumbs[0])
+
+    view._on_delete()
+
+    assert service.load_coco(1)["images"] == []
+    assert service.load_coco(1)["annotations"] == []
+    assert view._thumbs == []
+    assert not view.delete_button.isEnabled()
+
+
+def test_delete_without_selection_keeps_dataset(view, service):
+    messages = []
+    view.status_changed.connect(messages.append)
+
+    view._on_delete()
+
+    assert messages == ["Markera bilder att ta bort först"]
+    assert len(service.load_coco(1)["images"]) == 2
+
+
+def test_click_selects_whole_pending_capture(qapp, tmp_path, monkeypatch):
+    from tests.conftest import synthetic_frame
+    from xray_detector.domain.capture import StreamFrame
+    from xray_detector.infrastructure.dataset_store.pending import save_pending
+
+    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    save_pending(tmp_path, [
+        StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
+        StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
+    ])
+    view = DatasetView(service)
+    view.refresh_versions()
+
+    pending = [thumb for thumb in view._thumbs if thumb.pending]
+    assert len(pending) == 2
+
+    view._on_thumb_clicked(pending[0])
+
+    assert all(thumb.selected for thumb in pending)
+    assert view.delete_button.text() == "Ta bort markerade (2)"
+
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
+    view._on_delete()
+
+    assert service.pending_captures() == []

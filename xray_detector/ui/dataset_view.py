@@ -18,7 +18,10 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.detection import Detection
 
 THUMB_HEIGHT = 170
-SELECTED_BORDER = "#2a82da"
+SELECTED_BORDER = "#4da3ff"
+SELECTED_BACKGROUND = "#1d3b57"
+IDLE_BORDER = "#555"
+IDLE_BACKGROUND = "#2b2b2b"
 
 
 class Thumbnail(QWidget):
@@ -42,15 +45,27 @@ class Thumbnail(QWidget):
             self.caption.setStyleSheet("color: #e5a52a; font-weight: bold;")
         self.caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.caption.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.badge = QLabel("MARKERAD")
+        self.badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.badge.setStyleSheet(
+            f"background: {SELECTED_BORDER}; color: #10202e; font-weight: bold; "
+            "border-radius: 3px; padding: 1px 4px;"
+        )
+        self.badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout.addWidget(self.badge)
         layout.addWidget(self.picture)
         layout.addWidget(self.caption)
         self._apply_style()
 
     def _apply_style(self) -> None:
-        border = SELECTED_BORDER if self.selected else "#555"
+        border = SELECTED_BORDER if self.selected else IDLE_BORDER
+        background = SELECTED_BACKGROUND if self.selected else IDLE_BACKGROUND
+        width = 4 if self.selected else 3
         self.setStyleSheet(
-            f"Thumbnail {{ background: #2b2b2b; border: 3px solid {border}; border-radius: 6px; }}"
+            f"Thumbnail {{ background: {background}; border: {width}px solid {border}; "
+            "border-radius: 6px; }"
         )
+        self.badge.setVisible(self.selected)
 
     def set_selected(self, selected: bool) -> None:
         self.selected = selected
@@ -123,6 +138,7 @@ class DatasetView(QWidget):
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
             self.content_layout.addStretch(1)
+            self._update_delete_button()
             return
         version = int(version_data)
         coco = self.dataset_service.load_coco(version)
@@ -171,6 +187,7 @@ class DatasetView(QWidget):
             inner.addLayout(row)
             self.content_layout.addWidget(frame)
         self.content_layout.addStretch(1)
+        self._update_delete_button()
 
     def _add_pending_section(self) -> None:
         """Osparade fangster fran pending-kon (krascsakra, TASK-12)."""
@@ -207,11 +224,25 @@ class DatasetView(QWidget):
             inner.addLayout(row)
             self.content_layout.addWidget(frame_box)
 
-    def _selected_ids(self) -> list:
-        return [thumb.image_id for thumb in self._thumbs if thumb.selected]
-
     def _on_thumb_clicked(self, thumb: Thumbnail) -> None:
-        thumb.set_selected(not thumb.selected)
+        """Markerar hela fångsten - bilderna hanteras alltid som ett par (TASK-25)."""
+        selected = not thumb.selected
+        for member in self._group_thumbs(thumb):
+            member.set_selected(selected)
+        self._update_delete_button()
+
+    def _group_thumbs(self, thumb: Thumbnail) -> list[Thumbnail]:
+        """Alla bilder som hör till samma fångst som thumb."""
+        if thumb.pending:
+            return [t for t in self._thumbs if t.pending and t.group_id == thumb.group_id]
+        return self._groups.get(thumb.group_id, [thumb])
+
+    def _update_delete_button(self) -> None:
+        count = sum(1 for thumb in self._thumbs if thumb.selected)
+        self.delete_button.setText(
+            f"Ta bort markerade ({count})" if count else "Ta bort markerade"
+        )
+        self.delete_button.setEnabled(count > 0)
 
     def _on_thumb_double_clicked(self, thumb: Thumbnail) -> None:
         if thumb.pending:
@@ -250,12 +281,13 @@ class DatasetView(QWidget):
         return int(self.version_combo.currentData())
 
     def _on_delete(self) -> None:
-        pending_ids = [thumb.group_id for thumb in self._thumbs if thumb.selected and thumb.pending]
-        ids = [id_ for id_ in self._selected_ids() if not isinstance(id_, str)]
+        selected = [thumb for thumb in self._thumbs if thumb.selected]
+        pending_ids = list(dict.fromkeys(t.group_id for t in selected if t.pending))
+        ids = [t.image_id for t in selected if not t.pending]
         if not ids and not pending_ids:
             self.status_changed.emit("Markera bilder att ta bort först")
             return
-        count = len(ids) + len(pending_ids)
+        count = len(selected)
         answer = QMessageBox.question(
             self,
             "Ta bort bilder",
