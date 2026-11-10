@@ -2753,6 +2753,7 @@ dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "opencv-python" },
+    { name = "psutil" },
     { name = "pyside6" },
     { name = "ultralytics" },
 ]
@@ -2779,6 +2780,7 @@ dev = [
 requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "opencv-python", specifier = ">=4.9" },
+    { name = "psutil", specifier = ">=5.9" },
     { name = "pygrabber", marker = "extra == 'windows'", specifier = ">=0.2" },
     { name = "pyside6", specifier = ">=6.7" },
     { name = "rfdetr", marker = "extra == 'rfdetr'", specifier = ">=1.7" },

@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 from xray_detector.application.video_service import VideoService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
+from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 
 NO_SOURCE = "Ingen videokälla"
 OPEN_FILE = "Öppna videofil..."
@@ -31,6 +33,58 @@ S_LOST_AFTER = "Källan tappad efter {0} försök"
 S_RETRY = "Försök igen"
 
 from xray_detector.ui.colors import class_color
+
+
+def _fraction(value: int | None, total: int | None) -> float | None:
+    if value is None or not total:
+        return None
+    return value / total
+
+
+def _format_bytes(value: int | None) -> str:
+    if value is None:
+        return ""
+    size = float(value)
+    for unit in ("B", "kB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return ""
+
+
+def _format_pair(value: int | None, total: int | None) -> str:
+    if value is None or total is None:
+        return ""
+    return f"{_format_bytes(value)} / {_format_bytes(total)}"
+
+
+class ResourceMeter(QWidget):
+    """Etikett, stapel och värde för en resurs (TASK-31)."""
+
+    def __init__(self, title: str, parent=None) -> None:
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.title = QLabel(title)
+        self.title.setStyleSheet("color: #888;")
+        self.bar = QProgressBar()
+        self.bar.setRange(0, 100)
+        self.bar.setTextVisible(False)
+        self.bar.setFixedSize(56, 10)
+        self.value = QLabel("-")
+        self.value.setMinimumWidth(96)
+        layout.addWidget(self.title)
+        layout.addWidget(self.bar)
+        layout.addWidget(self.value)
+
+    def set_usage(self, fraction: float | None, text: str) -> None:
+        if fraction is None:
+            self.bar.setValue(0)
+            self.value.setText("n/a")
+            return
+        self.bar.setValue(int(max(0.0, min(1.0, fraction)) * 100))
+        self.value.setText(text)
 
 
 class StreamPanel(QFrame):
@@ -274,6 +328,15 @@ class DetectionView(QWidget):
         self.device_label = QLabel("Enhet: kontrollerar...")
         self.device_label.setStyleSheet("font-weight: bold;")
         bar.addWidget(self.device_label)
+        self.resource_monitor = ResourceMonitor()
+        self.resource_meters = {
+            "gpu": ResourceMeter("GPU"),
+            "vram": ResourceMeter("VRAM"),
+            "cpu": ResourceMeter("CPU"),
+            "ram": ResourceMeter("RAM"),
+        }
+        for meter in self.resource_meters.values():
+            bar.addWidget(meter)
         bar.addStretch(1)
         self.capture_button = QPushButton("Fånga bilder")
         self.capture_button.setMinimumHeight(40)
@@ -290,6 +353,37 @@ class DetectionView(QWidget):
             panel.source_requested.connect(self._on_source_requested)
             panels.addWidget(panel, 1)
         layout.addLayout(panels, 1)
+        self.resource_timer = QTimer(self)
+        self.resource_timer.setInterval(1000)
+        self.resource_timer.timeout.connect(self._update_resources)
+        self.resource_timer.start()
+        self._update_resources()
+
+    def _update_resources(self) -> None:
+        """Uppdaterar resursstaplarna med ett nytt ögonblicksvärde (TASK-31)."""
+        self._apply_usage(self.resource_monitor.sample())
+
+    def _apply_usage(self, usage: ResourceUsage) -> None:
+        # psutil räknar process-CPU per kärna (kan bli > 100 %): visa andel av maskinen
+        cpu_share = None
+        if usage.cpu_percent is not None and usage.cpu_count:
+            cpu_share = usage.cpu_percent / (100.0 * usage.cpu_count)
+        self.resource_meters["gpu"].set_usage(
+            None if usage.gpu_percent is None else usage.gpu_percent / 100.0,
+            "" if usage.gpu_percent is None else f"{usage.gpu_percent:.0f}%",
+        )
+        self.resource_meters["vram"].set_usage(
+            _fraction(usage.vram_bytes, usage.vram_total_bytes),
+            _format_pair(usage.vram_bytes, usage.vram_total_bytes),
+        )
+        self.resource_meters["cpu"].set_usage(
+            cpu_share,
+            "" if cpu_share is None else f"{cpu_share * 100:.0f}%",
+        )
+        self.resource_meters["ram"].set_usage(
+            _fraction(usage.ram_bytes, usage.ram_total_bytes),
+            _format_bytes(usage.ram_bytes),
+        )
 
     def refresh_models(self) -> None:
         """Fyller modellväljaren med statiska specar plus nytränade modeller."""
