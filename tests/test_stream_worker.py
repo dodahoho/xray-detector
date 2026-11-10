@@ -127,3 +127,83 @@ def test_panel_title_shows_fps(qapp):
     assert panel.title_label.text() == "Ström 1"
     panel.show_frame(StreamFrame("left", synthetic_frame(), [], "k", sequence=1, fps=29.321))
     assert "29.3 fps" in panel.title_label.text()
+
+
+class _ThreadRecordingSource(FileSource):
+    """FileSource som minns vilken tråd som öppnade respektive stängde den."""
+
+    def __init__(self, path):
+        super().__init__(path)
+        self.open_thread = None
+        self.close_thread = None
+
+    def open(self):
+        if self._capture is None:
+            import threading
+
+            self.open_thread = threading.get_ident()
+        super().open()
+
+    def close(self):
+        if self._capture is not None:
+            import threading
+
+            self.close_thread = threading.get_ident()
+        super().close()
+
+
+def test_worker_closes_source_in_its_own_thread(qapp, video_file):
+    """release() ska ske i arbetstråden, inte i GUI-tråden (TASK-27)."""
+    import threading
+
+    source = _ThreadRecordingSource(video_file)
+    worker = StreamWorker("left", source)
+    received = []
+    worker.frame_ready.connect(lambda frame: received.append(frame))
+    worker.start()
+    try:
+        assert wait_for(qapp, lambda: len(received) >= 1), "inga ramer togs emot"
+    finally:
+        worker.stop()
+
+    assert source.open_thread is not None
+    assert source.close_thread == source.open_thread
+    assert source.close_thread != threading.get_ident()
+
+
+def test_stop_right_after_start_finishes_quickly(qapp, video_file):
+    """stop() direkt efter start() får inte fastna i en loop som termineras."""
+    import time
+
+    worker = StreamWorker("left", FileSource(video_file))
+    worker.start()
+    started = time.perf_counter()
+    worker.stop()
+    elapsed = time.perf_counter() - started
+
+    assert worker.isFinished()
+    assert elapsed < 2.0, "stop() tvingades vanta ut en trad som aldrig avslutades"
+
+
+def test_camera_service_switch_closes_old_source_in_worker_thread(qapp, video_file):
+    """Byte av källa stänger gamla källan i dess tråd innan nästa öppnas (TASK-28)."""
+    import threading
+
+    from xray_detector.infrastructure.video.camera_service import CameraService
+
+    service = CameraService()
+    first = _ThreadRecordingSource(video_file)
+    service.set_source("left", first)
+    assert wait_for(qapp, lambda: first.open_thread is not None), "forsta kallan oppnades inte"
+
+    second = _ThreadRecordingSource(video_file)
+    service.set_source("left", second)
+    try:
+        assert first.close_thread == first.open_thread
+        assert first.close_thread != threading.get_ident()
+        assert wait_for(qapp, lambda: second.open_thread is not None)
+    finally:
+        service.stop_all()
+
+    assert second.close_thread == second.open_thread
+    assert service.worker("left") is None
