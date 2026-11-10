@@ -28,6 +28,7 @@ class PendingCapture:
     group_id: str
     directory: Path
     frames: list[StreamFrame]
+    saved_at: str = ""
 
 
 def pending_root(data_dir: Path) -> Path:
@@ -111,6 +112,7 @@ def _load_group(group_dir: Path) -> PendingCapture | None:
             group_id=str(index.get("group", group_dir.name)),
             directory=group_dir,
             frames=frames,
+            saved_at=str(index.get("saved_at", "")),
         )
     except (OSError, ValueError, KeyError):
         return None
@@ -129,6 +131,16 @@ def list_pending(data_dir: Path) -> list[PendingCapture]:
                 captures.append(capture)
     captures.sort(key=lambda capture: capture.group_id, reverse=True)
     return captures
+
+
+def pending_saved_at(data_dir: Path, group_id: str) -> str:
+    """Tidpunkten då en osparad fångst skrevs, utan att dekoda bilderna."""
+    index_path = pending_root(data_dir) / group_id / PENDING_INDEX
+    try:
+        with open(index_path, encoding="utf-8") as file:
+            return str(json.load(file).get("saved_at", ""))
+    except (OSError, ValueError):
+        return ""
 
 
 def remove_pending(data_dir: Path, group_id: str) -> None:

@@ -42,7 +42,7 @@ RF-DETR finns i storlekarna nano, small, medium och large. Vald storlek styr bå
 ## Lägen
 
 - **Detektion** (default): två videoströmmar i split screen (UVC-kort eller videofil), detektion med valbar modell (YOLO26/RF-DETR), "Fånga bilder" sparar aktuella rutor och öppnar annoteringsläget.
-- **Dataset**: bilderna visas grupperade per fångst. Ett klick markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen visar antal markerade bilder.
+- **Dataset**: bilderna visas grupperade per fångst med rubrik som visar när fångsten gjordes (`YYYY-MM-DD HH:MM:SS`). Ett klick markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen visar antal markerade bilder.
 - **Annotation**: rita/redigera rektanglar, välj eller skriv in klass, spara till COCO-datasetet.
 - **Träning**: träna basmodell på vald datasetversion; detektion pausas under träning. Export av dataset till COCO/YOLO med manifest (version, datum, antal objekt).
 

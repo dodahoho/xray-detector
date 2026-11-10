@@ -12,6 +12,7 @@ from xray_detector.infrastructure.dataset_store.export import (
 from xray_detector.infrastructure.dataset_store.pending import (
     PendingCapture,
     list_pending,
+    pending_saved_at,
     remove_pending,
     save_pending,
 )
@@ -34,8 +35,13 @@ class DatasetService:
     def new_version(self) -> int:
         return self.store.new_version()
 
-    def add_samples(self, version: int, samples: list[AnnotatedImage]) -> None:
-        self.store.add_samples(version, samples)
+    def add_samples(
+        self,
+        version: int,
+        samples: list[AnnotatedImage],
+        captured: str | None = None,
+    ) -> None:
+        self.store.add_samples(version, samples, captured)
 
     def delete_images(self, version: int, image_ids: list[int]) -> None:
         self.store.delete_images(version, image_ids)
@@ -74,3 +80,7 @@ class DatasetService:
 
     def remove_pending(self, group_id: str) -> None:
         remove_pending(self.data_dir, group_id)
+
+    def pending_saved_at(self, group_id: str) -> str:
+        """Tidpunkten då en osparad fångst skrevs (ISO-lik lokal tid)."""
+        return pending_saved_at(self.data_dir, group_id)

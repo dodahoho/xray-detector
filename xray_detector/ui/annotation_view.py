@@ -518,9 +518,16 @@ class AnnotationView(QWidget):
             if answer != QMessageBox.StandardButton.Yes:
                 return
         version = self.dataset_service.current_version() or self.dataset_service.new_version()
-        self.dataset_service.add_samples(version, samples)
-        if getattr(self, "pending_group_id", None):
-            self.dataset_service.remove_pending(self.pending_group_id)
+        pending_group_id = getattr(self, "pending_group_id", None)
+        # fångsttiden finns i pending-indexet, som skrevs vid knapptrycket
+        captured = (
+            self.dataset_service.pending_saved_at(pending_group_id)
+            if pending_group_id
+            else None
+        )
+        self.dataset_service.add_samples(version, samples, captured)
+        if pending_group_id:
+            self.dataset_service.remove_pending(pending_group_id)
             self.pending_group_id = None
         self.mark_clean()
         for canvas in self.canvases:

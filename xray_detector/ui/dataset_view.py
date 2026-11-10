@@ -1,3 +1,6 @@
+from datetime import datetime
+from pathlib import Path
+
 import cv2
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
@@ -22,6 +25,27 @@ SELECTED_BORDER = "#4da3ff"
 SELECTED_BACKGROUND = "#1d3b57"
 IDLE_BORDER = "#555"
 IDLE_BACKGROUND = "#2b2b2b"
+
+
+def _format_timestamp(value: str | None) -> str:
+    """ISO-tid till lokal 'YYYY-MM-DD HH:MM:SS'; tom sträng om den saknas."""
+    if not value:
+        return ""
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return ""
+    if moment.tzinfo is not None:
+        moment = moment.astimezone()
+    return moment.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _mtime_timestamp(path: Path) -> str:
+    """Fallback för äldre dataset: bildfilens egen tidsstämpel."""
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+    except OSError:
+        return ""
 
 
 class Thumbnail(QWidget):
@@ -149,7 +173,11 @@ class DatasetView(QWidget):
         for key in sorted(groups):
             images = sorted(groups[key], key=lambda img: img["id"])
             object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
-            header = QLabel(f"Fångst {key} · {len(images)} bilder · {object_count} objekt")
+            stamp = _format_timestamp(images[0].get("captured")) or _mtime_timestamp(
+                self.dataset_service.version_dir(version) / "images" / images[0]["file_name"]
+            )
+            title = stamp or f"Fångst {key}"
+            header = QLabel(f"{title} · {len(images)} bilder · {object_count} objekt")
             header.setStyleSheet("font-weight: bold; color: #888;")
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
@@ -188,7 +216,9 @@ class DatasetView(QWidget):
         captures = self.dataset_service.pending_captures()
         for capture in captures:
             self._pending_by_group[capture.group_id] = capture
-            header = QLabel(f"Osparad fångst {capture.group_id} · {len(capture.frames)} bild(er)")
+            stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
+            title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"
+            header = QLabel(f"{title} · {len(capture.frames)} bild(er)")
             header.setStyleSheet("font-weight: bold; color: #e5a52a;")
             frame_box = QFrame()
             frame_box.setFrameShape(QFrame.Shape.Box)

@@ -72,12 +72,18 @@ class DatasetStore:
         self.classes.append(class_name)
         return new_id
 
-    def add_samples(self, version: int, samples: list[AnnotatedImage]) -> None:
+    def add_samples(
+        self,
+        version: int,
+        samples: list[AnnotatedImage],
+        captured: str | None = None,
+    ) -> None:
         path = self._ensure_version(version)
         coco = self._load_coco(version)
         image_id = max((img["id"] for img in coco["images"]), default=0) + 1
         annotation_id = max((ann["id"] for ann in coco["annotations"]), default=0) + 1
         group_id = max((img.get("group", 0) for img in coco["images"]), default=0) + 1
+        stamp = captured or datetime.now(UTC).isoformat()
         for sample in samples:
             image_name = f"img_{image_id:06d}.png"
             cv2.imwrite(str(path / "images" / image_name), sample.frame)
@@ -89,6 +95,7 @@ class DatasetStore:
                     "width": width,
                     "height": height,
                     "group": group_id,
+                    "captured": stamp,
                 }
             )
             for annotation in sample.annotations:
