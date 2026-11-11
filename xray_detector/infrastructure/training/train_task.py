@@ -59,6 +59,7 @@ def _write_manifest(args, run_dir: Path) -> None:
             return
         best = candidates[-1]
     manifest = {
+        "family": args.family,
         "base_weights": args.weights,
         "weights_relative": best.relative_to(args.output_path).as_posix(),
         "classes": _read_data_classes(Path(args.dataset)),

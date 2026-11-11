@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -24,6 +26,24 @@ def rfdetr_variant(model_name: str):
     return getattr(rfdetr, class_name)
 
 
+def _is_checkpoint(weights: str) -> bool:
+    """Sant när vikterna är en sparad fil i stället för en storleksnyckel."""
+    return Path(weights).is_file()
+
+
+def _load_model(weights: str):
+    """Publicerad storlek (modellnyckel) eller tränad snapshot (sökväg till .pth).
+
+    En tränad snapshot bär både arkitektur och antal klasser, så
+    from_checkpoint väljer variant och läser detektionshuvudet ur filen.
+    """
+    import rfdetr
+
+    if _is_checkpoint(weights):
+        return rfdetr.from_checkpoint(weights)
+    return rfdetr_variant(weights)()
+
+
 class RfDetrDetector(BaseDetector):
     """RF-DETR-backend (valfritt rfdetr-paket).
 
@@ -33,17 +53,18 @@ class RfDetrDetector(BaseDetector):
 
     def __init__(
         self,
-        model_name: str,
+        weights: str,
         class_names: list[str],
         confidence_threshold: float,
     ) -> None:
-        super().__init__(name=f"RF-DETR ({model_name})", class_names=class_names)
+        label = Path(weights).stem if _is_checkpoint(weights) else weights
+        super().__init__(name=f"RF-DETR ({label})", class_names=class_names)
         from xray_detector.infrastructure.detectors.tuning import (
             configure_inference_threads,
         )
 
         configure_inference_threads()
-        self.model = rfdetr_variant(model_name)()
+        self.model = _load_model(weights)
         self._optimize_for_inference()
         self.confidence_threshold = confidence_threshold
 

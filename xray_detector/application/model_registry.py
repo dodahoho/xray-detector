@@ -83,9 +83,11 @@ def trained_models(trained_dir: Path) -> list[ModelSpec]:
         base = Path(manifest.get("base_weights", "modell")).stem
         classes = ", ".join(manifest.get("classes", []))
         label = f"Tränad {run_dir} ({base})" + (f" [{classes}]" if classes else "")
+        # manifest utan familj är skrivna före TASK-48 och är alltid YOLO
+        family = str(manifest.get("family") or "yolo")
         specs.append(
             ModelSpec(key=f"trained-{run_dir}", label=label,
-                      family="yolo", weights=str(weights))
+                      family=family, weights=str(weights))
         )
     return specs
 

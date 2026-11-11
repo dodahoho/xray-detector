@@ -100,11 +100,11 @@ Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Modellvik
 | Sökväg | Innehåll |
 | --- | --- |
 | `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
-| `models/trained/` | Egentränade modeller, en katalog per träningskörning (`v<datasetversion>`) med `training_manifest.json` och bästa vikterna under `<basmodell>/weights/best.pt`. |
+| `models/trained/` | Egentränade modeller, en katalog per träningskörning (`v<datasetversion>`) med `training_manifest.json` och bästa vikterna under `<basmodell>/weights/best.pt` (YOLO) eller `rfdetr/checkpoint_best_total.pth` (RF-DETR). |
 | `logs/app.log` | Applikationsloggen: start, statusmeddelanden och ohanterade undantag. |
 | `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med tidsstämpel, basmodell och körningskatalog. |
 
-Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad v<version> (<basmodell>)`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
+Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad v<version> (<basmodell>)`. Manifestets `family` avgör vilken detektor posten laddas med: `yolo` ger `YoloDetector` och `rfdetr` ger `RfDetrDetector`, som läser snapshoten med `rfdetr.from_checkpoint`. Manifest som skrevs innan fältet fanns saknar `family` och behandlas som `yolo`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
 
 Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`:
 

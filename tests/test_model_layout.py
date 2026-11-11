@@ -17,17 +17,25 @@ from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 
 
-def _write_run(trained_dir: Path, run: str, weights_relative: str = "yolo26m/weights/best.pt") -> Path:
+def _write_run(
+    trained_dir: Path,
+    run: str,
+    weights_relative: str = "yolo26m/weights/best.pt",
+    family: str | None = "yolo",
+    base_weights: str = "yolo26m.pt",
+) -> Path:
     """Skapar en träningskörning med manifest och vikter, som train_task gör."""
     run_dir = trained_dir / run
     weights = run_dir / weights_relative
     weights.parent.mkdir(parents=True, exist_ok=True)
     weights.write_bytes(b"vikter")
     manifest = {
-        "base_weights": "yolo26m.pt",
+        "base_weights": base_weights,
         "weights_relative": weights_relative,
         "classes": ["kniv", "pistol"],
     }
+    if family is not None:
+        manifest["family"] = family
     (run_dir / "training_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return weights
 
@@ -122,6 +130,105 @@ def test_base_and_trained_weights_do_not_collide(tmp_path):
     assert not {spec.weights for spec in base} & {spec.weights for spec in trained}
     for spec in trained:
         assert Path(spec.weights).is_relative_to(config.trained_dir)
+
+
+# --- Modellfamilj i manifestet (TASK-48) ---
+
+
+def test_manifest_records_family(tmp_path):
+    """Manifestet anger familj så väljaren kan välja rätt detektor (AC 1)."""
+    from types import SimpleNamespace
+
+    from xray_detector.infrastructure.training.train_task import _write_manifest
+
+    run_dir = tmp_path / "rfdetr"
+    weights = run_dir / "checkpoint_best_total.pth"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"vikter")
+    args = SimpleNamespace(
+        family="rfdetr",
+        weights="rfdetr-small",
+        output_path=tmp_path,
+        dataset=str(tmp_path / "dataset"),
+        epochs=1,
+        imgsz=640,
+        batch=1,
+    )
+
+    _write_manifest(args, run_dir)
+
+    manifest = json.loads((tmp_path / "training_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["family"] == "rfdetr"
+    assert manifest["weights_relative"] == "rfdetr/checkpoint_best_total.pth"
+
+
+def test_trained_models_use_manifest_family(tmp_path):
+    """En RF-DETR-körning registreras som rfdetr, inte som yolo (AC 2)."""
+    trained = tmp_path / "trained"
+    _write_run(
+        trained,
+        "v3",
+        weights_relative="rfdetr/checkpoint_best_total.pth",
+        family="rfdetr",
+        base_weights="rfdetr-small",
+    )
+
+    specs = trained_models(trained)
+    assert [spec.family for spec in specs] == ["rfdetr"]
+
+
+def test_trained_models_without_family_are_yolo(tmp_path):
+    """Manifest skrivna före TASK-48 saknar familj och är alltid YOLO (AC 5)."""
+    trained = tmp_path / "trained"
+    _write_run(trained, "v3", family=None)
+
+    specs = trained_models(trained)
+    assert [spec.family for spec in specs] == ["yolo"]
+
+
+def test_trained_snapshots_use_their_own_detector(monkeypatch, tmp_path):
+    """YOLO- och RF-DETR-snapshots laddas med var sin detektor (AC 3, 4)."""
+    import sys
+    import types
+
+    from xray_detector.application import model_registry
+    from xray_detector.infrastructure.detectors import yolo_detector
+    from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
+
+    yolo_weights = []
+    checkpoints = []
+
+    class FakeYolo:
+        def __init__(self, weights, class_names, confidence_threshold):
+            yolo_weights.append(weights)
+
+    class FakeRfDetrModel:
+        def inference(self, **kwargs):
+            pass
+
+    fake_rfdetr = types.ModuleType("rfdetr")
+    fake_rfdetr.from_checkpoint = lambda path: checkpoints.append(path) or FakeRfDetrModel()
+    monkeypatch.setitem(sys.modules, "rfdetr", fake_rfdetr)
+    monkeypatch.setattr(yolo_detector, "YoloDetector", FakeYolo)
+
+    trained = tmp_path / "trained"
+    yolo = _write_run(trained, "v3")
+    rfdetr = _write_run(
+        trained,
+        "v4",
+        weights_relative="rfdetr/checkpoint_best_total.pth",
+        family="rfdetr",
+        base_weights="rfdetr-small",
+    )
+    specs = {spec.key: spec for spec in trained_models(trained)}
+
+    yolo_detector_instance = model_registry.create_detector(specs["trained-v3"], ["kniv"], 0.4)
+    rfdetr_detector_instance = model_registry.create_detector(specs["trained-v4"], ["kniv"], 0.4)
+
+    assert isinstance(yolo_detector_instance, FakeYolo)
+    assert isinstance(rfdetr_detector_instance, RfDetrDetector)
+    assert yolo_weights == [str(yolo)]
+    assert checkpoints == [str(rfdetr)]
 
 
 # --- Modellväljaren (AC 4, 5) ---
