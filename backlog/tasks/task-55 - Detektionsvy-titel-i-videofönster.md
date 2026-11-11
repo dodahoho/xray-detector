@@ -1,11 +1,11 @@
 ---
 id: TASK-55
 title: Detektionsvy titel i videofönster
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T19:38:00Z'
-updated_date: '2026-11-11T19:50:00Z'
+updated_date: '2026-11-11T19:51:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -33,7 +33,7 @@ Ta bort det som står innan framerate så att det blir mindre info där, mer cle
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
