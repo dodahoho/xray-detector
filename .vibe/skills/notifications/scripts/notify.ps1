@@ -45,7 +45,8 @@ try {
         -Uri "$Server/$Topic" `
         -Method Post `
         -Headers $Headers `
-        -Body ([System.Text.Encoding]::UTF8.GetBytes($Message)) `
+        -ContentType "text/plain; charset=utf-8" `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes($Body)) `
         -TimeoutSec 10 `
         -ErrorAction Stop | Out-Null
 
