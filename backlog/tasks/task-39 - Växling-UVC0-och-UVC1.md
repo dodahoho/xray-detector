@@ -1,7 +1,7 @@
 ---
 id: TASK-39
 title: Växling UVC0 och UVC1
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-11T10:04:00Z'
 updated_date: '2026-11-11T10:27:00Z'
@@ -59,7 +59,7 @@ I2026-11-11 10:57:07.625067 (  504) [INFO] [VCAMDS] Already initialized
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
