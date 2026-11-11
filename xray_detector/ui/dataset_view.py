@@ -20,7 +20,12 @@ from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.settings_dialog import settings_button
+from xray_detector.ui.settings_dialog import (
+    SORT_NEWEST,
+    DatasetSortSection,
+    settings_button,
+    sort_order,
+)
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
 
@@ -123,7 +128,9 @@ class DatasetView(QWidget):
         self.delete_button = button(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
-        self.settings_button = settings_button(self, "Inställningar – Dataset")
+        self.settings_button = settings_button(
+            self, "Inställningar – Dataset", self._settings_sections
+        )
         bar.addWidget(self.settings_button)
         layout.addLayout(bar)
 
@@ -138,6 +145,12 @@ class DatasetView(QWidget):
 
         self.busy = BusyIndicator(self)
         self.refresh_versions()
+
+    def _settings_sections(self) -> list:
+        """Vyns egna inställningar; en ny sortering bygger om listan (TASK-56)."""
+        section = DatasetSortSection(self.settings)
+        section.order_changed.connect(self.refresh)
+        return [section]
 
     def refresh_versions(self) -> None:
         self.version_combo.blockSignals(True)
@@ -209,7 +222,8 @@ class DatasetView(QWidget):
         self._group_headers = {}
         self._pending_by_group = {}
 
-        self._add_pending_section(data["pending"])
+        newest_first = sort_order(self.settings) == SORT_NEWEST
+        self._add_pending_section(data["pending"], newest_first)
         if data["version"] is None:
             self._coco = None
             if not self._thumbs:
@@ -230,7 +244,7 @@ class DatasetView(QWidget):
             key = image.get("group") or image["id"]
             groups.setdefault(key, []).append(image)
 
-        for key in sorted(groups):
+        for key in sorted(groups, reverse=newest_first):
             images = sorted(groups[key], key=lambda img: img["id"])
             object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
             stamp = _format_timestamp(images[0].get("captured")) or _mtime_timestamp(
@@ -271,9 +285,10 @@ class DatasetView(QWidget):
         self.content_layout.addStretch(1)
         self._update_delete_button()
 
-    def _add_pending_section(self, captures) -> None:
+    def _add_pending_section(self, captures, newest_first: bool = True) -> None:
         """Osparade fangster fran pending-kon (krascsakra, TASK-12)."""
-        for capture in captures:
+        ordered = captures if newest_first else reversed(captures)
+        for capture in ordered:
             self._pending_by_group[capture.group_id] = capture
             stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
             title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"

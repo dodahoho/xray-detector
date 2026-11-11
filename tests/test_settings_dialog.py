@@ -7,6 +7,10 @@ from PySide6.QtWidgets import QDialog, QDialogButtonBox
 from xray_detector.domain.config import AppConfig
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import (
+    SORT_KEY,
+    SORT_NEWEST,
+    SORT_OLDEST,
+    DatasetSortSection,
     SettingsDialog,
     ThemeSection,
     TrainingScheduleSection,
@@ -93,12 +97,31 @@ def test_settings_button_sits_top_right_in_every_view(window):
 
 
 def test_view_without_own_settings_keeps_a_disabled_button(window):
-    for name in ("detection_view", "annotation_view", "dataset_view"):
+    for name in ("detection_view", "annotation_view"):
         button = getattr(window, name).settings_button
         assert not button.isEnabled(), name
         assert button.toolTip() == "Vyn har inga egna inställningar"
 
     assert window.training_view.settings_button.isEnabled()
+    assert window.dataset_view.settings_button.isEnabled()
+
+
+def test_dataset_settings_open_the_sort_order(qapp, window, monkeypatch):
+    dialog = _opened_dialog(monkeypatch, window.dataset_view.settings_button)
+
+    assert dialog.windowTitle() == "Inställningar – Dataset"
+    assert dialog.findChild(DatasetSortSection) is not None
+    assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
+
+
+def test_dataset_sort_order_is_read_and_written(qapp, settings):
+    section = DatasetSortSection(settings)
+    assert section.order_combo.currentData() == SORT_NEWEST
+
+    section.order_combo.setCurrentIndex(section.order_combo.findData(SORT_OLDEST))
+
+    assert settings.value(SORT_KEY) == SORT_OLDEST
+    assert DatasetSortSection(settings).order_combo.currentData() == SORT_OLDEST
 
 
 def test_training_settings_open_the_schedule(qapp, window, monkeypatch):

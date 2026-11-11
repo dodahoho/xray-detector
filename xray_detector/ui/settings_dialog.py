@@ -5,7 +5,7 @@ knappen som öppnar den. Applikationens globala inställningar ligger i
 settings_view.py, som komponerar ThemeSection härifrån.
 """
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -26,6 +26,16 @@ from xray_detector.ui.style import apply_metrics, button
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
 
 GEAR_COLOR = "#8a8a8a"
+SORT_KEY = "dataset/sort_order"
+SORT_NEWEST = "newest"
+SORT_OLDEST = "oldest"
+SORT_ORDERS = {SORT_NEWEST: "Nyast först", SORT_OLDEST: "Äldst först"}
+
+
+def sort_order(settings) -> str:
+    """Vald sortering i datasetvyn; nyast först när inget val sparats (TASK-56)."""
+    value = settings.value(SORT_KEY, SORT_NEWEST, type=str)
+    return value if value in SORT_ORDERS else SORT_NEWEST
 
 
 class ThemeSection(QGroupBox):
@@ -89,6 +99,29 @@ class TrainingScheduleSection(QGroupBox):
         key = "training/night_start" if is_start else "training/night_end"
         self.settings.setValue(f"{key}_hour", hour)
         self.settings.setValue(key, f"{hour:02d}:00")
+
+
+class DatasetSortSection(QGroupBox):
+    """Sortering av fångsterna i datasetvyn (TASK-56)."""
+
+    order_changed = Signal()
+
+    def __init__(self, settings, parent=None) -> None:
+        super().__init__("Sortering", parent)
+        self.settings = settings
+        form = QFormLayout(self)
+        self.order_combo = QComboBox()
+        for key, label in SORT_ORDERS.items():
+            self.order_combo.addItem(label, key)
+        index = self.order_combo.findData(sort_order(settings))
+        if index >= 0:
+            self.order_combo.setCurrentIndex(index)
+        self.order_combo.currentIndexChanged.connect(self._on_order_changed)
+        form.addRow(QLabel("Fångster:"), self.order_combo)
+
+    def _on_order_changed(self) -> None:
+        self.settings.setValue(SORT_KEY, self.order_combo.currentData())
+        self.order_changed.emit()
 
 
 class SettingsDialog(QDialog):

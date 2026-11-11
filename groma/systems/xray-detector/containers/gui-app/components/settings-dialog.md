@@ -12,7 +12,7 @@ groma:
 description: Sektionerna, dialogen och knappen som öppnar en vys egna inställningar.
 ---
 
-settings_button() bygger knappen Inställningar (Alt+I) med ett kugghjul framför texten. En vy utan egna inställningar får en avstängd knapp på samma plats, så placeringen är densamma oavsett flik. SettingsDialog visar vyens sektioner modalt med en Stäng-knapp; ändringarna skrivs direkt till QSettings. Träningsschemat (nattfönster och inaktivitet) är den enda vyinställningen i dag. ThemeSection ligger här men visas i inställningsfliken, eftersom temat gäller hela appen.
+settings_button() bygger knappen Inställningar (Alt+I) med ett kugghjul framför texten. En vy utan egna inställningar får en avstängd knapp på samma plats, så placeringen är densamma oavsett flik. SettingsDialog visar vyens sektioner modalt med en Stäng-knapp; ändringarna skrivs direkt till QSettings. Vyinställningarna är träningsschemat (nattfönster och inaktivitet) och datasetvyns sortering (nyast eller äldst först); sort_order() läser sorteringsvalet med nyast först som default. ThemeSection ligger här men visas i inställningsfliken, eftersom temat gäller hela appen.
 
 ## Relationships
 
