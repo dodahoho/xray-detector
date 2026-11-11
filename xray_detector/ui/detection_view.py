@@ -17,12 +17,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.video_service import VideoService
 from xray_detector.domain.capture import StreamFrame, VideoMode
 from xray_detector.domain.config import AppConfig
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
+from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.video_settings import (
     clear_video_mode,
     load_video_mode,
@@ -408,6 +410,10 @@ class DetectionView(QWidget):
         self.video_service = VideoService()
         self.detector = None
         self.detection_enabled = True
+        self._paused = False
+        self._model_task: BackgroundTask | None = None
+        self._device_task: BackgroundTask | None = None
+        self._loading_spec = None
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
@@ -463,6 +469,7 @@ class DetectionView(QWidget):
         self.resource_timer.timeout.connect(self._update_resources)
         self.resource_timer.start()
         self._update_resources()
+        self.busy = BusyIndicator(self)
 
     def _update_resources(self) -> None:
         """Uppdaterar resursstaplarna med ett nytt ögonblicksvärde (TASK-31)."""
@@ -602,30 +609,70 @@ class DetectionView(QWidget):
             self.video_service.set_detector(self.detector)
 
     def _on_model_changed(self) -> None:
+        """Laddar modellen i en arbetstråd så indikatorn kan animeras (TASK-40)."""
+        if self._model_task is not None:
+            return
+        spec = self._specs.get(self.model_combo.currentData())
+        if spec is None:
+            self.error_occurred.emit("Kunde inte ladda modell: okänt modellval")
+            return
+        threshold = self.conf_spin.value()
+        self.error_occurred.emit("Laddar modell...")
+        self.model_combo.setEnabled(False)
+        self.busy.start(f"Laddar {spec.label}...")
+        self._loading_spec = spec
+        task = BackgroundTask(lambda: self._create_detector(spec, threshold))
+        task.succeeded.connect(self._on_model_loaded)
+        task.failed.connect(self._on_model_failed)
+        task.finished.connect(self._on_model_task_finished)
+        self._model_task = task
+        task.start()
+
+    def _create_detector(self, spec, threshold: float) -> BaseDetector:
+        """Skapar detektorn i arbetstråden; importen sker där så den går att byta ut."""
         from xray_detector.application.model_registry import create_detector
 
-        self.error_occurred.emit("Laddar modell...")
-        try:
-            spec = self._specs[self.model_combo.currentData()]
-            self.detector = create_detector(
-                spec, self.config.classes, self.conf_spin.value()
-            )
+        return create_detector(spec, self.config.classes, threshold)
+
+    def _on_model_loaded(self, detector: BaseDetector) -> None:
+        self.detector = detector
+        if not self._paused:
             self.video_service.set_detector(self._active_detector())
-            device_label = getattr(self.detector, "device_label", "")
-            if device_label:
-                self.device_label.setText(f"Enhet: {device_label}")
-            self.error_occurred.emit(f"Modell laddad: {spec.label}")
-        except Exception as exc:
-            self.detector = None
-            self.video_service.set_detector(None)
-            self.error_occurred.emit(f"Kunde inte ladda modell: {exc}")
+        device_label = getattr(detector, "device_label", "")
+        if device_label:
+            self.device_label.setText(f"Enhet: {device_label}")
+        self.error_occurred.emit(f"Modell laddad: {self._loading_spec.label}")
+
+    def _on_model_failed(self, message: str) -> None:
+        self.detector = None
+        self.video_service.set_detector(None)
+        self.error_occurred.emit(f"Kunde inte ladda modell: {message}")
+
+    def _on_model_task_finished(self) -> None:
+        self._model_task = None
+        self.busy.stop()
+        self.model_combo.setEnabled(True)
 
     def check_device(self) -> None:
+        """Kontrollerar enheten i en arbetstråd: CUDA-initieringen tar cirka 1 s (TASK-40)."""
         from xray_detector.application.model_registry import device_status
 
-        text, color = device_status()
+        self.device_label.setText("Enhet: kontrollerar...")
+        task = BackgroundTask(device_status)
+        task.succeeded.connect(self._apply_device_status)
+        self._device_task = task
+        task.start()
+
+    def _apply_device_status(self, status: tuple[str, str]) -> None:
+        text, color = status
         self.device_label.setText(text)
         self.device_label.setStyleSheet(f"font-weight: bold; color: {color};")
+
+    def wait_for_background(self, timeout_ms: int = 10000) -> None:
+        """Väntar in modelladdning och enhetskontroll (tester och stängning)."""
+        for task in (self._model_task, self._device_task):
+            if task is not None:
+                task.wait(timeout_ms)
 
     def _on_capture(self) -> None:
         captures: list[StreamFrame] = []
@@ -639,6 +686,7 @@ class DetectionView(QWidget):
 
     def pause_detection(self) -> None:
         """Pausar detekteringen och slapper detektorns GPU-minne (TASK-6)."""
+        self._paused = True
         self.video_service.set_detector(None)
         self.detector = None
         for panel in (self.left, self.right):
@@ -652,6 +700,7 @@ class DetectionView(QWidget):
             pass
 
     def resume_detection(self) -> None:
+        self._paused = False
         if not self.detection_enabled:
             # anvandaren har slagit av detektionen: lat den vara av efter traningen
             return
@@ -663,3 +712,4 @@ class DetectionView(QWidget):
 
     def stop(self) -> None:
         self.video_service.stop_all()
+        self.wait_for_background()

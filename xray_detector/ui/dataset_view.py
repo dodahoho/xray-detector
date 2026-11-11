@@ -3,7 +3,7 @@ from pathlib import Path
 
 import cv2
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -16,9 +16,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.detection import Detection
+from xray_detector.ui.busy_indicator import BusyIndicator
 
 THUMB_HEIGHT = 170
 SELECTED_BORDER = "#4da3ff"
@@ -104,6 +106,9 @@ class DatasetView(QWidget):
         self._groups: dict[int, list[Thumbnail]] = {}
         self._group_headers: dict = {}
         self._coco: dict | None = None
+        self._pending_by_group: dict[str, object] = {}
+        self._refresh_task: BackgroundTask | None = None
+        self._refresh_pending = False
 
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
@@ -126,6 +131,7 @@ class DatasetView(QWidget):
         self.scroll.setWidget(self.content)
         layout.addWidget(self.scroll, 1)
 
+        self.busy = BusyIndicator(self)
         self.refresh_versions()
 
     def refresh_versions(self) -> None:
@@ -139,6 +145,56 @@ class DatasetView(QWidget):
         self.refresh()
 
     def refresh(self) -> None:
+        """Bygger om bildlistan; bilderna dekodas i en arbetstråd (TASK-40)."""
+        if self._refresh_task is not None:
+            # en omladdning pågår: kör en ny när den är klar så sista läget vinner
+            self._refresh_pending = True
+            return
+        version = self.version_combo.currentData()
+        self.busy.start("Bygger bildlistan...")
+        task = BackgroundTask(lambda: self._load(version))
+        task.succeeded.connect(self._build)
+        task.failed.connect(self._on_load_failed)
+        task.finished.connect(self._on_refresh_finished)
+        self._refresh_task = task
+        task.start()
+
+    def _load(self, version) -> dict:
+        """Läser datasetet och dekoder bilderna utan att röra widgets (TASK-40).
+
+        Bildavkodningen är den dyra delen: mätt 826 av 870 ms för 200 bilder.
+        QImage får skapas utanför GUI-tråden, QPixmap får det inte.
+        """
+        pending = self.dataset_service.pending_captures()
+        if version is None:
+            return {"version": None, "coco": None, "images": {}, "pending": pending}
+        number = int(version)
+        coco = self.dataset_service.load_coco(number)
+        images_dir = self.dataset_service.version_dir(number) / "images"
+        decoded = {
+            image["id"]: QImage(str(images_dir / image["file_name"]))
+            for image in coco["images"]
+        }
+        return {"version": number, "coco": coco, "images": decoded, "pending": pending}
+
+    def _on_load_failed(self, message: str) -> None:
+        self.status_changed.emit(f"Kunde inte läsa datasetet: {message}")
+
+    def _on_refresh_finished(self) -> None:
+        self._refresh_task = None
+        self.busy.stop()
+        if self._refresh_pending:
+            self._refresh_pending = False
+            self.refresh()
+
+    def wait_for_refresh(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående omladdning (tester och stängning)."""
+        while self._refresh_task is not None:
+            if not self._refresh_task.wait(timeout_ms):
+                return
+
+    def _build(self, data: dict) -> None:
+        """Ritar listan i GUI-tråden från det arbetstråden läste (TASK-40)."""
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
             if item.widget() is not None:
@@ -146,19 +202,18 @@ class DatasetView(QWidget):
         self._thumbs = []
         self._groups = {}
         self._group_headers = {}
-        self._pending_by_group: dict[str, object] = {}
+        self._pending_by_group = {}
 
-        self._add_pending_section()
-        version_data = self.version_combo.currentData()
-        if version_data is None:
+        self._add_pending_section(data["pending"])
+        if data["version"] is None:
             self._coco = None
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
             self.content_layout.addStretch(1)
             self._update_delete_button()
             return
-        version = int(version_data)
-        coco = self.dataset_service.load_coco(version)
+        version = data["version"]
+        coco = data["coco"]
         self._coco = coco
         annotations_by_image: dict[int, list[dict]] = {}
         for annotation in coco["annotations"]:
@@ -189,7 +244,7 @@ class DatasetView(QWidget):
             row = QHBoxLayout()
             row.addStretch(1)
             for image in images:
-                pixmap = QPixmap(str(self.dataset_service.version_dir(version) / "images" / image["file_name"]))
+                pixmap = QPixmap.fromImage(data["images"][image["id"]])
                 pixmap = pixmap.scaledToHeight(THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation)
                 count = len(annotations_by_image.get(image["id"], []))
                 classes = sorted(
@@ -211,9 +266,8 @@ class DatasetView(QWidget):
         self.content_layout.addStretch(1)
         self._update_delete_button()
 
-    def _add_pending_section(self) -> None:
+    def _add_pending_section(self, captures) -> None:
         """Osparade fangster fran pending-kon (krascsakra, TASK-12)."""
-        captures = self.dataset_service.pending_captures()
         for capture in captures:
             self._pending_by_group[capture.group_id] = capture
             stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
@@ -231,8 +285,6 @@ class DatasetView(QWidget):
             row.addStretch(1)
             for index, stream_frame in enumerate(capture.frames):
                 height, width = stream_frame.frame.shape[:2]
-                from PySide6.QtGui import QImage
-
                 rgb = stream_frame.frame[:, :, ::-1].copy()
                 image = QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888).copy()
                 pixmap = QPixmap.fromImage(image).scaledToHeight(

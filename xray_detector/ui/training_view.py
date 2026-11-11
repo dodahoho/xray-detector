@@ -15,10 +15,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.training import TrainConfig
+from xray_detector.ui.busy_indicator import BusyIndicator
 
 
 class TrainingView(QWidget):
@@ -33,6 +35,8 @@ class TrainingView(QWidget):
         self.settings = settings
         self.training_service = TrainingService()
         self.worker = None
+        self._export_task: BackgroundTask | None = None
+        self._export_label = ""
         self.training_service.worker_created.connect(self._on_worker_created)
         self.training_service.scheduler().status_changed.connect(self.status_changed.emit)
         self._activity_filter = _ActivityFilter(self.training_service.scheduler().record_activity)
@@ -43,6 +47,7 @@ class TrainingView(QWidget):
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         layout.addWidget(self.log, 1)
+        self.busy = BusyIndicator(self)
         self.refresh_versions()
         self._disable_missing_rfdetr()
 
@@ -169,18 +174,45 @@ class TrainingView(QWidget):
         return None if data is None else int(data)
 
     def _on_export_coco(self) -> None:
-        version = self._current_version()
-        if version is None:
-            return
-        out = self.dataset_service.export_coco(version, self.config.export_dir)
-        self.status_changed.emit(f"Exporterade COCO till {out}")
+        self._start_export("COCO", self.dataset_service.export_coco)
 
     def _on_export_yolo(self) -> None:
+        self._start_export("YOLO", self.dataset_service.export_yolo)
+
+    def _start_export(self, label: str, export) -> None:
+        """Exporterar i en arbetstråd medan indikatorn visas (TASK-40)."""
         version = self._current_version()
-        if version is None:
+        if version is None or self._export_task is not None:
             return
-        out = self.dataset_service.export_yolo(version, self.config.export_dir)
-        self.status_changed.emit(f"Exporterade YOLO till {out}")
+        self._export_label = label
+        self.busy.start(f"Exporterar {label}...")
+        self._set_export_enabled(False)
+        task = BackgroundTask(lambda: export(version, self.config.export_dir))
+        task.succeeded.connect(self._on_export_done)
+        task.failed.connect(self._on_export_failed)
+        task.finished.connect(self._on_export_finished)
+        self._export_task = task
+        task.start()
+
+    def _set_export_enabled(self, enabled: bool) -> None:
+        self.export_coco_button.setEnabled(enabled)
+        self.export_yolo_button.setEnabled(enabled)
+
+    def _on_export_done(self, out) -> None:
+        self.status_changed.emit(f"Exporterade {self._export_label} till {out}")
+
+    def _on_export_failed(self, message: str) -> None:
+        self.status_changed.emit(f"Export av {self._export_label} misslyckades: {message}")
+
+    def _on_export_finished(self) -> None:
+        self._export_task = None
+        self.busy.stop()
+        self._set_export_enabled(True)
+
+    def wait_for_export(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående export (tester och stängning)."""
+        if self._export_task is not None:
+            self._export_task.wait(timeout_ms)
 
     def _on_start(self) -> None:
         import importlib.util

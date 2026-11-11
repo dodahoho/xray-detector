@@ -1,10 +1,11 @@
 ---
 id: TASK-40
 title: Tydlig spinner vid tidskrävande operationer
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-11T11:18:00Z'
-updated_date: '2026-11-11T11:22:00Z'
+updated_date: '2026-11-11T13:17:00Z'
 labels: []
 dependencies: []
 references:
@@ -14,6 +15,32 @@ references:
   - xray_detector/ui/training_view.py
   - xray_detector/ui/annotation_view.py
   - xray_detector/ui/main_window.py
+  - busy-indicator
+  - background-task
+modified_files:
+  - xray_detector/ui/busy_indicator.py
+  - xray_detector/application/background_task.py
+  - xray_detector/ui/detection_view.py
+  - xray_detector/ui/dataset_view.py
+  - xray_detector/ui/training_view.py
+  - xray_detector/ui/annotation_view.py
+  - xray_detector/ui/main_window.py
+  - tests/test_busy_indicator.py
+  - tests/test_background_task.py
+  - tests/test_busy_operations.py
+  - tests/test_annotation_ux.py
+  - tests/test_dataset_header.py
+  - tests/test_dataset_selection.py
+  - tests/test_gui_smoke.py
+  - tests/test_pending.py
+  - README.md
+  - groma/config.json
+  - groma/systems/xray-detector/containers/gui-app/components/busy-indicator.md
+  - groma/systems/xray-detector/containers/gui-app/components/background-task.md
+  - groma/systems/xray-detector/containers/gui-app/components/detection-view.md
+  - groma/systems/xray-detector/containers/gui-app/components/dataset-view.md
+  - groma/systems/xray-detector/containers/gui-app/components/training-view.md
+  - groma/systems/xray-detector/containers/gui-app/components/annotation-view.md
 priority: medium
 type: enhancement
 ordinal: 38000
@@ -59,3 +86,41 @@ Källbytet behöver ingen indikator: arbetstråden öppnar kameran asynkront och
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Ny komponent ui/busy_indicator.py: halvtransparent överlägg med snurra, text och fördröjning innan den visas.
+2. Ny application/background_task.py: BackgroundTask som kör arbete i QThreadPool och levererar resultat/fel till GUI-tråden.
+3. DetectionView: modelladdningen flyttas till arbetstråd, indikator + avstängd modellväljare under tiden, samma felmeddelande vid fel. Enhetskontrollen flyttas till arbetstråd utan indikator.
+4. DatasetView: refresh() läser COCO och dekoder bilder till QImage i arbetstråd (mätt 826 av 870 ms för 200 bilder), widgetbygget kvar i GUI-tråden.
+5. TrainingView: COCO-/YOLO-export i arbetstråd med indikator och avstängda exportknappar.
+6. AnnotationView: add_samples + remove_pending i arbetstråd med indikator; MainWindow väntar in sparningen vid stängning.
+7. Tester för komponenterna och de fyra vyerna; uppdatera befintliga tester som antog synkron omladdning.
+8. README och groma-komponentkort uppdaterade.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementerat enligt planen.
+
+Ny komponent ui/busy_indicator.py: halvtransparent överlägg med snurra och text, barn till den widget den täcker, 150 ms fördröjning innan den tänds och en timer som driver animationen. Ny application/background_task.py: BackgroundTask kör en funktion som QRunnable i Qt:s globala trådpool och rapporterar succeeded/failed/finished med köad anslutning till GUI-tråden; ett undantag blir ett felmeddelande i stället för en krasch i arbetstråden.
+
+Detektionsvyn: modelladdningen sker i arbetstråden, modellväljaren stängs av under tiden och en pågående laddning kan inte startas om. Samma felmeddelande som förut ("Kunde inte ladda modell: ...") och detektorn lämnas avstängd. Enhetskontrollen flyttades till en arbetstråd utan indikator. pause_detection/resume_detection håller reda på pausläget så en laddning som blir klar under träning inte kopplar in detektorn igen.
+
+Datasetvyn: refresh() läser COCO och dekoder bilderna till QImage i arbetstråden och bygger widgets i GUI-tråden. Mätt: 826 av 870 ms för 200 bilder var avkodning, widgetbygget cirka 45 ms. En omladdning som begärs medan en pågår körs när den första är klar, så sista läget vinner.
+
+Träningsvyn: COCO-/YOLO-export i arbetstråd med indikator och avstängda exportknappar; ett fel blir ett statusmeddelande i stället för en krasch. Annoteringsvyn: add_samples + remove_pending i arbetstråd med indikator och avstängd spara-knapp. MainWindow väntar in sparning, omladdning och export vid stängning, och byter bara till detektionsfliken om annoteringsfliken är aktiv (sparningen är nu asynkron).
+
+Verifiering, mätt på RTX 5080:
+- RF-DETR nano: 6,31 s laddning, indikatorn visades efter 0,16 s, 12 unika snurrvinklar och 286 GUI-timertick under laddningen. Statusraden visade "Laddar modell..." och sedan "Modell laddad: RF-DETR nano".
+- YOLO26 nano: 0,20 s, indikatorn hann tändas, 8 GUI-timertick.
+- Datasetvyn med 200 bilder: 0,33 s omladdning, indikator efter 0,16 s, 11 GUI-timertick, 200 thumbnails.
+- COCO-export 0,16 s och YOLO-export 0,17 s: ingen respektive en snurrvinkel, alltså ingen blinkning för den snabba operationen.
+- Spara annoteringar 0,03 s: under fördröjningen, ingen indikator.
+
+Tester: 24 nya tester i tests/test_busy_indicator.py, tests/test_background_task.py och tests/test_busy_operations.py. Befintliga tester som antog synkron omladdning och sparning väntar nu in arbetet (wait_for_refresh/wait_for_save). Sviten: 207 passed, 1 skipped. En test återstår att rätta: tests/test_gui_smoke.py::test_settings_and_theme_survive_restart faller på att fliktexten är '&Inställningar' i stället för 'Inställningar', vilket kommer från pågående TASK-41-arbete i samma arbetskopia och inte från den här uppgiften.
+
+Ruff: inga nya anmärkningar (63 mot 64 före ändringen).
+<!-- SECTION:NOTES:END -->

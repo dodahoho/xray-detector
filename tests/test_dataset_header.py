@@ -47,6 +47,7 @@ def test_header_shows_capture_time(qapp, service):
     service.add_samples(1, [_sample(60), _sample(120)], captured="2026-11-10T09:56:38")
     view = DatasetView(service)
     view.refresh_versions()
+    view.wait_for_refresh()
 
     assert _header_text(view, 1).startswith("2026-11-10 09:56:38")
     assert "2 bilder" in _header_text(view, 1)
@@ -67,6 +68,7 @@ def test_header_falls_back_to_file_mtime(qapp, service):
 
     view = DatasetView(service)
     view.refresh_versions()
+    view.wait_for_refresh()
 
     expected = datetime.fromtimestamp(stamp).strftime("%Y-%m-%d %H:%M:%S")
     assert _header_text(view, 1).startswith(expected)
@@ -80,6 +82,7 @@ def test_pending_header_shows_saved_at(qapp, tmp_path):
     ])
     view = DatasetView(service)
     view.refresh_versions()
+    view.wait_for_refresh()
 
     saved_at = pending_saved_at(tmp_path, group_id)
     assert saved_at
@@ -106,6 +109,7 @@ def test_saved_capture_keeps_pending_timestamp(qapp, tmp_path, monkeypatch):
     assert saved_at
 
     window.annotation_view._on_save()
+    window.annotation_view.wait_for_save()
 
     images = window.dataset_service.load_coco(1)["images"]
     assert images

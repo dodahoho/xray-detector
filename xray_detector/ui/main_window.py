@@ -143,7 +143,9 @@ class MainWindow(QMainWindow):
 
     def _on_annotation_saved(self) -> None:
         self.tabs.setTabEnabled(1, False)
-        self.tabs.setCurrentIndex(0)
+        # sparningen är asynkron (TASK-40): fliken kan redan ha bytts medan den skrevs
+        if self.tabs.currentIndex() == 1:
+            self.tabs.setCurrentIndex(0)
         self.training_view.refresh_versions()
         self.dataset_view.refresh()
         self._show_status("Annoteringar sparade till dataset")
@@ -197,5 +199,9 @@ class MainWindow(QMainWindow):
         self.annotation_view.save_settings()
         self.training_view.save_settings()
         self.settings.sync()
+        # vänta in arbetstrådarna så en pågående skrivning blir klar före avslut (TASK-40)
+        self.annotation_view.wait_for_save()
+        self.dataset_view.wait_for_refresh()
+        self.training_view.wait_for_export()
         self.detection_view.stop()
         super().closeEvent(event)

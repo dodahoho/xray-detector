@@ -20,3 +20,5 @@ Visar en datasetversion som fångstgrupper (bilder som fångats samtidigt ramas 
 | --- | --- | --- | --- |
 | [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/dataset/store.py](../../../../../../xray_detector/dataset/store.py) | Listar och raderar bilder | COCO JSON + cv2.imread |
 | [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/application/dataset_service.py](../../../../../../xray_detector/application/dataset_service.py) | Listar och raderar bilder | direkt anrop |
+| [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/ui/busy_indicator.py](../../../../../../xray_detector/ui/busy_indicator.py) | Visar upptagenindikator | Qt-widget |
+| [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/application/background_task.py](../../../../../../xray_detector/application/background_task.py) | Läser datasetet i bakgrunden | Qt-signaler |

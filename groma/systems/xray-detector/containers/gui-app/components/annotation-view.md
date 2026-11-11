@@ -20,3 +20,5 @@ Två AnnotationCanvas med handritad markering: ritning genom drag, flytt/storlek
 | --- | --- | --- | --- |
 | [xray_detector/ui/annotation_view.py](../../../../../../xray_detector/ui/annotation_view.py) | [xray_detector/dataset/store.py](../../../../../../xray_detector/dataset/store.py) | Sparar annoterade bilder | direkt anrop (add_samples) |
 | [xray_detector/ui/annotation_view.py](../../../../../../xray_detector/ui/annotation_view.py) | [xray_detector/application/dataset_service.py](../../../../../../xray_detector/application/dataset_service.py) | Sparar annoterade bilder | direkt anrop |
+| [xray_detector/ui/annotation_view.py](../../../../../../xray_detector/ui/annotation_view.py) | [xray_detector/ui/busy_indicator.py](../../../../../../xray_detector/ui/busy_indicator.py) | Visar upptagenindikator | Qt-widget |
+| [xray_detector/ui/annotation_view.py](../../../../../../xray_detector/ui/annotation_view.py) | [xray_detector/application/background_task.py](../../../../../../xray_detector/application/background_task.py) | Sparar datasetet i bakgrunden | Qt-signaler |

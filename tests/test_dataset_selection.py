@@ -25,6 +25,7 @@ def service(tmp_path) -> DatasetService:
 def view(qapp, service) -> DatasetView:
     view = DatasetView(service)
     view.refresh_versions()
+    view.wait_for_refresh()
     return view
 
 
@@ -103,6 +104,7 @@ def test_delete_removes_whole_capture(view, service, monkeypatch):
     view._on_thumb_clicked(view._thumbs[0])
 
     view._on_delete()
+    view.wait_for_refresh()
 
     assert service.load_coco(1)["images"] == []
     assert service.load_coco(1)["annotations"] == []
@@ -132,6 +134,7 @@ def test_click_selects_whole_pending_capture(qapp, tmp_path, monkeypatch):
     ])
     view = DatasetView(service)
     view.refresh_versions()
+    view.wait_for_refresh()
 
     pending = [thumb for thumb in view._thumbs if thumb.pending]
     assert len(pending) == 2

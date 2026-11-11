@@ -118,6 +118,7 @@ def test_draw_marks_dirty_and_save_clears(qapp, tmp_path, monkeypatch):
     canvas._mark_dirty()
     assert view.is_dirty()
     view._on_save()
+    view.wait_for_save()
     assert not view.is_dirty()
     assert service.current_version() >= 1
     assert service.metadata(service.current_version())["num_objects"] == 1
@@ -129,6 +130,7 @@ def test_save_without_boxes_asks_negative(qapp, tmp_path, monkeypatch):
     view, service = _make_view(qapp, tmp_path)
     view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
     view._on_save()
+    view.wait_for_save()
     info = service.metadata(service.current_version())
     assert info["num_images"] == 1
     assert info["num_objects"] == 0

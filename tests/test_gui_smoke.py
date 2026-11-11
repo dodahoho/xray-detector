@@ -37,6 +37,7 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     window = MainWindow(app_config)
     view = window.dataset_view
     view.refresh_versions()
+    view.wait_for_refresh()
     assert view.version_combo.currentData() == 1
     assert len(view._thumbs) == 1
 
@@ -49,6 +50,7 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
 
     # spara -> ny fångstgrupp i samma version
     window.annotation_view._on_save()
+    window.annotation_view.wait_for_save()
     coco = service.load_coco(1)
     assert len(coco["images"]) == 2
     groups = {image.get("group") for image in coco["images"]}
@@ -56,6 +58,7 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
 
     # datasetvyn visar tvÃ¥ thumbnails och annotation-fliken lÃ¥st igen
     view.refresh()
+    view.wait_for_refresh()
     assert len(view._thumbs) == 2
     assert not window.tabs.isTabEnabled(1)
 

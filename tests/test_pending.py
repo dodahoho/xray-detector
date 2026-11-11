@@ -66,6 +66,7 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     window2 = MainWindow(config)
     view = window2.dataset_view
     view.refresh_versions()
+    view.wait_for_refresh()
     pending = view._pending_by_group
     assert len(pending) == 1
     pending_thumb = next(t for t in view._thumbs if t.pending)
@@ -76,8 +77,10 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     assert window2.annotation_view.canvases[0].image is not None
     assert window2.annotation_view.pending_group_id == pending_thumb.group_id
     window2.annotation_view._on_save()
+    window2.annotation_view.wait_for_save()
     assert window2.dataset_service.pending_captures() == []
     view.refresh()
+    view.wait_for_refresh()
     assert not any(t.pending for t in view._thumbs)
     # datan hamnade i datasetet
     assert window2.dataset_service.current_version() >= 1
@@ -95,6 +98,7 @@ def test_pending_can_be_deleted_from_view(qapp, tmp_path, monkeypatch):
     window = MainWindow(config)
     window._on_capture(frames_two())
     window.dataset_view.refresh()
+    window.dataset_view.wait_for_refresh()
     thumb = next(t for t in window.dataset_view._thumbs if t.pending)
     thumb.set_selected(True)
     window.dataset_view._on_delete()

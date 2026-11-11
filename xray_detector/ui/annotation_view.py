@@ -3,9 +3,11 @@ from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
+from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
 
 HANDLE_SIZE = 8
@@ -376,6 +378,8 @@ class AnnotationView(QWidget):
         self.config = config
         self.dataset_service = dataset
         self.settings = settings
+        self.pending_group_id: str | None = None
+        self._save_task: BackgroundTask | None = None
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Klass:"))
@@ -416,6 +420,7 @@ class AnnotationView(QWidget):
             canvas.selection_changed.connect(self._on_selection_changed)
             panels.addWidget(canvas, 1)
         layout.addLayout(panels, 1)
+        self.busy = BusyIndicator(self)
 
     def restore_settings(self) -> None:
         class_name = self.settings.value("annotation/class", type=str)
@@ -504,6 +509,8 @@ class AnnotationView(QWidget):
             canvas.delete_selected()
 
     def _on_save(self) -> None:
+        if self._save_task is not None:
+            return
         samples = [canvas.result() for canvas in self.canvases if canvas.image is not None]
         samples = [sample for sample in samples if sample is not None]
         if not samples:
@@ -518,17 +525,32 @@ class AnnotationView(QWidget):
             if answer != QMessageBox.StandardButton.Yes:
                 return
         version = self.dataset_service.current_version() or self.dataset_service.new_version()
-        pending_group_id = getattr(self, "pending_group_id", None)
+        pending_group_id = self.pending_group_id
         # fångsttiden finns i pending-indexet, som skrevs vid knapptrycket
         captured = (
             self.dataset_service.pending_saved_at(pending_group_id)
             if pending_group_id
             else None
         )
+        self.busy.start("Sparar annoteringar...")
+        self.save_button.setEnabled(False)
+        task = BackgroundTask(
+            lambda: self._write(version, samples, captured, pending_group_id)
+        )
+        task.succeeded.connect(self._on_saved)
+        task.failed.connect(self._on_save_failed)
+        task.finished.connect(self._on_save_finished)
+        self._save_task = task
+        task.start()
+
+    def _write(self, version, samples, captured, pending_group_id) -> None:
+        """Skriver datasetet i arbetstråden, inklusive städning av pending (TASK-40)."""
         self.dataset_service.add_samples(version, samples, captured)
         if pending_group_id:
             self.dataset_service.remove_pending(pending_group_id)
-            self.pending_group_id = None
+
+    def _on_saved(self) -> None:
+        self.pending_group_id = None
         self.mark_clean()
         for canvas in self.canvases:
             canvas.image = None
@@ -536,3 +558,18 @@ class AnnotationView(QWidget):
             canvas.reset_view()
             canvas.update()
         self.saved.emit()
+
+    def _on_save_failed(self, message: str) -> None:
+        QMessageBox.warning(
+            self, "Kunde inte spara", f"Kunde inte spara annoteringarna: {message}"
+        )
+
+    def _on_save_finished(self) -> None:
+        self._save_task = None
+        self.busy.stop()
+        self.save_button.setEnabled(True)
+
+    def wait_for_save(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående sparning (tester och stängning)."""
+        if self._save_task is not None:
+            self._save_task.wait(timeout_ms)
