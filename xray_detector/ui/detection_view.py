@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import cv2
@@ -24,7 +25,11 @@ from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.settings_dialog import settings_button
+from xray_detector.ui.settings_dialog import (
+    NO_CLASSES,
+    ClassFilterSection,
+    settings_button,
+)
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
 from xray_detector.ui.video_settings import (
@@ -45,6 +50,7 @@ S_RETRY = "Försök igen"
 DETECTION_TURN_OFF = mnemonic("Detektion av", "O")
 DETECTION_TURN_ON = mnemonic("Detektion på", "O")
 AUTO_MODE = "Auto"
+CLASSES_OFF_PREFIX = "detection/classes_off"
 
 from xray_detector.ui.colors import class_color
 
@@ -414,6 +420,9 @@ class DetectionView(QWidget):
         self._model_task: BackgroundTask | None = None
         self._device_task: BackgroundTask | None = None
         self._loading_spec = None
+        # modellnyckel -> modellens klassnamn, så klassfiltret kan listas även
+        # när detektorn är pausad (TASK-53)
+        self._model_classes: dict[str, list[str]] = {}
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
@@ -451,7 +460,9 @@ class DetectionView(QWidget):
         self.detection_button.setToolTip("Slår av och på objektdetektionen i båda strömmarna")
         self.detection_button.toggled.connect(self._on_detection_toggled)
         bar.addWidget(self.detection_button)
-        self.settings_button = settings_button(self, "Inställningar – Detektion")
+        self.settings_button = settings_button(
+            self, "Inställningar – Detektion", self._settings_sections
+        )
         bar.addWidget(self.settings_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
@@ -562,6 +573,70 @@ class DetectionView(QWidget):
             self.settings.setValue(f"detection/source_{panel.source_id}_kind", kind)
             self.settings.setValue(f"detection/source_{panel.source_id}_value", value)
 
+    def _settings_sections(self) -> list:
+        """Detektionsvyns egna inställningar: klassfiltret för vald modell (TASK-53)."""
+        return [
+            ClassFilterSection(
+                self._model_class_names(),
+                self._disabled_classes(self.model_combo.currentData()),
+                self._on_class_filter_changed,
+            )
+        ]
+
+    def _model_class_names(self) -> list[str]:
+        """Klasserna som vald modell kan detektera (TASK-52, TASK-53)."""
+        return list(self._model_classes.get(self.model_combo.currentData(), []))
+
+    def _classes_key(self, model_key: str) -> str:
+        return f"{CLASSES_OFF_PREFIX}/{model_key}"
+
+    def _disabled_classes(self, model_key: str) -> set[str]:
+        """Klasser användaren valt bort för modellen; tomt när inget sparats.
+
+        Bortval sparas i stället för val, så en klass som tillkommer i en
+        modell är vald från början (TASK-53).
+        """
+        raw = self.settings.value(self._classes_key(model_key), "", type=str)
+        try:
+            names = json.loads(raw) if raw else []
+        except ValueError:
+            return set()
+        return {str(name) for name in names} if isinstance(names, list) else set()
+
+    def _save_disabled_classes(self, model_key: str, names: set[str]) -> None:
+        self.settings.setValue(self._classes_key(model_key), json.dumps(sorted(names)))
+
+    def _enabled_classes(self) -> list[str]:
+        """Modellens klasser som användaren har valt kvar (TASK-53)."""
+        if self.detector is None:
+            return []
+        disabled = self._disabled_classes(self.model_combo.currentData())
+        return [name for name in self.detector.class_names if name not in disabled]
+
+    def _on_class_filter_changed(self, selected: list[str]) -> None:
+        """Sparar valet för modellen och filtrerar detektionerna direkt (TASK-53)."""
+        names = self._model_class_names()
+        self._save_disabled_classes(
+            self.model_combo.currentData(),
+            {name for name in names if name not in selected},
+        )
+        self._apply_class_filter()
+
+    def _apply_class_filter(self) -> None:
+        """Ger detektorn de valda klasserna, eller kopplar bort den när inga är valda."""
+        if self.detector is None:
+            return
+        enabled = self._enabled_classes()
+        self.detector.set_enabled_classes(enabled)
+        if not enabled:
+            self.error_occurred.emit(NO_CLASSES)
+            self.video_service.set_detector(None)
+            for panel in (self.left, self.right):
+                panel.clear_overlay()
+            return
+        if not self._paused:
+            self.video_service.set_detector(self._active_detector())
+
     def _on_source_requested(
         self, source_id: str, kind: str, value: object, mode: VideoMode | None = None
     ) -> None:
@@ -589,8 +664,14 @@ class DetectionView(QWidget):
             self.detector.set_confidence_threshold(self.conf_spin.value())
 
     def _active_detector(self) -> BaseDetector | None:
-        """Detektorn som ska köra nu; ingen alls när detektionen är avstängd (TASK-38)."""
-        return self.detector if self.detection_enabled else None
+        """Detektorn som ska köra nu; ingen när detektionen eller alla klasser är av.
+
+        Avstängd detektion (TASK-38) och ett klassfilter utan valda klasser
+        (TASK-53) betyder samma sak för strömmarna: ingen detektor alls.
+        """
+        if not self.detection_enabled or not self._enabled_classes():
+            return None
+        return self.detector
 
     def _on_detection_toggled(self, enabled: bool) -> None:
         """Slår av/på detektionen utan att modellen laddas om (TASK-38)."""
@@ -606,7 +687,7 @@ class DetectionView(QWidget):
         elif self.detector is None:
             self._on_model_changed()
         else:
-            self.video_service.set_detector(self.detector)
+            self.video_service.set_detector(self._active_detector())
 
     def _on_model_changed(self) -> None:
         """Laddar modellen i en arbetstråd så indikatorn kan animeras (TASK-40)."""
@@ -636,8 +717,8 @@ class DetectionView(QWidget):
 
     def _on_model_loaded(self, detector: BaseDetector) -> None:
         self.detector = detector
-        if not self._paused:
-            self.video_service.set_detector(self._active_detector())
+        self._model_classes[self._loading_spec.key] = list(detector.class_names)
+        self._apply_class_filter()
         device_label = getattr(detector, "device_label", "")
         if device_label:
             self.device_label.setText(f"Enhet: {device_label}")
@@ -708,7 +789,7 @@ class DetectionView(QWidget):
             # detektorn slappes vid paus for VRAM-frigoring: abygg fran modellvalet
             self._on_model_changed()
         else:
-            self.video_service.set_detector(self.detector)
+            self.video_service.set_detector(self._active_detector())
 
     def stop(self) -> None:
         self.video_service.stop_all()

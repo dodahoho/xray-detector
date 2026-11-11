@@ -67,7 +67,7 @@ class YoloDetector(BaseDetector):
                     confidence=float(box.conf[0]),
                 )
             )
-        return detections
+        return self.filter_detections(detections)
 
     def _class_name(self, class_id: int) -> str:
         """Modellens klassnamn för id:t; id:t självt om listan är kortare."""

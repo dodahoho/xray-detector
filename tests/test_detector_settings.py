@@ -60,7 +60,7 @@ def test_base_detector_threshold_setter():
 
 def _fake_rfdetr(monkeypatch, calls):
     class _FakeModel:
-        class_names = ["kniv"]
+        class_names = ("kniv",)
 
         def inference(self, **kwargs):
             calls.append(kwargs)

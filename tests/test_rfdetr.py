@@ -104,7 +104,7 @@ class _FakeDetections:
 class _FakeRfDetrModel:
     """Ersätter RFDETRSmall: registrerar anropet och ger fasta detektioner."""
 
-    class_names = ["kniv", "pistol"]
+    class_names = ("kniv", "pistol")
 
     def __init__(self):
         self.calls = []
@@ -269,7 +269,7 @@ def test_rfdetr_detector_uses_selected_size(monkeypatch):
     from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
     class _FakeNano:
-        class_names = ["kniv"]
+        class_names = ("kniv",)
 
         def predict(self, image, threshold=0.5):
             return _FakeDetections(xyxy=[], class_id=[], confidence=[], class_name=[])

@@ -110,7 +110,7 @@ class RfDetrDetector(BaseDetector):
                     confidence=confidence,
                 )
             )
-        return detections
+        return self.filter_detections(detections)
 
     def _class_name(self, names, index: int, class_id: int) -> str:
         """Modellens eget klassnamn, annars modellens klasslista, annars id:t."""

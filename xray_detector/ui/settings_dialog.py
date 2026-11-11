@@ -9,6 +9,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -30,6 +31,7 @@ SORT_KEY = "dataset/sort_order"
 SORT_NEWEST = "newest"
 SORT_OLDEST = "oldest"
 SORT_ORDERS = {SORT_NEWEST: "Nyast först", SORT_OLDEST: "Äldst först"}
+NO_CLASSES = "Inga klasser valda – ingen detektion körs"
 
 
 def sort_order(settings) -> str:
@@ -122,6 +124,43 @@ class DatasetSortSection(QGroupBox):
     def _on_order_changed(self) -> None:
         self.settings.setValue(SORT_KEY, self.order_combo.currentData())
         self.order_changed.emit()
+
+
+class ClassFilterSection(QGroupBox):
+    """Klasserna som vald modell ska detektera (TASK-53).
+
+    Klasslistan följer modellen, så sektionen byggs om varje gång dialogen
+    öppnas. Bortvalda klasser sparas av vyn, inte här.
+    """
+
+    def __init__(self, class_names, disabled, on_changed, parent=None) -> None:
+        super().__init__("Klasser", parent)
+        self.on_changed = on_changed
+        self.checkboxes: dict[str, QCheckBox] = {}
+        layout = QVBoxLayout(self)
+        if not class_names:
+            layout.addWidget(QLabel("Klasserna läses när modellen har laddats."))
+            return
+        for name in class_names:
+            box = QCheckBox(name)
+            box.setChecked(name not in disabled)
+            box.toggled.connect(self._on_toggled)
+            layout.addWidget(box)
+            self.checkboxes[name] = box
+        self.warning = QLabel(NO_CLASSES)
+        self.warning.setStyleSheet("color: #c33;")
+        layout.addWidget(self.warning)
+        self._update_warning()
+
+    def selected(self) -> list[str]:
+        return [name for name, box in self.checkboxes.items() if box.isChecked()]
+
+    def _on_toggled(self, *_args) -> None:
+        self._update_warning()
+        self.on_changed(self.selected())
+
+    def _update_warning(self) -> None:
+        self.warning.setVisible(not self.selected())
 
 
 class SettingsDialog(QDialog):

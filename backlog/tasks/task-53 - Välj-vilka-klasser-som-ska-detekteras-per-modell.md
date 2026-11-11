@@ -1,16 +1,29 @@
 ---
 id: TASK-53
 title: Detektion - Välj vilka klasser som ska detekteras, per modell
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-11T12:49:00Z'
-updated_date: '2026-11-11T20:23:00Z'
+updated_date: '2026-11-11T22:33:00Z'
 labels: []
 dependencies:
   - TASK-52
 references:
   - xray_detector/ui/detection_view.py
   - xray_detector/infrastructure/detectors/base.py
+modified_files:
+  - xray_detector/infrastructure/detectors/base.py
+  - xray_detector/infrastructure/detectors/yolo_detector.py
+  - xray_detector/infrastructure/detectors/rfdetr_detector.py
+  - xray_detector/ui/settings_dialog.py
+  - xray_detector/ui/detection_view.py
+  - tests/test_class_filter.py
+  - tests/test_settings_dialog.py
+  - tests/test_detector_settings.py
+  - tests/test_model_layout.py
+  - tests/test_rfdetr.py
+  - README.md
 priority: high
 type: feature
 ordinal: 51000
@@ -43,3 +56,13 @@ En modell kan detektera många klasser (yolo26n är tränad på 80 COCO-klasser)
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. BaseDetector får set_enabled_classes() och filter_detections(); YOLO och RF-DETR filtrerar sina detektioner innan de returneras.
+2. ClassFilterSection i settings_dialog.py: en kryssruta per klass som vald modell kan detektera, plus en varning när ingen klass är vald.
+3. DetectionView: detektionsvyns inställningsknapp öppnar sektionen, klassnamnen cachas per modell när detektorn laddas, och bortvalda klasser sparas per modell (detection/classes_off/<modellnyckel>). Nya klasser i en modell är därför valda från början.
+4. Klassfiltret appliceras när modellen laddas och när ett val ändras; är alla klasser bortvalda kopplas detektorn bort och ett tydligt meddelande visas.
+5. Tester för filtrering, modellbyte, persistens och alla-av; README beskriver klassfiltret.
+<!-- SECTION:PLAN:END -->

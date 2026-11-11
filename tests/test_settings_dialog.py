@@ -9,6 +9,7 @@ from xray_detector.ui.settings_dialog import (
     SORT_KEY,
     SORT_NEWEST,
     SORT_OLDEST,
+    ClassFilterSection,
     DatasetSortSection,
     SettingsDialog,
     ThemeSection,
@@ -88,13 +89,12 @@ def test_settings_button_sits_top_right_in_every_view(window):
 
 
 def test_view_without_own_settings_keeps_a_disabled_button(window):
-    for name in ("detection_view", "annotation_view"):
-        button = getattr(window, name).settings_button
-        assert not button.isEnabled(), name
-        assert button.toolTip() == "Vyn har inga egna inställningar"
+    button = window.annotation_view.settings_button
+    assert not button.isEnabled()
+    assert button.toolTip() == "Vyn har inga egna inställningar"
 
-    assert window.training_view.settings_button.isEnabled()
-    assert window.dataset_view.settings_button.isEnabled()
+    for name in ("detection_view", "training_view", "dataset_view"):
+        assert getattr(window, name).settings_button.isEnabled(), name
 
 
 def test_dataset_settings_open_the_sort_order(qapp, window, monkeypatch):
@@ -113,6 +113,14 @@ def test_dataset_sort_order_is_read_and_written(qapp, settings):
 
     assert settings.value(SORT_KEY) == SORT_OLDEST
     assert DatasetSortSection(settings).order_combo.currentData() == SORT_OLDEST
+
+
+def test_detection_settings_open_the_class_filter(qapp, window, monkeypatch):
+    dialog = _opened_dialog(monkeypatch, window.detection_view.settings_button)
+
+    assert dialog.windowTitle() == "Inställningar – Detektion"
+    assert dialog.findChild(ClassFilterSection) is not None
+    assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
 
 
 def test_training_settings_open_the_schedule(qapp, window, monkeypatch):

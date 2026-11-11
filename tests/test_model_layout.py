@@ -204,7 +204,7 @@ def test_trained_snapshots_use_their_own_detector(monkeypatch, tmp_path):
             yolo_weights.append(weights)
 
     class FakeRfDetrModel:
-        class_names = ["kniv"]
+        class_names = ("kniv",)
 
         def inference(self, **kwargs):
             pass
