@@ -40,6 +40,21 @@ def _set_app_user_model_id() -> None:
         pass
 
 
+def _warn_about_legacy_models(config, log) -> None:
+    """Påminner om modeller som ligger kvar i den gamla datakatalogen (TASK-50)."""
+    legacy = config.data_dir / "models"
+    try:
+        has_models = legacy.is_dir() and any(legacy.iterdir())
+    except OSError:
+        return
+    if has_models:
+        log.warning(
+            "Modeller under %s används inte längre; flytta dem till %s",
+            legacy,
+            config.trained_dir,
+        )
+
+
 def main() -> int:
     _install_message_filter()
     _set_app_user_model_id()
@@ -56,6 +71,7 @@ def main() -> int:
     config.ensure_dirs()
     log = setup_logging(config.data_dir)
     log.info("Startar X-ray detector (konfig: %s)", config_file or "default")
+    _warn_about_legacy_models(config, log)
     window = MainWindow(config)
     window.show_window()
     return app.exec()

@@ -222,6 +222,7 @@ __marimo__/
 # Projektdata och tränade modeller (skapas vid körning)
 data/
 models/
+models/trained/
 logs/
 *.pt
 *.onnx

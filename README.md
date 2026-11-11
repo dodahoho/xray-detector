@@ -93,4 +93,21 @@ Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som
 
 Modellväljaren är avstängd medan en modell laddas, så två laddningar inte kan köra samtidigt. En misslyckad laddning ger samma felmeddelande som förut och lämnar detektorn avstängd. Mätt på RTX 5080 tar RF-DETR nano 6,3 s att ladda; under hela den tiden animeras snurran och fönstret ritas om. Datasetvyns bildavkodning var den dyra delen av omladdningen (826 av 870 ms för 200 bilder) och ligger därför i arbetstråden, medan widgetbygget (cirka 45 ms) sker i GUI-tråden. Enhetskontrollen, som initierar CUDA-kontexten på cirka 1 s, har ingen indikator: den flyttades bara bort från `MainWindow.__init__` så fönstret kan visas direkt.
 
-Data lagras i `~/.xray-detector/` (dataset, exporter, modeller).
+## Filer och mappar
+
+Dataset, exporter, loggar och inställningar ligger under `~/.xray-detector/`. Modellvikterna ligger i stället i projektets `models/`, som skapas vid behov och är gitignorerad:
+
+| Sökväg | Innehåll |
+| --- | --- |
+| `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
+| `models/trained/` | Egentränade modeller, en katalog per träningskörning (`v<datasetversion>`) med `training_manifest.json` och bästa vikterna under `<basmodell>/weights/best.pt`. |
+
+Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad v<version> (<basmodell>)`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
+
+Sökvägen till `models/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar vikterna även när den startas från en annan mapp. Den går att peka om i `config.yaml`:
+
+```yaml
+models_dir: /sökväg/till/models   # relativ sökväg tolkas mot projektroten
+```
+
+Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/`. Den katalogen läses inte längre; flytta i så fall innehållet till `models/trained/` för att få modellerna i väljaren.

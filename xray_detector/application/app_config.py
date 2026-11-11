@@ -9,7 +9,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from xray_detector.domain.config import AppConfig
+from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 
 
 def _parse_scalar(value):
@@ -33,6 +33,8 @@ def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
       classes: [a, b, c]
       default_model: yolo26m
       confidence_threshold: 0.4
+      data_dir: /sökväg
+      models_dir: /sökväg (relativ tolkas mot projektroten)
 
     Returnerar True om filen fanns och kunde tolkas.
     """
@@ -59,8 +61,11 @@ def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
                 config.confidence_threshold = float(raw)
             except ValueError:
                 continue
-        elif key in ("data_dir",) and raw:
-            config.data_dir = Path(str(raw).strip("'\""))
+        elif key in ("data_dir", "models_dir") and raw:
+            path = Path(str(raw).strip("'\""))
+            if key == "models_dir" and not path.is_absolute():
+                path = PROJECT_ROOT / path
+            setattr(config, key, path)
     return True
 
 

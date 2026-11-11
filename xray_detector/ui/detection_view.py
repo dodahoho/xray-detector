@@ -498,17 +498,17 @@ class DetectionView(QWidget):
         )
 
     def refresh_models(self) -> None:
-        """Fyller modellväljaren med statiska specar plus nytränade modeller."""
-        from xray_detector.application.model_registry import MODEL_SPECS, trained_models
+        """Fyller modellväljaren med basmodeller plus egentränade modeller."""
+        from xray_detector.application.model_registry import base_models, trained_models
 
         current = self.model_combo.currentData()
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
         self._specs = {}
-        for spec in MODEL_SPECS:
+        for spec in base_models(self.config.models_dir):
             self.model_combo.addItem(spec.label, spec.key)
             self._specs[spec.key] = spec
-        for spec in trained_models(self.config.models_dir):
+        for spec in trained_models(self.config.trained_dir):
             self.model_combo.addItem(spec.label, spec.key)
             self._specs[spec.key] = spec
         self._disable_unavailable_models()

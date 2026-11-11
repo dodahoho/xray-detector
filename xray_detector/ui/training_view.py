@@ -61,12 +61,14 @@ class TrainingView(QWidget):
         if importlib.util.find_spec("rfdetr") is None:
             model = self.model_combo.model()
             for row in range(model.rowCount()):
-                if str(self.model_combo.itemData(row)).startswith("rfdetr"):
-                    item = model.item(row)
-                    item.setEnabled(False)
-                    self.model_combo.setItemText(
-                        row, f"{item.text()} (rfdetr ej installerat)"
-                    )
+                spec = self._specs.get(self.model_combo.itemData(row))
+                if spec is None or spec.family != "rfdetr":
+                    continue
+                item = model.item(row)
+                item.setEnabled(False)
+                self.model_combo.setItemText(
+                    row, f"{item.text()} (rfdetr ej installerat)"
+                )
 
     def _build_header(self) -> QHBoxLayout:
         """Inställningsknappen högst upp till höger, som i de andra vyerna."""
@@ -83,10 +85,12 @@ class TrainingView(QWidget):
     def _build_settings(self) -> QFormLayout:
         form = QFormLayout()
         self.model_combo = QComboBox()
-        from xray_detector.application.model_registry import MODEL_SPECS
+        from xray_detector.application.model_registry import base_models
 
-        for spec in MODEL_SPECS:
-            self.model_combo.addItem(spec.label, spec.weights)
+        self._specs = {}
+        for spec in base_models(self.config.models_dir):
+            self.model_combo.addItem(spec.label, spec.key)
+            self._specs[spec.key] = spec
         form.addRow("Basmodell:", self.model_combo)
         self.version_combo = QComboBox()
         self.version_combo.currentIndexChanged.connect(self._on_version_changed)
@@ -135,9 +139,12 @@ class TrainingView(QWidget):
         return row
 
     def restore_settings(self) -> None:
-        weights = self.settings.value("training/base_model", type=str)
-        if weights:
-            index = self.model_combo.findData(weights)
+        saved = self.settings.value("training/base_model", type=str)
+        if saved:
+            index = self.model_combo.findData(saved)
+            if index < 0:
+                # Äldre versioner sparade viktfilens namn, t.ex. yolo26m.pt
+                index = self.model_combo.findData(Path(saved).stem)
             if index >= 0:
                 self.model_combo.setCurrentIndex(index)
         for key, spin, default in (
@@ -236,8 +243,12 @@ class TrainingView(QWidget):
         if version is None:
             self.status_changed.emit("Ingen datasetversion vald")
             return
-        weights = str(self.model_combo.currentData())
-        family = "rfdetr" if weights.startswith("rfdetr") else "yolo"
+        spec = self._specs.get(self.model_combo.currentData())
+        if spec is None:
+            self.status_changed.emit("Ingen basmodell vald")
+            return
+        weights = spec.weights
+        family = spec.family
         if family == "rfdetr":
             if importlib.util.find_spec("rfdetr") is None:
                 self.status_changed.emit(
@@ -252,7 +263,7 @@ class TrainingView(QWidget):
         config = TrainConfig(
             dataset_yaml=Path(dataset_path),
             weights=weights,
-            output_dir=self.config.models_dir / f"v{version}",
+            output_dir=self.config.trained_dir / f"v{version}",
             epochs=self.epochs_spin.value(),
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),

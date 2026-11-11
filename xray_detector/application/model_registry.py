@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from json import load as json_load
 from pathlib import Path
 
@@ -47,24 +47,44 @@ def spec_by_key(key: str) -> ModelSpec:
     raise ValueError(f"Okänd modell: {key}")
 
 
-def trained_models(models_dir: Path) -> list[ModelSpec]:
-    """Listar nytränade modeller utifrån training_manifest.json i models/v*/."""
+def base_models(models_dir: Path) -> list[ModelSpec]:
+    """Basmodellerna med YOLO-vikterna under models_dir (TASK-50).
+
+    Ultralytics laddar ner en saknad vikt till den sökväg den får, så
+    basvikterna hamnar i models/ i stället för i arbetskatalogen. RF-DETR
+    bygger modellen ur paketet och behåller därför sitt storleksnamn.
+    """
+    return [
+        replace(spec, weights=str(Path(models_dir) / spec.weights))
+        if spec.family == "yolo"
+        else spec
+        for spec in MODEL_SPECS
+    ]
+
+
+def trained_models(trained_dir: Path) -> list[ModelSpec]:
+    """Listar egentränade modeller utifrån training_manifest.json under models/trained/.
+
+    Sökningen är rekursiv så att varje träningskörnings egen katalog
+    (v<version> eller en framtida snapshotkatalog) hittas var för sig.
+    """
+    trained_dir = Path(trained_dir)
     specs: list[ModelSpec] = []
-    for manifest_path in sorted(models_dir.glob("v*/training_manifest.json")):
+    for manifest_path in sorted(trained_dir.rglob("training_manifest.json")):
         try:
             with open(manifest_path, encoding="utf-8") as file:
                 manifest = json_load(file)
             weights = manifest_path.parent / manifest.get("weights_relative", "")
             if not weights.exists():
                 continue
+            run_dir = manifest_path.parent.relative_to(trained_dir).as_posix()
         except (OSError, ValueError):
             continue
-        version_dir = manifest_path.parent.name
         base = Path(manifest.get("base_weights", "modell")).stem
         classes = ", ".join(manifest.get("classes", []))
-        label = f"Tränad {version_dir} ({base})" + (f" [{classes}]" if classes else "")
+        label = f"Tränad {run_dir} ({base})" + (f" [{classes}]" if classes else "")
         specs.append(
-            ModelSpec(key=f"trained-{version_dir}", label=label,
+            ModelSpec(key=f"trained-{run_dir}", label=label,
                       family="yolo", weights=str(weights))
         )
     return specs
