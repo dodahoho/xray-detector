@@ -218,8 +218,8 @@ def test_main_window_opens_before_the_device_check_finishes(qapp, config, monkey
 # --- Datasetvyn: omladdning av bildlistan (AC 8) ---
 
 
-def test_dataset_refresh_shows_indicator_and_builds_list(qapp, dataset_service):
-    view = DatasetView(dataset_service)
+def test_dataset_refresh_shows_indicator_and_builds_list(qapp, dataset_service, settings):
+    view = DatasetView(dataset_service, settings)
     view.refresh_versions()
 
     assert view.busy.is_busy()
@@ -229,7 +229,9 @@ def test_dataset_refresh_shows_indicator_and_builds_list(qapp, dataset_service):
     assert len(view._thumbs) == 2
 
 
-def test_dataset_refresh_decodes_off_the_gui_thread(qapp, dataset_service, monkeypatch):
+def test_dataset_refresh_decodes_off_the_gui_thread(
+    qapp, dataset_service, settings, monkeypatch
+):
     threads: list = []
     original = DatasetView._load
 
@@ -238,7 +240,7 @@ def test_dataset_refresh_decodes_off_the_gui_thread(qapp, dataset_service, monke
         return original(self, version)
 
     monkeypatch.setattr(DatasetView, "_load", recording)
-    view = DatasetView(dataset_service)
+    view = DatasetView(dataset_service, settings)
     view.wait_for_refresh()
 
     assert threads
@@ -348,7 +350,7 @@ def test_views_share_the_busy_indicator_component(
 ):
     detection = DetectionView(config, settings)
     annotation = AnnotationView(config, dataset_service, settings)
-    dataset = DatasetView(dataset_service)
+    dataset = DatasetView(dataset_service, settings)
     training = TrainingView(config, dataset_service, settings)
     try:
         for view in (detection, annotation, dataset, training):

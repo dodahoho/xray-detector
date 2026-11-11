@@ -37,10 +37,12 @@ def view(qapp, tmp_path, monkeypatch) -> DetectionView:
     return view
 
 
-def test_toggle_button_is_last_in_header_row(view):
+def test_toggle_button_sits_at_the_end_of_the_header_row(view):
     bar = view.layout().itemAt(0).layout()
 
-    assert bar.itemAt(bar.count() - 1).widget() is view.detection_button
+    # inställningsknappen är radens sista widget (TASK-43)
+    assert bar.itemAt(bar.count() - 1).widget() is view.settings_button
+    assert bar.itemAt(bar.count() - 2).widget() is view.detection_button
     assert view.detection_button.isCheckable()
     assert view.detection_button.isChecked()
     # texten säger vad ett klick gör: detektionen är igång vid start

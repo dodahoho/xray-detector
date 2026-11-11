@@ -1,17 +1,15 @@
 ---
 type: C4 Component
-title: Inställningar och tema
+title: Tema
 status: stable
 groma:
   id: settings-theme
   parent: gui-app
   code:
     - scanner: python
-      file: xray_detector/ui/settings_view.py
-    - scanner: python
       file: xray_detector/ui/theme.py
   group: Användargränssnitt
-description: Temaväljare (system/ljust/mörkt) och gemensamma inställningar.
+description: Temaval (system/ljust/mörkt) som gäller hela appen.
 ---
 
-Inställningsfliken med val av tema som applicerar Fusion-stil med ljus eller mörk QPalette; läget "System" följer operativsystemets färgschema i realtid. Temat persistas i QSettings och tillämpas vid start.
+Applicerar Fusion-stil med ljus eller mörk QPalette; läget "System" följer operativsystemets färgschema i realtid. Temat persistas i QSettings (ui/theme) och tillämpas vid start. Det byts från sektionen Utseende i valfri fliks inställningsdialog.

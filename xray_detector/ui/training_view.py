@@ -21,6 +21,11 @@ from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.training import TrainConfig
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.settings_dialog import (
+    ThemeSection,
+    TrainingScheduleSection,
+    settings_button,
+)
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 
 
@@ -106,6 +111,16 @@ class TrainingView(QWidget):
         buttons = QHBoxLayout()
         buttons.addWidget(self.start_button)
         buttons.addWidget(self.abort_button)
+        buttons.addStretch(1)
+        self.settings_button = settings_button(
+            self,
+            "Inställningar – Träning",
+            lambda: [
+                TrainingScheduleSection(self.settings),
+                ThemeSection(self.settings),
+            ],
+        )
+        buttons.addWidget(self.settings_button)
         form.addRow(buttons)
         bind_shortcut(self, "Esc", self._on_abort)
         return form

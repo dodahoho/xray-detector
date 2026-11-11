@@ -6,6 +6,7 @@ from datetime import datetime
 
 import numpy as np
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QMessageBox
 
 from tests.conftest import synthetic_frame
@@ -31,6 +32,11 @@ def service(tmp_path) -> DatasetService:
     return DatasetService(tmp_path / "datasets", ["kniv"])
 
 
+@pytest.fixture
+def settings(tmp_path) -> QSettings:
+    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+
+
 def _header_text(view, group_id) -> str:
     header, _frame, _base = view._group_headers[group_id]
     return header.text()
@@ -43,9 +49,9 @@ def test_add_samples_records_capture_time(service):
     assert images[0]["captured"] == "2026-11-10T09:56:38"
 
 
-def test_header_shows_capture_time(qapp, service):
+def test_header_shows_capture_time(qapp, service, settings):
     service.add_samples(1, [_sample(60), _sample(120)], captured="2026-11-10T09:56:38")
-    view = DatasetView(service)
+    view = DatasetView(service, settings)
     view.refresh_versions()
     view.wait_for_refresh()
 
@@ -53,7 +59,7 @@ def test_header_shows_capture_time(qapp, service):
     assert "2 bilder" in _header_text(view, 1)
 
 
-def test_header_falls_back_to_file_mtime(qapp, service):
+def test_header_falls_back_to_file_mtime(qapp, service, settings):
     """Äldre dataset saknar 'captured': då används bildfilens tidsstämpel."""
     service.add_samples(1, [_sample()])
     path = service.version_dir(1) / "dataset.json"
@@ -66,7 +72,7 @@ def test_header_falls_back_to_file_mtime(qapp, service):
     image_path = service.version_dir(1) / "images" / coco["images"][0]["file_name"]
     os.utime(image_path, (stamp, stamp))
 
-    view = DatasetView(service)
+    view = DatasetView(service, settings)
     view.refresh_versions()
     view.wait_for_refresh()
 
@@ -74,13 +80,13 @@ def test_header_falls_back_to_file_mtime(qapp, service):
     assert _header_text(view, 1).startswith(expected)
 
 
-def test_pending_header_shows_saved_at(qapp, tmp_path):
+def test_pending_header_shows_saved_at(qapp, tmp_path, settings):
     service = DatasetService(tmp_path / "datasets", ["kniv"])
     group_id = save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
     ])
-    view = DatasetView(service)
+    view = DatasetView(service, settings)
     view.refresh_versions()
     view.wait_for_refresh()
 

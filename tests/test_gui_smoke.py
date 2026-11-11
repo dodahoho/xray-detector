@@ -10,6 +10,8 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.main_window import MainWindow
+from xray_detector.ui.settings_dialog import ThemeSection
+from xray_detector.ui.theme import current_theme
 
 
 @pytest.fixture(autouse=True)
@@ -82,9 +84,10 @@ def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):
     settings.sync()
 
     window = MainWindow(app_config)
-    assert window.tabs.tabText(4) == "&Inställningar"
-    combo = window.settings_view.theme_combo
-    assert combo.currentData() == "dark"
+    assert window.tabs.count() == 4
+    assert current_theme() == "dark"
+    section = ThemeSection(window.settings)
+    assert section.theme_combo.currentData() == "dark"
     window.closeEvent(_close_event())
 
 

@@ -54,7 +54,13 @@ Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 192
 - **Detektion** (default): två videoströmmar i split screen (UVC-kort eller videofil), detektion med valbar modell (YOLO26/RF-DETR), "Fånga bilder" sparar aktuella rutor och öppnar annoteringsläget. Källväljaren visar enheternas riktiga namn, så ett capture-kort och en virtuell kamera går att skilja på. Videofiler spelas upp i videons egen bildfrekvens; ramen skickas till visningen innan detektionen körs, så overlayn ligger en ram efter bilden men uppspelningen håller jämn takt. Detektionerna jämnas ut mellan ramar (EMA + hysteres) så overlayn inte fladdrar. I den övre raden visas appens GPU-, VRAM-, CPU- och RAM-användning som staplar, uppdaterade varje sekund; CPU visas som andel av maskinens kärnor och GPU/VRAM visar `n/a` utan CUDA. Knappen längst till höger i samma rad slår av och på objektdetektionen och visar vad ett klick gör: "Detektion av" när detektionen är igång, "Detektion på" när den är av. Overlayn rensas och detektorn kopplas bort från strömmarna, men modellen ligger kvar i minnet så den går snabbt att slå på igen. Läget gäller till nästa start.
 - **Dataset**: bilderna visas grupperade per fångst med rubrik som visar när fångsten gjordes (`YYYY-MM-DD HH:MM:SS`). Ett klick markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen visar antal markerade bilder.
 - **Annotation**: rita/redigera rektanglar, välj eller skriv in klass, spara till COCO-datasetet.
-- **Träning**: träna basmodell på vald datasetversion; detektion pausas under träning. Export av dataset till COCO/YOLO med manifest (version, datum, antal objekt).
+- **Träning**: träna basmodell på vald datasetversion; detektion pausas under träning. Export av dataset till COCO/YOLO med manifest (version, datum, antal objekt). Träningsschemat – nattfönster och inaktivitet innan träning – ställs in i träningsvyns inställningar.
+
+## Inställningar
+
+Det finns ingen inställningsflik. Varje flik har i stället en **Inställningar**-knapp sist i sin åtgärdsrad som öppnar de inställningar som hör till fliken. Detektions-, annoterings- och datasetvyn har allt sitt inställningsbart direkt i vyn, så deras dialog innehåller bara temat; träningsvyns dialog innehåller dessutom träningsschemat.
+
+Temat gäller hela appen och ligger därför i en egen sektion, **Utseende (gäller hela appen)**, i varje fliks dialog – det går att byta från vilken flik som helst. Ändringar sparas direkt, och **Stäng** (eller Esc) lämnar allt orört. Nycklarna i `settings.ini` är oförändrade (`ui/theme`, `training/night_start_hour`, `training/night_end_hour`, `training/inactivity_minutes`), så sparade val från den gamla inställningsfliken fortsätter att gälla.
 
 ## Tidskrävande operationer
 
@@ -66,7 +72,8 @@ Allt som går att klicka på går också att nå från tangentbordet. Genvägen 
 
 | Var | Genväg |
 | --- | --- |
-| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+I Inställningar |
+| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning |
+| Inställningar | Alt+I öppnar den aktiva flikens inställningar |
 | Detektion | Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
 | Annotation | Alt+P Spara till dataset, Alt+B Ta bort markerad, Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
 | Dataset | Alt+B Ta bort markerade |

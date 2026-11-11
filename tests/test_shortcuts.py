@@ -53,7 +53,6 @@ def test_tab_row_shows_mnemonics(window):
         "&Annotation",
         "Data&set",
         "&Träning",
-        "&Inställningar",
     ]
 
 
@@ -63,9 +62,6 @@ def test_alt_letter_switches_tab(qapp, window):
 
     alt(qapp, window, Qt.Key.Key_S)
     assert window.tabs.currentIndex() == 2
-
-    alt(qapp, window, Qt.Key.Key_I)
-    assert window.tabs.currentIndex() == 4
 
 
 def test_disabled_tab_is_not_reached(qapp, window):
@@ -107,7 +103,6 @@ def test_mnemonics_are_unique_per_view(window):
         window.annotation_view,
         window.dataset_view,
         window.training_view,
-        window.settings_view,
     )
     for view in views:
         letters = [
@@ -134,6 +129,10 @@ def test_buttons_register_their_mnemonic(window):
         window.training_view.start_button: "Alt+R",
         window.training_view.export_coco_button: "Alt+E",
         window.training_view.export_yolo_button: "Alt+Y",
+        window.detection_view.settings_button: "Alt+I",
+        window.annotation_view.settings_button: "Alt+I",
+        window.dataset_view.settings_button: "Alt+I",
+        window.training_view.settings_button: "Alt+I",
     }
 
     for button, sequence in expected.items():

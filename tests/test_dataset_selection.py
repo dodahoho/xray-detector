@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QMessageBox
 
 from xray_detector.application.dataset_service import DatasetService
@@ -22,8 +23,13 @@ def service(tmp_path) -> DatasetService:
 
 
 @pytest.fixture
-def view(qapp, service) -> DatasetView:
-    view = DatasetView(service)
+def settings(tmp_path) -> QSettings:
+    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+
+
+@pytest.fixture
+def view(qapp, service, settings) -> DatasetView:
+    view = DatasetView(service, settings)
     view.refresh_versions()
     view.wait_for_refresh()
     return view
@@ -122,7 +128,7 @@ def test_delete_without_selection_keeps_dataset(view, service):
     assert len(service.load_coco(1)["images"]) == 2
 
 
-def test_click_selects_whole_pending_capture(qapp, tmp_path, monkeypatch):
+def test_click_selects_whole_pending_capture(qapp, tmp_path, settings, monkeypatch):
     from tests.conftest import synthetic_frame
     from xray_detector.domain.capture import StreamFrame
     from xray_detector.infrastructure.dataset_store.pending import save_pending
@@ -132,7 +138,7 @@ def test_click_selects_whole_pending_capture(qapp, tmp_path, monkeypatch):
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
     ])
-    view = DatasetView(service)
+    view = DatasetView(service, settings)
     view.refresh_versions()
     view.wait_for_refresh()
 
