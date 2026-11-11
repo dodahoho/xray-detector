@@ -1,9 +1,10 @@
 ---
 id: TASK-44
-title: Strömma epokvisa träningsvärden från träningsprocessen till GUI:t
+title: Träning - Strömma epokvisa träningsvärden från träningsprocessen till GUI:t
 status: To Do
 assignee: []
 created_date: '2026-11-11T11:51:00Z'
+updated_date: '2026-11-11T20:22:00Z'
 labels: []
 dependencies: []
 references:

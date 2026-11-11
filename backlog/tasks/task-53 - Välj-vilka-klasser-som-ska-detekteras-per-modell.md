@@ -1,9 +1,10 @@
 ---
 id: TASK-53
-title: Välj vilka klasser som ska detekteras, per modell
+title: Detektion - Välj vilka klasser som ska detekteras, per modell
 status: To Do
 assignee: []
 created_date: '2026-11-11T12:49:00Z'
+updated_date: '2026-11-11T20:23:00Z'
 labels: []
 dependencies:
   - TASK-52

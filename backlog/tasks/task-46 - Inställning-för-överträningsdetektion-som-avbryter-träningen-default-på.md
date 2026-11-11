@@ -1,9 +1,12 @@
 ---
 id: TASK-46
-title: Inställning för överträningsdetektion som avbryter träningen (default på)
+title: >-
+  Träning - Inställning för överträningsdetektion som avbryter träningen
+  (default på)
 status: To Do
 assignee: []
 created_date: '2026-11-11T11:51:00Z'
+updated_date: '2026-11-11T20:22:00Z'
 labels: []
 dependencies:
   - TASK-44

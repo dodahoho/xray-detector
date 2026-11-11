@@ -1,9 +1,10 @@
 ---
 id: TASK-52
-title: Använd modellens egna klassnamn som källa för detektionens klasser
+title: Detektion - Använd modellens egna klassnamn som källa för detektionens klasser
 status: To Do
 assignee: []
 created_date: '2026-11-11T12:49:00Z'
+updated_date: '2026-11-11T20:23:00Z'
 labels: []
 dependencies: []
 references:

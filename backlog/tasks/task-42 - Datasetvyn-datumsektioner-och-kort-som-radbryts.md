@@ -1,9 +1,10 @@
 ---
 id: TASK-42
-title: 'Datasetvyn: datumsektioner och kort som radbryts'
+title: Dataset - datumsektioner och kort som radbryts
 status: To Do
 assignee: []
 created_date: '2026-11-11T11:27:00Z'
+updated_date: '2026-11-11T20:21:00Z'
 labels: []
 dependencies: []
 references:
