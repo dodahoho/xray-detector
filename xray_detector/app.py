@@ -5,6 +5,7 @@ from xray_detector.application.app_config import load_config_with_yaml, setup_lo
 from xray_detector.ui.main_window import MainWindow
 
 ICON_PATH = Path(__file__).parent / "ui" / "assets" / "app.ico"
+APP_USER_MODEL_ID = "xray-detector"
 
 
 def _install_message_filter() -> None:
@@ -21,16 +22,21 @@ def _install_message_filter() -> None:
 def _set_app_user_model_id() -> None:
     """Ger processen en egen identitet i aktivitetsfältet.
 
-    Utan den grupperar Windows fönstret under python.exe och visar
-    Python-ikonen när det fästs, oavsett vilken ikon Qt sätter.
+    Utan den grupperar Windows fönstret under python.exe och ritar
+    Python-ikonen i aktivitetsfältet, oavsett vilken ikon Qt sätter på
+    fönstret. Måste köras innan första fönstret skapas.
     """
     if sys.platform != "win32":
         return
     try:
         import ctypes
+        from ctypes import wintypes
 
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("xray-detector")
-    except Exception:
+        shell32 = ctypes.windll.shell32
+        shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [wintypes.LPCWSTR]
+        shell32.SetCurrentProcessExplicitAppUserModelID.restype = ctypes.c_long
+        shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except (AttributeError, OSError):
         pass
 
 

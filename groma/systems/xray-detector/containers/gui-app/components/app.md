@@ -13,7 +13,7 @@ groma:
 description: Startar GUI-processen och skapar huvudfönstret.
 ---
 
-Bygger QApplication, filtrerar DirectWrite-typsnittsvarningen, laddar AppConfig och visar MainWindow (maximerat första gången, därefter sparad fönstergeometri via QSettings).
+Bygger QApplication, filtrerar DirectWrite-typsnittsvarningen, laddar AppConfig och visar MainWindow (maximerat första gången, därefter sparad fönstergeometri via QSettings). Sätter applikationsikonen från ui/assets/app.ico på QApplication, vilket ger fönstret både ICON_SMALL och ICON_BIG, och ger processen en egen AppUserModelID innan första fönstret skapas. Utan den identiteten grupperar Windows fönstret under python.exe och ritar Python-ikonen i aktivitetsfältet, oavsett vilken ikon Qt sätter på fönstret.
 
 ## Relationships
 
