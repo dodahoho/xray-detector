@@ -12,7 +12,7 @@ groma:
 description: Visar två live-strömmar med detektionsoverlay och fångar bildpar.
 ---
 
-Två StreamPanel (Ström 1/2) med källval (ingen, UVC-enhet eller videofil), valbar upplösning och pixelformat för UVC-källor, och en återanslutningsknapp när källan tappas. Den övre raden har modellval, confidence-tröskel, enhetsindikator (CUDA/CPU), resursmätare för GPU, VRAM, CPU och RAM, knappen Fånga bilder och en av/på-knapp för detektionen. Av/på-knappen visar vad ett klick gör, kopplar bort detektorn från strömmarna och rensar overlayn men behåller modellen i minnet. Fångst skickar senaste ramen från båda panelerna till annoteringsvyn.
+Två StreamPanel med källval (ingen, UVC-enhet eller videofil), valbar upplösning och pixelformat för UVC-källor, och en återanslutningsknapp när källan tappas. Panelens egen rad visar bara strömmens bildfrekvens i fps längst till vänster; källans namn står i källväljaren, så raden håller sig kort. Den övre raden har modellval, confidence-tröskel, enhetsindikator (CUDA/CPU), resursmätare för GPU, VRAM, CPU och RAM, knappen Fånga bilder och en av/på-knapp för detektionen. Av/på-knappen visar vad ett klick gör, kopplar bort detektorn från strömmarna och rensar overlayn men behåller modellen i minnet. Fångst skickar senaste ramen från båda panelerna till annoteringsvyn.
 
 ## Relationships
 

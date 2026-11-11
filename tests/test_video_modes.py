@@ -144,7 +144,7 @@ def test_video_mode_roundtrip_per_panel(settings):
 def panel(qapp, settings, raw_formats):
     from xray_detector.ui.detection_view import StreamPanel
 
-    panel = StreamPanel("left", "Ström 1", [DeviceInfo(0, "USB Video")], settings)
+    panel = StreamPanel("left", [DeviceInfo(0, "USB Video")], settings)
     emitted = []
     panel.source_requested.connect(
         lambda sid, kind, value, mode=None: emitted.append((kind, value, mode))
@@ -202,7 +202,7 @@ def test_panel_saves_and_restores_mode(qapp, settings, raw_formats):
     from xray_detector.ui.detection_view import StreamPanel
 
     save_video_mode(settings, "left", VideoMode(1280, 720, "MJPG"))
-    panel = StreamPanel("left", "Ström 1", [DeviceInfo(0, "USB Video")], settings)
+    panel = StreamPanel("left", [DeviceInfo(0, "USB Video")], settings)
     emitted = []
     panel.source_requested.connect(
         lambda sid, kind, value, mode=None: emitted.append(mode)

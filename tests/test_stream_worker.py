@@ -116,17 +116,17 @@ def test_stream_frame_defaults_backward_compatible():
     assert frame.fps is None
 
 
-def test_panel_title_shows_fps(qapp):
+def test_panel_title_shows_only_fps(qapp):
     from PySide6.QtCore import Signal
     from xray_detector.ui.detection_view import StreamPanel
     from xray_detector.domain.capture import StreamFrame
     from tests.conftest import synthetic_frame
 
-    panel = StreamPanel("left", "Ström 1")
+    panel = StreamPanel("left")
     panel._show_no_source()
-    assert panel.title_label.text() == "Ström 1"
+    assert panel.fps_label.text() == ""
     panel.show_frame(StreamFrame("left", synthetic_frame(), [], "k", sequence=1, fps=29.321))
-    assert "29.3 fps" in panel.title_label.text()
+    assert panel.fps_label.text() == "29.3 fps"
 
 
 class _ThreadRecordingSource(FileSource):

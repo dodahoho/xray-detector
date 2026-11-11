@@ -107,7 +107,6 @@ class StreamPanel(QFrame):
     def __init__(
         self,
         source_id: str,
-        title: str,
         devices=None,
         settings=None,
         retry_letter: str = "G",
@@ -120,7 +119,6 @@ class StreamPanel(QFrame):
         self.known_classes: list[str] = []
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
-        self._base_title = title
         self._lost_attempts = 0
         self._last_selected_index = 0
         self._modes: list[VideoMode] = []
@@ -128,8 +126,8 @@ class StreamPanel(QFrame):
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
         top = QHBoxLayout()
-        self.title_label = QLabel(title)
-        self.title_label.setFont(QFont("", 12, QFont.Weight.Bold))
+        self.fps_label = QLabel()
+        self.fps_label.setFont(QFont("", 12, QFont.Weight.Bold))
         self.source_combo = QComboBox()
         self.source_combo.addItem(NO_SOURCE, "none")
         for device in self.devices:
@@ -146,7 +144,7 @@ class StreamPanel(QFrame):
         self.format_combo.setToolTip("Pixelformat; MJPG klarar högre bildfrekvens än YUY2")
         self.format_combo.currentIndexChanged.connect(self._on_format_changed)
         self._set_mode_controls_visible(False)
-        top.addWidget(self.title_label)
+        top.addWidget(self.fps_label)
         top.addStretch(1)
         top.addWidget(self.source_combo)
         top.addWidget(self.resolution_combo)
@@ -318,7 +316,7 @@ class StreamPanel(QFrame):
         self.display.setStyleSheet("color: #888; font-size: 24px; background: #222;")
         self.display.show()
         self.lost_widget.hide()
-        self.title_label.setText(self._base_title)
+        self.fps_label.clear()
         self.latest = None
 
     def show_source_lost(self) -> None:
@@ -355,12 +353,7 @@ class StreamPanel(QFrame):
         if self._lost_attempts:
             self.reset_connection_state()
         self.latest = stream_frame
-        parts = [self._base_title]
-        if self._active[0] == "file" and stream_frame.source_label:
-            parts.append(stream_frame.source_label)
-        if stream_frame.fps:
-            parts.append(f"{stream_frame.fps:.1f} fps")
-        self.title_label.setText(" · ".join(parts))
+        self.fps_label.setText(f"{stream_frame.fps:.1f} fps" if stream_frame.fps else "")
         image = self._to_qimage(stream_frame.frame)
         painter = QPainter(image)
         pen = QPen()
@@ -463,8 +456,8 @@ class DetectionView(QWidget):
         layout.addLayout(bar)
         panels = QHBoxLayout()
         devices = self.video_service.list_devices()
-        self.left = StreamPanel("left", "Ström 1", devices, self.settings, retry_letter="G")
-        self.right = StreamPanel("right", "ström 2", devices, self.settings, retry_letter="N")
+        self.left = StreamPanel("left", devices, self.settings, retry_letter="G")
+        self.right = StreamPanel("right", devices, self.settings, retry_letter="N")
         for panel in (self.left, self.right):
             panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):

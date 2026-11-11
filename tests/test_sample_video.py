@@ -101,7 +101,7 @@ def test_gui_panel_selects_sample_video(qapp, monkeypatch):
         return str(TOP), ""
 
     monkeypatch.setattr(QFileDialog, "getOpenFileName", staticmethod(fake_dialog))
-    panel = StreamPanel("left", "Strom 1")
+    panel = StreamPanel("left")
     emitted = []
     panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     index = panel.source_combo.findData("file")

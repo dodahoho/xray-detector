@@ -44,7 +44,7 @@ def panel(qapp, monkeypatch):
         lambda: {0: "Logitech C920", 1: "Elgato Cam Link"},
     )
     devices = list_devices()
-    panel = StreamPanel("left", "Ström 1", devices)
+    panel = StreamPanel("left", devices)
     panel.show()
     qapp.processEvents()
     return panel
@@ -73,6 +73,6 @@ def test_restore_source_uses_item_data(panel):
 
 
 def test_fallback_devices_still_work(qapp):
-    panel = StreamPanel("right", "Ström 2")  # inga enheter angivna
+    panel = StreamPanel("right")  # inga enheter angivna
     texts = [panel.source_combo.itemText(i) for i in range(panel.source_combo.count())]
     assert "Ingen videokälla" in texts and "Öppna videofil..." in texts

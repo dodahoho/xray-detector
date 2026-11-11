@@ -9,7 +9,7 @@ from xray_detector.ui.detection_view import StreamPanel
 
 @pytest.fixture
 def panel(qapp):
-    panel = StreamPanel("left", "Stromm 1")
+    panel = StreamPanel("left")
     panel.show()
     qapp.processEvents()
     return panel
