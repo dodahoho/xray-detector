@@ -1,11 +1,11 @@
 ---
 id: TASK-43
 title: Inställningsknapp per flik i stället för inställningsflik
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:30:00Z'
-updated_date: '2026-11-11T14:21:00Z'
+updated_date: '2026-11-11T14:22:00Z'
 labels: []
 dependencies: []
 references:
@@ -57,21 +57,21 @@ Att bevara: nycklarna ui/theme, training/night_start_hour, training/night_end_ho
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Inställningsfliken är borta och flikraden har fyra flikar
-- [ ] #2 Varje flik har en inställningsknapp som öppnar de inställningar som hör till fliken
-- [ ] #3 Träningsschemat (nattfönster och inaktivitet) nås från träningsvyns inställningar
-- [ ] #4 Temat går fortfarande att byta efter att inställningsfliken tagits bort
-- [ ] #5 Befintliga sparade värden (ui/theme, training/night_start_hour, training/night_end_hour, training/inactivity_minutes) läses och skrivs som förut
-- [ ] #6 Inställningsdialogen kan stängas utan att något ändras
+- [x] #1 Inställningsfliken är borta och flikraden har fyra flikar
+- [x] #2 Varje flik har en inställningsknapp som öppnar de inställningar som hör till fliken
+- [x] #3 Träningsschemat (nattfönster och inaktivitet) nås från träningsvyns inställningar
+- [x] #4 Temat går fortfarande att byta efter att inställningsfliken tagits bort
+- [x] #5 Befintliga sparade värden (ui/theme, training/night_start_hour, training/night_end_hour, training/inactivity_minutes) läses och skrivs som förut
+- [x] #6 Inställningsdialogen kan stängas utan att något ändras
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -100,3 +100,17 @@ Verifiering: 230 passed, 1 skipped (hela sviten, tre körningar i rad). Nya test
 
 Känd avvägning: detektionsvyns rubrikrad är redan bred (1392 px minimum) och inställningsknappen lägger till 87 px. Raden går ihop på maximerat fönster men klipps på smala skärmar, precis som före ändringen.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Inställningsfliken är borta. Flikraden har fyra flikar och varje vy har en Inställningar-knapp (Alt+I) sist i sin åtgärdsrad som öppnar de inställningar som hör till vyn.
+
+Ny modul ui/settings_dialog.py: ThemeSection (tema), TrainingScheduleSection (nattfönster och inaktivitet), SettingsDialog (sektioner + Stäng) och settings_button(). Träningsschemat nås nu från träningsvyns dialog. Temat gäller hela appen och ligger i sektionen "Utseende (gäller hela appen)" i varje fliks dialog, så det går att byta från vilken flik som helst utan att det ser ut som en flikinställning. settings_view.py är raderad och DatasetView tar emot settings för att kunna spara temat.
+
+Nycklarna ui/theme, training/night_start_hour, training/night_end_hour och training/inactivity_minutes läses och skrivs som förut, så sparade val från den gamla fliken fortsätter att gälla. Ändringar sparas direkt och Stäng (eller Esc) lämnar allt orört.
+
+Verifiering: hela sviten 230 passed, 1 skipped (tre körningar i rad). tests/test_settings_dialog.py täcker AC 1-6; test_shortcuts, test_gui_smoke, test_detection_toggle, test_busy_operations och dataset-testerna är uppdaterade. ruff är rent på de nya filerna. Dialogerna och flikraden är granskade visuellt via QWidget.grab().
+
+Risker: settings_button() är en fabriksfunktion i stället för en QPushButton-subklass, eftersom subklassen kraschade i gc.collect() i testsviten. Detektionsvyns rubrikrad är redan bred och inställningsknappen lägger till 87 px; raden går ihop maximerat men klipps på smala skärmar, som före ändringen.
+<!-- SECTION:FINAL_SUMMARY:END -->
