@@ -1,7 +1,7 @@
 import numpy as np
 
 from xray_detector.domain.detection import Detection
-from xray_detector.infrastructure.detectors.base import BaseDetector
+from xray_detector.infrastructure.detectors.base import BaseDetector, class_names_from
 
 
 def resolve_device(requested: str) -> str:
@@ -16,11 +16,9 @@ class YoloDetector(BaseDetector):
     def __init__(
         self,
         weights: str,
-        class_names: list[str],
         confidence_threshold: float,
         device: str = "cuda",
     ) -> None:
-        super().__init__(name=f"YOLO ({weights})", class_names=class_names)
         from ultralytics import YOLO
 
         from xray_detector.infrastructure.detectors.tuning import (
@@ -28,7 +26,12 @@ class YoloDetector(BaseDetector):
         )
 
         configure_inference_threads()
-        self.model = YOLO(weights)
+        model = YOLO(weights)
+        super().__init__(
+            name=f"YOLO ({weights})",
+            class_names=class_names_from(getattr(model, "names", None), weights),
+        )
+        self.model = model
         self.confidence_threshold = confidence_threshold
         self.device = resolve_device(device)
 
@@ -52,20 +55,22 @@ class YoloDetector(BaseDetector):
             verbose=False,
         )[0]
         detections: list[Detection] = []
-        names = result.names
         for box in result.boxes:
             x1, y1, x2, y2 = box.xyxy[0].tolist()
-            class_id = int(box.cls[0])
             detections.append(
                 Detection(
                     x1=x1,
                     y1=y1,
                     x2=x2,
                     y2=y2,
-                    class_name=names.get(class_id, str(class_id))
-                    if isinstance(names, dict)
-                    else names[class_id],
+                    class_name=self._class_name(int(box.cls[0])),
                     confidence=float(box.conf[0]),
                 )
             )
         return detections
+
+    def _class_name(self, class_id: int) -> str:
+        """Modellens klassnamn för id:t; id:t självt om listan är kortare."""
+        if 0 <= class_id < len(self.class_names):
+            return self.class_names[class_id]
+        return str(class_id)

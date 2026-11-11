@@ -200,10 +200,12 @@ def test_trained_snapshots_use_their_own_detector(monkeypatch, tmp_path):
     checkpoints = []
 
     class FakeYolo:
-        def __init__(self, weights, class_names, confidence_threshold):
+        def __init__(self, weights, confidence_threshold):
             yolo_weights.append(weights)
 
     class FakeRfDetrModel:
+        class_names = ["kniv"]
+
         def inference(self, **kwargs):
             pass
 
@@ -223,8 +225,8 @@ def test_trained_snapshots_use_their_own_detector(monkeypatch, tmp_path):
     )
     specs = {spec.key: spec for spec in trained_models(trained)}
 
-    yolo_detector_instance = model_registry.create_detector(specs["trained-v3"], ["kniv"], 0.4)
-    rfdetr_detector_instance = model_registry.create_detector(specs["trained-v4"], ["kniv"], 0.4)
+    yolo_detector_instance = model_registry.create_detector(specs["trained-v3"], 0.4)
+    rfdetr_detector_instance = model_registry.create_detector(specs["trained-v4"], 0.4)
 
     assert isinstance(yolo_detector_instance, FakeYolo)
     assert isinstance(rfdetr_detector_instance, RfDetrDetector)
@@ -254,14 +256,14 @@ def test_trained_model_weights_are_used_for_detection(monkeypatch, tmp_path):
     captured = {}
 
     class FakeYolo:
-        def __init__(self, weights, class_names, confidence_threshold):
+        def __init__(self, weights, confidence_threshold):
             captured["weights"] = weights
 
     monkeypatch.setattr(yolo_detector, "YoloDetector", FakeYolo)
     trained = tmp_path / "trained"
     weights = _write_run(trained, "v3")
 
-    model_registry.create_detector(trained_models(trained)[0], ["kniv"], 0.4)
+    model_registry.create_detector(trained_models(trained)[0], 0.4)
     assert captured["weights"] == str(weights)
 
 

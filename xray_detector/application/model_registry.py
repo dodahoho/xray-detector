@@ -26,17 +26,17 @@ MODEL_SPECS: list[ModelSpec] = [
 
 def create_detector(
     spec: ModelSpec,
-    class_names: list[str],
     confidence_threshold: float,
 ) -> BaseDetector:
+    """Skapar detektorn för en modell; klassnamnen läses ur modellen (TASK-52)."""
     if spec.family == "yolo":
         from xray_detector.infrastructure.detectors.yolo_detector import YoloDetector
 
-        return YoloDetector(spec.weights, class_names, confidence_threshold)
+        return YoloDetector(spec.weights, confidence_threshold)
     if spec.family == "rfdetr":
         from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
-        return RfDetrDetector(spec.weights, class_names, confidence_threshold)
+        return RfDetrDetector(spec.weights, confidence_threshold)
     raise ValueError(f"Okänd modellfamilj: {spec.family}")
 
 

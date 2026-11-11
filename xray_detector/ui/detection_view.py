@@ -632,7 +632,7 @@ class DetectionView(QWidget):
         """Skapar detektorn i arbetstråden; importen sker där så den går att byta ut."""
         from xray_detector.application.model_registry import create_detector
 
-        return create_detector(spec, self.config.classes, threshold)
+        return create_detector(spec, threshold)
 
     def _on_model_loaded(self, detector: BaseDetector) -> None:
         self.detector = detector

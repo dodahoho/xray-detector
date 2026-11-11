@@ -18,9 +18,9 @@ def view(qapp, tmp_path, monkeypatch) -> DetectionView:
     calls = []
     original = model_registry.create_detector
 
-    def counting(spec, class_names, threshold):
+    def counting(spec, threshold):
         calls.append(spec.key)
-        return original(spec, class_names, threshold)
+        return original(spec, threshold)
 
     monkeypatch.setattr(model_registry, "create_detector", counting)
     config = AppConfig()
@@ -60,6 +60,8 @@ def test_base_detector_threshold_setter():
 
 def _fake_rfdetr(monkeypatch, calls):
     class _FakeModel:
+        class_names = ["kniv"]
+
         def inference(self, **kwargs):
             calls.append(kwargs)
 
@@ -75,7 +77,7 @@ def test_rfdetr_optimizes_for_inference_on_cuda(monkeypatch):
 
     from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
-    RfDetrDetector("rfdetr-small", ["kniv"], 0.4)
+    RfDetrDetector("rfdetr-small", 0.4)
 
     assert calls and calls[0]["dtype"] is torch.float16
 
@@ -87,6 +89,6 @@ def test_rfdetr_skips_optimization_without_cuda(monkeypatch):
 
     from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
-    RfDetrDetector("rfdetr-small", ["kniv"], 0.4)
+    RfDetrDetector("rfdetr-small", 0.4)
 
     assert calls == []

@@ -104,6 +104,8 @@ class _FakeDetections:
 class _FakeRfDetrModel:
     """Ersätter RFDETRSmall: registrerar anropet och ger fasta detektioner."""
 
+    class_names = ["kniv", "pistol"]
+
     def __init__(self):
         self.calls = []
 
@@ -128,13 +130,13 @@ def test_rfdetr_detector_parses_supervision_detections(monkeypatch):
 
     from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
-    detector = RfDetrDetector("rfdetr-small", ["kniv", "pistol"], 0.4)
+    detector = RfDetrDetector("rfdetr-small", 0.4)
     frame = np.full((20, 30, 3), (10, 20, 30), dtype=np.uint8)  # BGR
     detections = detector.detect(frame)
 
     assert [(d.class_name, round(d.confidence, 2)) for d in detections] == [
         ("kniv", 0.9),
-        ("pistol", 0.5),  # tomt klassnamn fran modellen -> appens klasslista
+        ("pistol", 0.5),  # tomt klassnamn fran modellen -> modellens klasslista
     ]
     assert (detections[0].x1, detections[0].y1, detections[0].x2, detections[0].y2) == (
         1.0, 2.0, 11.0, 22.0
@@ -267,6 +269,8 @@ def test_rfdetr_detector_uses_selected_size(monkeypatch):
     from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
 
     class _FakeNano:
+        class_names = ["kniv"]
+
         def predict(self, image, threshold=0.5):
             return _FakeDetections(xyxy=[], class_id=[], confidence=[], class_name=[])
 
@@ -274,7 +278,7 @@ def test_rfdetr_detector_uses_selected_size(monkeypatch):
     fake.RFDETRNano = _FakeNano
     monkeypatch.setitem(sys.modules, "rfdetr", fake)
 
-    detector = RfDetrDetector("rfdetr-nano", ["kniv"], 0.4)
+    detector = RfDetrDetector("rfdetr-nano", 0.4)
     assert isinstance(detector.model, _FakeNano)
 
 

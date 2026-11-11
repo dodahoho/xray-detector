@@ -106,6 +106,8 @@ Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Datasetet
 
 Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad <körning> (<basmodell>)`. Manifestets `family` avgör vilken detektor posten laddas med: `yolo` ger `YoloDetector` och `rfdetr` ger `RfDetrDetector`, som läser snapshoten med `rfdetr.from_checkpoint`. Manifest som skrevs innan fältet fanns saknar `family` och behandlas som `yolo`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
 
+Klassnamnen kommer från modellen, inte från konfigurationen: detektorn läser dem ur vikterna när den laddas (YOLO: `model.names`, RF-DETR: modellens `class_names`) och exponerar dem som `class_names`. En tränad modell visar alltså klasserna den tränades på och en basmodell sina egna, till exempel COCO:s 80. `classes` i `config.yaml` beskriver i stället datasetets etiketter och styr annotering, datasetexport och overlayfärger. Går klassnamnen inte att läsa ur vikterna misslyckas laddningen med ett tydligt felmeddelande i stället för att overlayn visar klassindex.
+
 Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`:
 
 ```yaml

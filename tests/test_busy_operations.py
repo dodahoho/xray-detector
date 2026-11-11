@@ -57,7 +57,7 @@ def detection_view(qapp, config, settings) -> DetectionView:
 def _blocking_detector(monkeypatch, release: threading.Event, threads: list) -> None:
     """Modelladdning som står kvar tills testet släpper den."""
 
-    def create(spec, class_names, threshold):
+    def create(spec, threshold):
         threads.append(threading.get_ident())
         release.wait(5)
         return FakeDetector()
@@ -138,7 +138,7 @@ def test_failed_load_reports_the_same_message_and_detaches(
     detached: list = []
     detection_view.video_service.set_detector = detached.append
 
-    def broken(spec, class_names, threshold):
+    def broken(spec, threshold):
         raise RuntimeError("trasig modell")
 
     monkeypatch.setattr(model_registry, "create_detector", broken)

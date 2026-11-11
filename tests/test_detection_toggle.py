@@ -20,9 +20,9 @@ def view(qapp, tmp_path, monkeypatch) -> DetectionView:
     calls = []
     original = model_registry.create_detector
 
-    def counting(spec, class_names, threshold):
+    def counting(spec, threshold):
         calls.append(spec.key)
-        return original(spec, class_names, threshold)
+        return original(spec, threshold)
 
     monkeypatch.setattr(model_registry, "create_detector", counting)
     config = AppConfig()

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from xray_detector.domain.detection import Detection
-from xray_detector.infrastructure.detectors.base import BaseDetector
+from xray_detector.infrastructure.detectors.base import BaseDetector, class_names_from
 
 #: Modellnyckel -> rfdetr-klass. rfdetr 1.7 ersatte RFDETRBase med
 #: storleksspecifika klasser (se rfdetrs migreringsguide).
@@ -54,17 +54,20 @@ class RfDetrDetector(BaseDetector):
     def __init__(
         self,
         weights: str,
-        class_names: list[str],
         confidence_threshold: float,
     ) -> None:
         label = Path(weights).stem if _is_checkpoint(weights) else weights
-        super().__init__(name=f"RF-DETR ({label})", class_names=class_names)
         from xray_detector.infrastructure.detectors.tuning import (
             configure_inference_threads,
         )
 
         configure_inference_threads()
-        self.model = _load_model(weights)
+        model = _load_model(weights)
+        super().__init__(
+            name=f"RF-DETR ({label})",
+            class_names=class_names_from(getattr(model, "class_names", None), weights),
+        )
+        self.model = model
         self._optimize_for_inference()
         self.confidence_threshold = confidence_threshold
 
@@ -110,7 +113,7 @@ class RfDetrDetector(BaseDetector):
         return detections
 
     def _class_name(self, names, index: int, class_id: int) -> str:
-        """Modellens eget klassnamn, annars appens klasslista, annars id:t."""
+        """Modellens eget klassnamn, annars modellens klasslista, annars id:t."""
         if names is not None and index < len(names) and names[index]:
             return str(names[index])
         if 0 <= class_id < len(self.class_names):
