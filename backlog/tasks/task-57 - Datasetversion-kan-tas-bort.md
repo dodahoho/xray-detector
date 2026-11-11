@@ -1,7 +1,7 @@
 ---
 id: TASK-57
 title: Datasetversion kan tas bort
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T21:45:00Z'
@@ -56,19 +56,19 @@ Förenkla koden om det går
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Datasetvyn visar bilderna som ligger i datasetet utan versionsväljare
-- [ ] #2 Träningsvyn tränar på bilderna som ligger i datasetet utan versionsväljare
-- [ ] #3 Lagring, export och vyer har ingen versionshantering kvar
-- [ ] #4 Tester, README och groma-arkitekturen beskriver det nya beteendet
+- [x] #1 Datasetvyn visar bilderna som ligger i datasetet utan versionsväljare
+- [x] #2 Träningsvyn tränar på bilderna som ligger i datasetet utan versionsväljare
+- [x] #3 Lagring, export och vyer har ingen versionshantering kvar
+- [x] #4 Tester, README och groma-arkitekturen beskriver det nya beteendet
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -87,3 +87,9 @@ Förenkla koden om det går
 <!-- SECTION:NOTES:BEGIN -->
 Datasetet är nu en enda samling: datasets/dataset.json med bilderna i datasets/images/. DatasetStore tappar versions(), current_version(), new_version() och version_dir(); add_samples, delete_images, load_coco och metadata tar inga versionsargument. Ett dataset som sparades som datasets/v<N> flyttas upp till roten vid start (nyaste versionen vinner), så befintliga bilder finns kvar i vyn. Exporten går till exports/yolo, exports/coco och exports/rfdetr, och katalogen töms före skrivning så bilder som raderats ur datasetet inte ligger kvar i nästa export; manifestet har kvar format, datum och antal men inte version. Datasetvyn har ingen versionsväljare och refresh_versions() är borta; refresh() läser det aktuella datasetet. Träningsvyn visar datasetets sammanställning i stället för versionsval, startar på det som ligger i datasetet (statusraden 'Datasetet är tomt' när det är tomt) och sparar körningen under models/trained/<datum>_<tid>. Annoteringsvyn sparar utan version. Verifierat med hela testsviten (277 passed, 1 skipped) och migrationen körd mot en kopia av ~/.xray-detector/datasets (8 bilder, 6 objekt flyttades upp). Ruff på de ändrade filerna visar inga nya anmärkningar.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Datasetversionerna är borta. Datasetet är nu en enda samling i ~/.xray-detector/datasets/ (dataset.json + images/), och både datasetvyn och träningsvyn arbetar mot den: versionsväljarna är borttagna, datasetvyns refresh_versions() är ersatt av refresh(), och träningsvyn visar datasetets sammanställning och startar på det som ligger i datasetet ('Datasetet är tomt' när det är tomt). Exporten går till exports/yolo, exports/coco och exports/rfdetr och tömmer katalogen före skrivning, så bilder som raderats ur datasetet inte ligger kvar; manifestet har kvar format, datum och antal men inte version. Varje träningskörning sparas under models/trained/<datum>_<tid> i stället för v<N>. Ett dataset som sparades som datasets/v<N> flyttas automatiskt upp till roten vid start, så befintliga bilder finns kvar. Verifierat med hela testsviten (277 passed, 1 skipped), migrationen körd mot en kopia av ~/.xray-detector/datasets (8 bilder och 6 objekt flyttades upp) och ruff på de ändrade filerna utan nya anmärkningar. README och groma-arkitekturen beskriver det nya beteendet. Kvar att göra: ingen känd följdändring; TASK-58 (flytta exportknapparna till datasetfliken) rör samma vy men är en egen uppgift.
+<!-- SECTION:FINAL_SUMMARY:END -->
