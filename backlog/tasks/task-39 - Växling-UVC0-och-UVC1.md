@@ -1,7 +1,7 @@
 ---
 id: TASK-39
 title: Växling UVC0 och UVC1
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-11T10:04:00Z'
 updated_date: '2026-11-11T10:41:00Z'
