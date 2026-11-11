@@ -1,7 +1,7 @@
 ---
 id: TASK-51
 title: Placera applikations- och träningsloggar under logs
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T12:39:00Z'
@@ -48,7 +48,7 @@ Att ta ställning till: en fil per loggtyp (t.ex. app.log och training.log) elle
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -81,3 +81,17 @@ Beslut:
 
 Modified files: README.md, xray_detector/app.py, xray_detector/application/app_config.py, xray_detector/domain/config.py, xray_detector/ui/training_view.py, tests/test_app_config.py, tests/test_log_layout.py, groma/systems/xray-detector/containers/gui-app/components/{app-config,config,training-view}.md
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Loggarna ligger nu under projektets logs/ i stället för under datakatalogen. AppConfig har fått logs_dir (default <repo>/logs, uträknad ur paketets placering så den inte beror på arbetskatalogen) och ensure_dirs skapar katalogen; logs_dir går att peka om i config.yaml, där en relativ sökväg tolkas mot projektroten. app.py startar setup_logging(config.logs_dir) och skriver logs/app.log.
+
+app_config har delats i log_path(logs_dir, namn), rotating_handler() och file_logger(), som delar format och rotation (1 MB, 5 backups). En ny loggtyp under logs/ är därför bara ett nytt namn: log_path(logs_dir, "export") ger logs/export.log utan ny kod för katalog eller rotation. setup_logging() lägger bara till sin handler om ingen redan skriver till samma fil.
+
+Träningsvyn skriver träningsprocessens utmatning till logs/training.log. GUI:t äger skrivningen eftersom det redan får varje rad strömmad via QProcess: loggen finns då kvar även när träningen avbryts, och rotationen sker i en enda process. Varje körning inleds med en rubrikrad med tidsstämpel, basmodell, dataset och körningskatalog, så avslutade och avbrutna körningar går att skilja åt. Loggern propagerar inte, så träningsraderna hamnar bara i training.log och inte dubbelt i app.log.
+
+Verifierat: 266 tester passerar (1 skippad), varav 11 nya i tests/test_log_layout.py som täcker sökvägen oberoende av arbetskatalog, config.yaml-override, att app.log skrivs, att en ny loggtyp bara behöver ett namn, rotation vid 1 MB och att träningsloggen får processens utmatning. Manuellt: från en annan arbetskatalog skapades logs/app.log och logs/training.log i projektet, och en riktig QProcess-träning kopplad till träningsvyn skrev rubrikrad, processrader och slutrad till logs/training.log. git check-ignore bekräftar att logs/ är gitignorerad.
+
+Risker och uppföljning: gamla loggar under ~/.xray-detector/logs migreras inte – README beskriver att katalogen inte längre skrivs och att filerna kan flyttas eller tas bort. Träningsloggen skrivs av GUI:t, så en kraschande app tappar de sista raderna; en orphaning av träningsprocessen loggas då inte heller.
+<!-- SECTION:FINAL_SUMMARY:END -->
