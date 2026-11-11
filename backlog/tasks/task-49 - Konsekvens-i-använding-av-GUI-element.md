@@ -1,11 +1,11 @@
 ---
 id: TASK-49
 title: Konsekvens i använding av GUI element
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:58:00Z'
-updated_date: '2026-11-11T15:59:00Z'
+updated_date: '2026-11-11T16:00:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -37,11 +37,11 @@ Knappen för att starta träning i vy Träning är mycket högre än övriga kna
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -59,3 +59,9 @@ Knappen för att starta träning i vy Träning är mycket högre än övriga kna
 <!-- SECTION:NOTES:BEGIN -->
 Implementerat ui/style.py med BUTTON_HEIGHT=32, ICON_BUTTON_WIDTH=36, button() och apply_metrics(). Träningsvyns startknapp var 40 px och är nu 32 px som övriga; huvudåtgärden (Fånga bilder, Spara till dataset, Starta träning) markeras med primary=True (fet stil) i stället för en högre knapp. Detektionsvyns Försök igen (36 px), klassknapparna +/− (36 px breda), inställningsknappen och dialogens Stäng-knapp använder samma mått. Verifiering: 241 passed, 1 skipped (8 nya i tests/test_style.py); ruff rent på de nya filerna; vyerna renderade till PNG och granskade (start/avbryt lika höga, Stäng 32 px).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Träningsvyns startknapp var 40 px medan Avbryt bredvid hade Qt:s standardhöjd. Nu hämtar alla knappar sin höjd från ui/style.py (BUTTON_HEIGHT = 32 px): tränings-, detektions-, annoterings- och datasetvyn samt inställningsknappen och dialogens Stäng-knapp använder button()/apply_metrics(). Huvudåtgärden markeras med primary=True (fet stil) i stället för en högre knapp, och height=/width= eller height=None ger undantag per element. Verifierat med tests/test_style.py (8 tester som mäter alla knappar i alla vyer), hela sviten 241 passed/1 skipped, ruff rent på de nya filerna och PNG-rendering av vyerna där start/avbryt är lika höga. Risk: en fast höjd på 32 px kan klippa text vid mycket stor systemfont; height=None är vägen runt det.
+<!-- SECTION:FINAL_SUMMARY:END -->
