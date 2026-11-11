@@ -18,11 +18,16 @@ from PySide6.QtWidgets import (
 )
 
 from xray_detector.application.video_service import VideoService
-from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.capture import StreamFrame, VideoMode
 from xray_detector.domain.config import AppConfig
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
-from xray_detector.ui.video_settings import load_video_mode
+from xray_detector.infrastructure.video.devices import list_device_modes
+from xray_detector.ui.video_settings import (
+    clear_video_mode,
+    load_video_mode,
+    save_video_mode,
+)
 
 NO_SOURCE = "Ingen videokälla"
 OPEN_FILE = "Öppna videofil..."
@@ -35,6 +40,7 @@ S_LOST_AFTER = "Källan tappad efter {0} försök"
 S_RETRY = "Försök igen"
 DETECTION_TURN_OFF = "Detektion av"
 DETECTION_TURN_ON = "Detektion på"
+AUTO_MODE = "Auto"
 
 from xray_detector.ui.colors import class_color
 
@@ -92,18 +98,22 @@ class ResourceMeter(QWidget):
 
 
 class StreamPanel(QFrame):
-    source_requested = Signal(str, str, object)
+    source_requested = Signal(str, str, object, object)
 
-    def __init__(self, source_id: str, title: str, devices=None, parent=None) -> None:
+    def __init__(
+        self, source_id: str, title: str, devices=None, settings=None, parent=None
+    ) -> None:
         super().__init__(parent)
         self.source_id = source_id
         self.devices = list(devices or [])
+        self.settings = settings
         self.known_classes: list[str] = []
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
         self._base_title = title
         self._lost_attempts = 0
         self._last_selected_index = 0
+        self._modes: list[VideoMode] = []
         self.setMinimumSize(2, 2)
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
@@ -119,9 +129,18 @@ class StreamPanel(QFrame):
             self.source_combo.addItem(label, f"uvc:{device.index}")
         self.source_combo.addItem(OPEN_FILE, "file")
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
+        self.resolution_combo = QComboBox()
+        self.resolution_combo.setToolTip("Upplösning som enheten erbjuder")
+        self.resolution_combo.currentIndexChanged.connect(self._on_resolution_changed)
+        self.format_combo = QComboBox()
+        self.format_combo.setToolTip("Pixelformat; MJPG klarar högre bildfrekvens än YUY2")
+        self.format_combo.currentIndexChanged.connect(self._on_format_changed)
+        self._set_mode_controls_visible(False)
         top.addWidget(self.title_label)
         top.addStretch(1)
         top.addWidget(self.source_combo)
+        top.addWidget(self.resolution_combo)
+        top.addWidget(self.format_combo)
         layout.addLayout(top)
         self.display = QLabel()
         self.display.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -151,7 +170,8 @@ class StreamPanel(QFrame):
             value = None
         if kind == "none":
             self._active = ("none", None)
-            self.source_requested.emit(self.source_id, "none", None)
+            self._set_mode_controls_visible(False)
+            self.source_requested.emit(self.source_id, "none", None, None)
             self._show_no_source()
         elif kind == "file" and value:
             # sparad/vald fil: starta direkt utan dialog (TASK-23)
@@ -173,10 +193,82 @@ class StreamPanel(QFrame):
             return
         elif kind == "uvc":
             self._active = ("uvc", value)
-            self.source_requested.emit(self.source_id, "uvc", value)
+            self._populate_modes(value)
+            self.source_requested.emit(self.source_id, "uvc", value, self.current_mode())
 
         self._last_selected_index = self.source_combo.currentIndex()
         self.latest = None
+
+    def _populate_modes(self, device_index: int) -> None:
+        """Fyller upplösnings- och formatlistorna från enhetens kapabiliteter (TASK-39)."""
+        self._modes = list_device_modes(device_index)
+        saved = self._saved_mode()
+        self.resolution_combo.blockSignals(True)
+        self.resolution_combo.clear()
+        self.resolution_combo.addItem(AUTO_MODE, "")
+        for width, height in dict.fromkeys((m.width, m.height) for m in self._modes):
+            self.resolution_combo.addItem(f"{width}x{height}", f"{width}x{height}")
+        self.resolution_combo.blockSignals(False)
+        if saved is not None:
+            position = self.resolution_combo.findData(f"{saved.width}x{saved.height}")
+            if position >= 0:
+                self.resolution_combo.setCurrentIndex(position)
+        self._populate_formats(saved.fourcc if saved else "")
+        self._set_mode_controls_visible(True)
+
+    def _populate_formats(self, preferred: str = "") -> None:
+        """Formaten som den valda upplösningen erbjuder."""
+        resolution = self.resolution_combo.currentData()
+        formats = [
+            mode.fourcc
+            for mode in self._modes
+            if not resolution or f"{mode.width}x{mode.height}" == resolution
+        ]
+        self.format_combo.blockSignals(True)
+        self.format_combo.clear()
+        for fourcc in dict.fromkeys(formats):
+            self.format_combo.addItem(fourcc or "Auto", fourcc)
+        self.format_combo.blockSignals(False)
+        position = self.format_combo.findData(preferred)
+        if position >= 0:
+            self.format_combo.setCurrentIndex(position)
+        self.format_combo.setEnabled(bool(resolution))
+
+    def _set_mode_controls_visible(self, visible: bool) -> None:
+        self.resolution_combo.setVisible(visible)
+        self.format_combo.setVisible(visible)
+
+    def current_mode(self) -> VideoMode | None:
+        """Vald upplösning och format, eller None när drivrutinen får välja."""
+        resolution = self.resolution_combo.currentData()
+        if not resolution:
+            return None
+        width, _, height = resolution.partition("x")
+        return VideoMode(int(width), int(height), self.format_combo.currentData() or "")
+
+    def _saved_mode(self) -> VideoMode | None:
+        if self.settings is None:
+            return None
+        return load_video_mode(self.settings, self.source_id)
+
+    def _on_resolution_changed(self, *_args) -> None:
+        self._populate_formats(self.format_combo.currentData() or "")
+        self._on_mode_changed()
+
+    def _on_format_changed(self, *_args) -> None:
+        self._on_mode_changed()
+
+    def _on_mode_changed(self) -> None:
+        """Sparar valet och startar om strömmen med det nya formatet."""
+        mode = self.current_mode()
+        if self.settings is not None:
+            if mode is None:
+                clear_video_mode(self.settings, self.source_id)
+            else:
+                save_video_mode(self.settings, self.source_id, mode)
+        kind, value = self._active
+        if kind == "uvc":
+            self.source_requested.emit(self.source_id, kind, value, mode)
 
     def _activate_file(self, path) -> None:
         """Aktiverar en videofilskalla utan dialog och staller in komboposten."""
@@ -196,7 +288,8 @@ class StreamPanel(QFrame):
         self.source_combo.blockSignals(False)
         self._last_selected_index = index
         self._active = ("file", path)
-        self.source_requested.emit(self.source_id, "file", Path(path))
+        self._set_mode_controls_visible(False)
+        self.source_requested.emit(self.source_id, "file", Path(path), None)
 
     def current_source(self) -> tuple[str, object]:
         return self._active
@@ -242,7 +335,7 @@ class StreamPanel(QFrame):
             self.retry_button.show()
             return
         self.retry_button.hide()
-        self.source_requested.emit(self.source_id, kind, value)
+        self.source_requested.emit(self.source_id, kind, value, self.current_mode())
 
     def reset_connection_state(self) -> None:
         self._lost_attempts = 0
@@ -356,9 +449,9 @@ class DetectionView(QWidget):
         bar.addWidget(self.detection_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
-        self.devices = self.video_service.list_devices()
-        self.left = StreamPanel("left", "Ström 1", self.devices)
-        self.right = StreamPanel("right", "ström 2", self.devices)
+        devices = self.video_service.list_devices()
+        self.left = StreamPanel("left", "Ström 1", devices, self.settings)
+        self.right = StreamPanel("right", "ström 2", devices, self.settings)
         for panel in (self.left, self.right):
             panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):
@@ -462,10 +555,10 @@ class DetectionView(QWidget):
             self.settings.setValue(f"detection/source_{panel.source_id}_kind", kind)
             self.settings.setValue(f"detection/source_{panel.source_id}_value", value)
 
-    def _on_source_requested(self, source_id: str, kind: str, value: object) -> None:
-        worker = self.video_service.set_source(
-            source_id, kind, value, load_video_mode(self.settings)
-        )
+    def _on_source_requested(
+        self, source_id: str, kind: str, value: object, mode: VideoMode | None = None
+    ) -> None:
+        worker = self.video_service.set_source(source_id, kind, value, mode)
         if worker is not None:
             worker.frame_ready.connect(self._on_frame)
             worker.source_lost.connect(self._on_source_lost)

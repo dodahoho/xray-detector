@@ -1,32 +1,36 @@
-"""Sparad inspelningsmodalitet för UVC-källor (TASK-39).
+"""Sparad inspelningsmodalitet per videofönster (TASK-39).
 
-Delas av inställningsvyn som skriver valet och detektionsvyn som läser det
-när en UVC-källa öppnas, så nycklarna bara finns på ett ställe.
+Nycklarna ligger under detection/mode_<source_id>_*, så varje strömpanel
+minns sitt eget val på samma sätt som detection/source_<id>_kind.
 """
 
 from xray_detector.domain.capture import VideoMode
 
-WIDTH_KEY = "video/width"
-HEIGHT_KEY = "video/height"
-FOURCC_KEY = "video/fourcc"
+PREFIX = "detection/mode"
 
 
-def load_video_mode(settings) -> VideoMode | None:
-    """Sparad modalitet, eller None när inget val gjorts (drivrutinen väljer)."""
-    width = settings.value(WIDTH_KEY, type=int)
-    height = settings.value(HEIGHT_KEY, type=int)
+def _key(source_id: str, field: str) -> str:
+    return f"{PREFIX}_{source_id}_{field}"
+
+
+def load_video_mode(settings, source_id: str) -> VideoMode | None:
+    """Panelens sparade modalitet, eller None när drivrutinen får välja."""
+    width = settings.value(_key(source_id, "width"), type=int)
+    height = settings.value(_key(source_id, "height"), type=int)
     if not width or not height:
         return None
-    return VideoMode(width, height, settings.value(FOURCC_KEY, "", type=str))
+    return VideoMode(
+        width, height, settings.value(_key(source_id, "fourcc"), "", type=str)
+    )
 
 
-def save_video_mode(settings, mode: VideoMode) -> None:
-    settings.setValue(WIDTH_KEY, mode.width)
-    settings.setValue(HEIGHT_KEY, mode.height)
-    settings.setValue(FOURCC_KEY, mode.fourcc)
+def save_video_mode(settings, source_id: str, mode: VideoMode) -> None:
+    settings.setValue(_key(source_id, "width"), mode.width)
+    settings.setValue(_key(source_id, "height"), mode.height)
+    settings.setValue(_key(source_id, "fourcc"), mode.fourcc)
 
 
-def clear_video_mode(settings) -> None:
+def clear_video_mode(settings, source_id: str) -> None:
     """Tillbaka till drivrutinens eget val."""
-    for key in (WIDTH_KEY, HEIGHT_KEY, FOURCC_KEY):
-        settings.remove(key)
+    for field in ("width", "height", "fourcc"):
+        settings.remove(_key(source_id, field))

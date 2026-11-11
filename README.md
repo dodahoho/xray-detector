@@ -45,7 +45,7 @@ Med CUDA begränsas PyTorch och OpenCV till en CPU-tråd. Inferensen körs på G
 
 ## Videokälla
 
-Inställningsfliken har en grupp **Videokälla** där enhet, upplösning och pixelformat väljs. Listorna fylls från enhetens egna DirectShow-kapabiliteter, så bara lägen som enheten faktiskt erbjuder går att välja. Valet sparas och används nästa gång en UVC-källa öppnas; **Auto** lämnar tillbaka valet till drivrutinen.
+När en UVC-enhet väljs i en strömpanel dyker två listor upp bredvid källväljaren: upplösning och pixelformat. De fylls från enhetens egna DirectShow-kapabiliteter, så bara lägen som enheten faktiskt erbjuder går att välja. Varje panel minns sitt eget val mellan starterna, och **Auto** lämnar tillbaka valet till drivrutinen. Ett byte startar om strömmen med det nya formatet.
 
 Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 1920x1080 i både MJPG och YUY2, men okomprimerad YUY2 kapas av bandbredden: mätt 9,3 fps mot 52,9 fps med MJPG i samma upplösning. Välj MJPG för 1080p, eller en lägre upplösning om kortet inte klarar MJPG. Formatet måste anges när källan öppnas — `cap.set(CAP_PROP_FOURCC)` efter öppning ignoreras av DSHOW-backend.
 

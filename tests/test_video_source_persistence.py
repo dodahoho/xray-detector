@@ -26,7 +26,7 @@ def _forbid_dialog(monkeypatch):
 def test_restore_activates_file_without_dialog(panel, monkeypatch):
     _forbid_dialog(monkeypatch)
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     panel.restore_source("file", "C:/media/xray.mp4")
 
     assert emitted == [("file", Path("C:/media/xray.mp4"))]
@@ -37,7 +37,7 @@ def test_restore_activates_file_without_dialog(panel, monkeypatch):
 def test_reselecting_saved_file_restarts_without_dialog(panel, monkeypatch):
     _forbid_dialog(monkeypatch)
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     panel.restore_source("file", "C:/media/a.mp4")
     panel.source_combo.setCurrentIndex(0)  # Ingen videokalla: stoppa kallen
     index = panel.source_combo.findData("file:C:/media/a.mp4")
@@ -59,7 +59,7 @@ def test_switching_file_via_dialog(panel, monkeypatch):
 
     monkeypatch.setattr(QFileDialog, "getOpenFileName", staticmethod(fake_dialog))
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, Path(value))))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, Path(value))))
 
     open_index = panel.source_combo.findData("file")
     panel.source_combo.setCurrentIndex(open_index)  # forsta byte -> b.mp4
@@ -78,7 +78,7 @@ def test_switching_file_via_dialog(panel, monkeypatch):
 
 def test_cancelled_dialog_keeps_previous_selection(panel, monkeypatch):
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     panel.restore_source("file", "C:/media/x.mp4")
     before_index = panel.source_combo.currentIndex()
 

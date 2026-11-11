@@ -60,7 +60,7 @@ def test_combo_lists_device_names(panel):
 
 def test_selection_emits_uvc_with_index(panel):
     received = []
-    panel.source_requested.connect(lambda sid, kind, value: received.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: received.append((kind, value)))
     index = panel.source_combo.findData("uvc:1")
     panel.source_combo.setCurrentIndex(index)
     assert received[-1] == ("uvc", 1)

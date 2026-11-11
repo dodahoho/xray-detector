@@ -21,7 +21,7 @@ def set_active(panel, kind, value):
 
 def test_first_loss_auto_retries_without_button(panel, monkeypatch):
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     timers = []
     monkeypatch.setattr("xray_detector.ui.detection_view.QTimer.singleShot",
                         lambda ms, fn: timers.append((ms, fn)))
@@ -37,7 +37,7 @@ def test_first_loss_auto_retries_without_button(panel, monkeypatch):
 
 def test_after_max_retries_button_appears(panel, monkeypatch):
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     monkeypatch.setattr("xray_detector.ui.detection_view.QTimer.singleShot",
                         lambda ms, fn: emitted.append(("timer", ms)))
     set_active(panel, "uvc", 1)

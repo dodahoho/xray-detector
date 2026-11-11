@@ -103,7 +103,7 @@ def test_gui_panel_selects_sample_video(qapp, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getOpenFileName", staticmethod(fake_dialog))
     panel = StreamPanel("left", "Strom 1")
     emitted = []
-    panel.source_requested.connect(lambda sid, kind, value: emitted.append((kind, value)))
+    panel.source_requested.connect(lambda sid, kind, value, mode=None: emitted.append((kind, value)))
     index = panel.source_combo.findData("file")
     panel.source_combo.setCurrentIndex(index)
     assert emitted == [("file", Path(TOP))], emitted

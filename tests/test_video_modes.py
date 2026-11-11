@@ -28,6 +28,11 @@ def raw_formats(monkeypatch):
     monkeypatch.setattr(devices, "_windows_device_formats", lambda index: RAW_FORMATS)
 
 
+@pytest.fixture
+def settings(tmp_path):
+    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+
+
 def test_modes_are_deduplicated_in_device_order(raw_formats):
     assert list_device_modes(0) == [
         VideoMode(1920, 1080, "MJPG"),
@@ -121,87 +126,126 @@ def test_video_service_forwards_mode(monkeypatch):
     assert created == [(1, VideoMode(1280, 720, "MJPG"))]
 
 
-def test_video_mode_roundtrip_in_settings(tmp_path):
-    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    assert load_video_mode(settings) is None
+def test_video_mode_roundtrip_per_panel(settings):
+    assert load_video_mode(settings, "left") is None
 
-    save_video_mode(settings, VideoMode(1920, 1080, "MJPG"))
-    assert load_video_mode(settings) == VideoMode(1920, 1080, "MJPG")
+    save_video_mode(settings, "left", VideoMode(1920, 1080, "MJPG"))
+    save_video_mode(settings, "right", VideoMode(1280, 720, "YUY2"))
 
-    clear_video_mode(settings)
-    assert load_video_mode(settings) is None
+    assert load_video_mode(settings, "left") == VideoMode(1920, 1080, "MJPG")
+    assert load_video_mode(settings, "right") == VideoMode(1280, 720, "YUY2")
 
-
-@pytest.fixture
-def settings(tmp_path):
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    clear_video_mode(settings, "left")
+    assert load_video_mode(settings, "left") is None
+    assert load_video_mode(settings, "right") == VideoMode(1280, 720, "YUY2")
 
 
 @pytest.fixture
-def settings_view(qapp, settings, raw_formats):
-    from xray_detector.ui.settings_view import SettingsView
+def panel(qapp, settings, raw_formats):
+    from xray_detector.ui.detection_view import StreamPanel
 
-    view = SettingsView(settings, [DeviceInfo(0, "USB Video")])
-    view._reload_video_modes()
-    return view
+    panel = StreamPanel("left", "Ström 1", [DeviceInfo(0, "USB Video")], settings)
+    emitted = []
+    panel.source_requested.connect(
+        lambda sid, kind, value, mode=None: emitted.append((kind, value, mode))
+    )
+    panel.emitted = emitted
+    return panel
 
 
-def test_settings_lists_device_resolutions_and_formats(settings_view):
+def _select_uvc(panel, index=0):
+    panel.source_combo.setCurrentIndex(panel.source_combo.findData(f"uvc:{index}"))
+
+
+def test_panel_hides_mode_controls_until_uvc_selected(panel):
+    assert not panel.resolution_combo.isVisibleTo(panel)
+    assert not panel.format_combo.isVisibleTo(panel)
+
+    _select_uvc(panel)
+
+    assert panel.resolution_combo.isVisibleTo(panel)
+    assert panel.format_combo.isVisibleTo(panel)
+
+
+def test_panel_lists_device_modes(panel):
+    _select_uvc(panel)
+
     resolutions = [
-        settings_view.video_resolution.itemText(i)
-        for i in range(settings_view.video_resolution.count())
+        panel.resolution_combo.itemText(i)
+        for i in range(panel.resolution_combo.count())
     ]
-    assert resolutions == ["Auto (drivrutinen väljer)", "1920x1080", "1280x720"]
+    assert resolutions == ["Auto", "1920x1080", "1280x720"]
 
-    settings_view.video_resolution.setCurrentIndex(
-        settings_view.video_resolution.findData("1920x1080")
+    panel.resolution_combo.setCurrentIndex(
+        panel.resolution_combo.findData("1920x1080")
     )
     formats = [
-        settings_view.video_format.itemText(i)
-        for i in range(settings_view.video_format.count())
+        panel.format_combo.itemText(i) for i in range(panel.format_combo.count())
     ]
     assert formats == ["MJPG", "YUY2"]
 
 
-def test_settings_saves_choice(settings_view, settings):
-    settings_view.video_resolution.setCurrentIndex(
-        settings_view.video_resolution.findData("1280x720")
+def test_panel_emits_mode_with_source_request(panel):
+    _select_uvc(panel)
+    assert panel.emitted[-1] == ("uvc", 0, None)
+
+    panel.resolution_combo.setCurrentIndex(
+        panel.resolution_combo.findData("1920x1080")
     )
-    settings_view.video_format.setCurrentIndex(
-        settings_view.video_format.findData("MJPG")
+    assert panel.emitted[-1] == ("uvc", 0, VideoMode(1920, 1080, "MJPG"))
+
+    panel.format_combo.setCurrentIndex(panel.format_combo.findData("YUY2"))
+    assert panel.emitted[-1] == ("uvc", 0, VideoMode(1920, 1080, "YUY2"))
+
+
+def test_panel_saves_and_restores_mode(qapp, settings, raw_formats):
+    from xray_detector.ui.detection_view import StreamPanel
+
+    save_video_mode(settings, "left", VideoMode(1280, 720, "MJPG"))
+    panel = StreamPanel("left", "Ström 1", [DeviceInfo(0, "USB Video")], settings)
+    emitted = []
+    panel.source_requested.connect(
+        lambda sid, kind, value, mode=None: emitted.append(mode)
     )
 
-    assert load_video_mode(settings) == VideoMode(1280, 720, "MJPG")
+    _select_uvc(panel)
+
+    assert panel.resolution_combo.currentData() == "1280x720"
+    assert panel.format_combo.currentData() == "MJPG"
+    assert emitted[-1] == VideoMode(1280, 720, "MJPG")
 
 
-def test_settings_auto_clears_choice(settings_view, settings):
-    settings_view.video_resolution.setCurrentIndex(
-        settings_view.video_resolution.findData("1920x1080")
+def test_panel_auto_clears_saved_mode(panel, settings):
+    _select_uvc(panel)
+    panel.resolution_combo.setCurrentIndex(
+        panel.resolution_combo.findData("1920x1080")
     )
-    assert load_video_mode(settings) is not None
+    assert load_video_mode(settings, "left") is not None
 
-    settings_view.video_resolution.setCurrentIndex(0)
+    panel.resolution_combo.setCurrentIndex(0)
 
-    assert load_video_mode(settings) is None
-    assert not settings_view.video_format.isEnabled()
-
-
-def test_settings_restores_saved_choice(qapp, settings, raw_formats):
-    from xray_detector.ui.settings_view import SettingsView
-
-    save_video_mode(settings, VideoMode(1280, 720, "MJPG"))
-    view = SettingsView(settings, [DeviceInfo(0, "USB Video")])
-    view._reload_video_modes()
-
-    assert view.video_resolution.currentData() == "1280x720"
-    assert view.video_format.currentData() == "MJPG"
+    assert load_video_mode(settings, "left") is None
+    assert panel.emitted[-1] == ("uvc", 0, None)
 
 
-def test_detection_view_passes_saved_mode(qapp, tmp_path, settings, monkeypatch):
+def test_panel_hides_mode_controls_for_file_source(panel, tmp_path):
+    _select_uvc(panel)
+    assert panel.resolution_combo.isVisibleTo(panel)
+
+    panel._activate_file(tmp_path / "klipp.mp4")
+
+    assert not panel.resolution_combo.isVisibleTo(panel)
+    assert panel.emitted[-1][2] is None
+
+
+def test_detection_view_passes_panel_mode(qapp, tmp_path, settings, raw_formats, monkeypatch):
     from xray_detector.domain.config import AppConfig
     from xray_detector.ui.detection_view import DetectionView
 
-    save_video_mode(settings, VideoMode(1280, 720, "MJPG"))
+    monkeypatch.setattr(
+        "xray_detector.application.video_service.VideoService.list_devices",
+        staticmethod(lambda: [DeviceInfo(0, "USB Video")]),
+    )
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
@@ -213,6 +257,10 @@ def test_detection_view_passes_saved_mode(qapp, tmp_path, settings, monkeypatch)
         lambda source_id, kind, value, mode=None: captured.append(mode) or None,
     )
 
-    view._on_source_requested("left", "uvc", 0)
+    _select_uvc(view.left)
+    view.left.resolution_combo.setCurrentIndex(
+        view.left.resolution_combo.findData("1920x1080")
+    )
+    view.left.format_combo.setCurrentIndex(view.left.format_combo.findData("MJPG"))
 
-    assert captured == [VideoMode(1280, 720, "MJPG")]
+    assert captured[-1] == VideoMode(1920, 1080, "MJPG")

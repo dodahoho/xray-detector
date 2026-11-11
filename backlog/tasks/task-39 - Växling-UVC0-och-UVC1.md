@@ -1,10 +1,10 @@
 ---
 id: TASK-39
 title: Växling UVC0 och UVC1
-status: Done
+status: In Progress
 assignee: []
 created_date: '2026-11-11T10:04:00Z'
-updated_date: '2026-11-11T10:27:00Z'
+updated_date: '2026-11-11T10:41:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -20,6 +20,9 @@ modified_files:
   - xray_detector/ui/main_window.py
   - tests/test_video_source_persistence.py
   - tests/test_video_modes.py
+  - tests/test_devices.py
+  - tests/test_reconnect.py
+  - tests/test_sample_video.py
   - README.md
   - groma/systems/xray-detector/containers/gui-app/components/video-settings.md
 ordinal: 37000
@@ -48,9 +51,9 @@ I2026-11-11 10:57:07.625067 (  504) [INFO] [VCAMDS] Already initialized
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Enhetsväljaren visar enheternas riktiga namn i stället för "UVC n" när pygrabber finns
-- [x] #2 Inställningarna erbjuder de upplösningar och format som den valda enheten rapporterar
+- [x] #2 Strömpanelen erbjuder de upplösningar och format som den valda enheten rapporterar
 - [x] #3 Vald upplösning och format används när en UVC-källa öppnas
-- [x] #4 Valet sparas mellan starter
+- [x] #4 Valet sparas per panel mellan starter
 <!-- AC:END -->
 
 ## Definition of Done
@@ -123,6 +126,18 @@ Uppmätt genom UvcSource mot det fysiska kortet: Auto (ingen modalitet) 1920x108
 14 nya tester i tests/test_video_modes.py: avdubblering och ordning i list_device_modes, params-vid-öppning (inkl. att RGB24 utan fyra tecken hoppar över FOURCC), att VideoService vidarebefordrar modaliteten, QSettings-rundtur, inställningsvyns listor och sparande, samt att detektionsvyn skickar sparat val. Hela sviten 178 passed, 1 skipped, tre körningar i rad. uv lock --check är ren. Ruff: inga nya anmärkningar utöver de mönster som redan finns i filerna (blind except i devices.py följer befintlig stil).
 
 UI verifierat genom att rendera inställningsfliken och detektionsvyn: enhetsnamnen syns i båda, upplösningslistan har 12 poster för kortet och formatlistan MJPG/YUY2.
+
+## Flytt av valet till strömpanelen
+
+Efter granskning flyttades upplösning och format från inställningsfliken till varje strömpanel, direkt efter källväljaren. Det ger en modalitet per ström i stället för en global, och valet ligger där man faktiskt byter källa.
+
+StreamPanel äger nu två kombor som skapas dolda och visas först när en UVC-enhet väljs. Listorna fylls från enhetens kapabiliteter vid valet, och ett byte av upplösning eller format sparar valet och emitrerar source_requested igen, så CameraService startar om strömmen med det nya formatet. Signalen har fått en fjärde parameter för modaliteten.
+
+Nycklarna är per panel: detection/mode_<source_id>_width, _height och _fourcc, samma mönster som detection/source_<id>_kind. Inställningsfliken är tillbaka till sitt tidigare skick och SettingsView tar inte längre emot enhetslistan.
+
+Verifiering: 16 tester i tests/test_video_modes.py, varav 6 nya för panelen (dolda kontroller innan val, listorna, emitierad modalitet, sparat och återställt val, Auto nollställer, filkälla döljer kontrollerna). Hela sviten 180 passed, 1 skipped. Panelen renderad: väljs UVC 0 syns 1920x1080 och MJPG, titeln visar 60,0 fps; utan källa är komborna dolda.
+
+Noterat: rfdetr saknades i venv:en efter arbetet och återställdes med uv sync --extra cu128 --extra rfdetr. Torrkörningen visade bara tillägg, inga borttagningar, och CUDA fungerar fortfarande.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
@@ -130,7 +145,7 @@ UI verifierat genom att rendera inställningsfliken och detektionsvyn: enhetsnam
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 Utredningen visar att "UVC 0" och "UVC 1" inte var två kort: index 0 är en MacroSilicon MS2109 USB 2.0 HDMI-dongle och index 1 är NVIDIA Broadcasts virtuella kamera. Samma bild syntes för att Broadcast fångar samma kort. Fps-skillnaden var pixelformatet — kortet förhandlade okomprimerad YUY2, som på USB 2.0 kapas till 9,3 fps i 1080p mot 52,9 fps med MJPG. "Failed to open NBX hive" och de upprepade initieringsraderna skrivs av NVIDIA Broadcasts DirectShow-filter när den virtuella kameran öppnas (0 rader för index 0, 73 rader och 1 fel för index 1) och går inte att påverka från appen. Slutsatsen i TASK-28 var alltså fel på den punkten.
 
-Åtgärder: pygrabber är nu ett riktigt Windows-beroende, så källväljaren visar enheternas namn. Inställningsfliken har en ny grupp Videokälla där enhet, upplösning och format väljs ur enhetens egna DirectShow-kapabiliteter (22 lägen för kortet, 33 för den virtuella kameran). Valet sparas och används när en UVC-källa öppnas, och formatet skickas i params-listan vid öppning eftersom cap.set(CAP_PROP_FOURCC) ignoreras av DSHOW-backend. Listningen sker först när fliken visas, så appstarten inte drar igång den virtuella kamerans loggning.
+Åtgärder: pygrabber är nu ett riktigt Windows-beroende, så källväljaren visar enheternas namn. När en UVC-enhet väljs i en strömpanel dyker två listor upp bredvid källväljaren: upplösning och format, fyllda från enhetens egna DirectShow-kapabiliteter (22 lägen för kortet, 33 för den virtuella kameran). Varje panel minns sitt eget val, och ett byte startar om strömmen med det nya formatet. Formatet skickas i params-listan vid öppning eftersom cap.set(CAP_PROP_FOURCC) ignoreras av DSHOW-backend.
 
-Verifierat: 14 nya tester, hela sviten 178 passed, 1 skipped, stabilt över tre körningar. Uppmätt genom UvcSource: Auto 9,3 fps, MJPG 1080p 52,9 fps, MJPG 720p 52,1 fps. UI renderat och kontrollerat i både inställnings- och detektionsvyn.
+Verifierat: 16 tester i tests/test_video_modes.py, hela sviten 180 passed, 1 skipped. Uppmätt genom UvcSource: Auto 9,3 fps, MJPG 1080p 52,9 fps, MJPG 720p 52,1 fps; i panelen visar titeln 60,0 fps med MJPG 1920x1080. UI renderat och kontrollerat.
 <!-- SECTION:FINAL_SUMMARY:END -->
