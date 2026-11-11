@@ -2,12 +2,13 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QMessageBox,
     QScrollArea,
     QVBoxLayout,
@@ -34,6 +35,94 @@ SELECTED_BORDER = "#4da3ff"
 SELECTED_BACKGROUND = "#1d3b57"
 IDLE_BORDER = "#555"
 IDLE_BACKGROUND = "#2b2b2b"
+UNKNOWN_DATE = "Okänt datum"
+
+
+class FlowLayout(QLayout):
+    """Lägger widgets efter varandra och börjar en ny rad när den är full (TASK-42).
+
+    Qt har inget flödeslayout, så korten skulle annars behöva fasta kolumner.
+    Varje widget får sin sizeHint och radbryts mot layoutens bredd, vilket ger
+    samma beteende vid alla fönsterbredder.
+    """
+
+    def __init__(self, parent=None, spacing: int = 8) -> None:
+        super().__init__(parent)
+        self._items: list = []
+        self._spacing = spacing
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def addItem(self, item) -> None:
+        self._items.append(item)
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index: int):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self) -> Qt.Orientation:
+        return Qt.Orientation(0)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        return self._arrange(QRect(0, 0, width, 0), apply=False)
+
+    def setGeometry(self, rect: QRect) -> None:
+        super().setGeometry(rect)
+        self._arrange(rect, apply=True)
+
+    def sizeHint(self) -> QSize:
+        return self.minimumSize()
+
+    def minimumSize(self) -> QSize:
+        size = QSize()
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        return size + QSize(
+            margins.left() + margins.right(), margins.top() + margins.bottom()
+        )
+
+    def _arrange(self, rect: QRect, apply: bool) -> int:
+        """Placerar korten radvis; returnerar höjden utrymmet behöver."""
+        margins = self.contentsMargins()
+        area = rect.adjusted(
+            margins.left(), margins.top(), -margins.right(), -margins.bottom()
+        )
+        x = area.x()
+        y = area.y()
+        line_height = 0
+        for item in self._items:
+            hint = item.sizeHint()
+            next_x = x + hint.width() + self._spacing
+            if next_x - self._spacing > area.right() and line_height > 0:
+                x = area.x()
+                y += line_height + self._spacing
+                next_x = x + hint.width() + self._spacing
+                line_height = 0
+            if apply:
+                item.setGeometry(QRect(QPoint(x, y), hint))
+            x = next_x
+            line_height = max(line_height, hint.height())
+        return y + line_height - rect.y() + margins.bottom()
+
+
+def _ordered_dates(by_date: dict[str, list], newest_first: bool) -> list[str]:
+    """Datumen i visningsordning; fångster utan datum hamnar sist (TASK-42)."""
+    dates = sorted((date for date in by_date if date), reverse=newest_first)
+    if "" in by_date:
+        dates.append("")
+    return dates
 
 
 def _format_timestamp(value: str | None) -> str:
@@ -114,6 +203,8 @@ class DatasetView(QWidget):
         self._thumbs: list[Thumbnail] = []
         self._groups: dict[int, list[Thumbnail]] = {}
         self._group_headers: dict = {}
+        self._section_headings: dict[str, QLabel] = {}
+        self._section_cards: dict[str, QWidget] = {}
         self._coco: dict | None = None
         self._pending_by_group: dict[str, object] = {}
         self._refresh_task: BackgroundTask | None = None
@@ -258,6 +349,8 @@ class DatasetView(QWidget):
         self._thumbs = []
         self._groups = {}
         self._group_headers = {}
+        self._section_headings = {}
+        self._section_cards = {}
         self._pending_by_group = {}
 
         newest_first = sort_order(self.settings) == SORT_NEWEST
@@ -280,49 +373,95 @@ class DatasetView(QWidget):
             key = image.get("group") or image["id"]
             groups.setdefault(key, []).append(image)
 
+        by_date: dict[str, list] = {}
         for key in sorted(groups, reverse=newest_first):
             images = sorted(groups[key], key=lambda img: img["id"])
-            object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
             stamp = _format_timestamp(images[0].get("captured")) or _mtime_timestamp(
                 self.dataset_service.images_dir / images[0]["file_name"]
             )
-            title = stamp or f"Fångst {key}"
-            header = QLabel(f"{title} · {len(images)} bilder · {object_count} objekt")
-            header.setStyleSheet("font-weight: bold; color: #888;")
-            frame = QFrame()
-            frame.setFrameShape(QFrame.Shape.Box)
-            frame.setStyleSheet("QFrame { border: 1px solid #666; border-radius: 8px; }")
-            self._group_headers[key] = (header, frame, header.text())
-            inner = QVBoxLayout(frame)
-            inner.setContentsMargins(8, 8, 8, 8)
-            inner.addWidget(header)
-            row = QHBoxLayout()
-            row.addStretch(1)
-            for image in images:
-                pixmap = QPixmap.fromImage(data["images"][image["id"]])
-                pixmap = pixmap.scaledToHeight(THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation)
-                count = len(annotations_by_image.get(image["id"], []))
-                classes = sorted(
-                    {
-                        category_names[ann["category_id"]]
-                        for ann in annotations_by_image.get(image["id"], [])
-                    }
+            by_date.setdefault(stamp[:10], []).append((key, images, stamp))
+
+        for date in _ordered_dates(by_date, newest_first):
+            cards = self._add_section(date or UNKNOWN_DATE)
+            for key, images, stamp in by_date[date]:
+                self._add_capture_card(
+                    cards,
+                    key,
+                    images,
+                    stamp,
+                    annotations_by_image,
+                    category_names,
+                    data["images"],
                 )
-                caption = "Inga objekt" if not classes else ", ".join(classes) + f" ({count})"
-                thumb = Thumbnail(image["id"], key, pixmap, caption)
-                thumb.clicked.connect(self._on_thumb_clicked)
-                thumb.double_clicked.connect(self._on_thumb_double_clicked)
-                row.addWidget(thumb)
-                self._thumbs.append(thumb)
-                self._groups.setdefault(key, []).append(thumb)
-            row.addStretch(1)
-            inner.addLayout(row)
-            self.content_layout.addWidget(frame)
         self.content_layout.addStretch(1)
         self._update_delete_button()
 
+    def _add_section(self, title: str, *, pending: bool = False) -> FlowLayout:
+        """Sektion med rubrik och en rad kort som radbryts (TASK-42)."""
+        section = QWidget()
+        layout = QVBoxLayout(section)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        heading = QLabel(title)
+        color = "#e5a52a" if pending else "#aaa"
+        heading.setStyleSheet(
+            f"font-weight: bold; color: {color}; "
+            "border-bottom: 1px solid #444; padding-bottom: 2px;"
+        )
+        layout.addWidget(heading)
+        cards = QWidget()
+        flow = FlowLayout(cards, spacing=8)
+        layout.addWidget(cards)
+        self.content_layout.addWidget(section)
+        self._section_headings[title] = heading
+        self._section_cards[title] = cards
+        return flow
+
+    def _add_capture_card(
+        self,
+        cards: FlowLayout,
+        key,
+        images: list[dict],
+        stamp: str,
+        annotations_by_image: dict[int, list[dict]],
+        category_names: dict[int, str],
+        decoded: dict,
+    ) -> None:
+        """Ett kort per fångst: tid, antal bilder och objekt samt bildparet (TASK-42)."""
+        object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
+        time_label = stamp[11:] if stamp else f"Fångst {key}"
+        header = QLabel(f"{time_label} · {len(images)} bilder · {object_count} objekt")
+        header.setStyleSheet("font-weight: bold; color: #888;")
+        card = QFrame()
+        card.setFrameShape(QFrame.Shape.Box)
+        card.setStyleSheet("QFrame { border: 1px solid #666; border-radius: 8px; }")
+        self._group_headers[key] = (header, card, header.text())
+        inner = QVBoxLayout(card)
+        inner.setContentsMargins(8, 8, 8, 8)
+        inner.setSpacing(4)
+        inner.addWidget(header)
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        for image in images:
+            pixmap = QPixmap.fromImage(decoded[image["id"]])
+            pixmap = pixmap.scaledToHeight(THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation)
+            annotations = annotations_by_image.get(image["id"], [])
+            classes = sorted({category_names[ann["category_id"]] for ann in annotations})
+            caption = "Inga objekt" if not classes else ", ".join(classes) + f" ({len(annotations)})"
+            thumb = Thumbnail(image["id"], key, pixmap, caption)
+            thumb.clicked.connect(self._on_thumb_clicked)
+            thumb.double_clicked.connect(self._on_thumb_double_clicked)
+            row.addWidget(thumb)
+            self._thumbs.append(thumb)
+            self._groups.setdefault(key, []).append(thumb)
+        inner.addLayout(row)
+        cards.addWidget(card)
+
     def _add_pending_section(self, captures, newest_first: bool = True) -> None:
-        """Osparade fangster fran pending-kon (krascsakra, TASK-12)."""
+        """Osparade fångster i en egen sektion överst (TASK-12, TASK-42)."""
+        if not captures:
+            return
+        cards = self._add_section("Osparade fångster", pending=True)
         ordered = captures if newest_first else reversed(captures)
         for capture in ordered:
             self._pending_by_group[capture.group_id] = capture
@@ -330,16 +469,17 @@ class DatasetView(QWidget):
             title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"
             header = QLabel(f"{title} · {len(capture.frames)} bild(er)")
             header.setStyleSheet("font-weight: bold; color: #e5a52a;")
-            frame_box = QFrame()
-            frame_box.setFrameShape(QFrame.Shape.Box)
-            frame_box.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
-            self._group_headers[capture.group_id] = (header, frame_box, header.text())
-            inner = QVBoxLayout(frame_box)
+            card = QFrame()
+            card.setFrameShape(QFrame.Shape.Box)
+            card.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
+            self._group_headers[capture.group_id] = (header, card, header.text())
+            inner = QVBoxLayout(card)
             inner.setContentsMargins(8, 8, 8, 8)
+            inner.setSpacing(4)
             inner.addWidget(header)
             row = QHBoxLayout()
-            row.addStretch(1)
-            for index, stream_frame in enumerate(capture.frames):
+            row.setSpacing(4)
+            for stream_frame in capture.frames:
                 height, width = stream_frame.frame.shape[:2]
                 rgb = stream_frame.frame[:, :, ::-1].copy()
                 image = QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888).copy()
@@ -353,9 +493,8 @@ class DatasetView(QWidget):
                 thumb.double_clicked.connect(self._on_thumb_double_clicked)
                 row.addWidget(thumb)
                 self._thumbs.append(thumb)
-            row.addStretch(1)
             inner.addLayout(row)
-            self.content_layout.addWidget(frame_box)
+            cards.addWidget(card)
 
     def _on_thumb_clicked(self, thumb: Thumbnail) -> None:
         """Markerar hela fångsten - bilderna hanteras alltid som ett par (TASK-25)."""

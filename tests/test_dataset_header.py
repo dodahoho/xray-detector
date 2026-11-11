@@ -55,8 +55,11 @@ def test_header_shows_capture_time(qapp, config, service, settings):
     view.refresh()
     view.wait_for_refresh()
 
-    assert _header_text(view, 1).startswith("2026-11-10 09:56:38")
+    # datumet är sektionens rubrik, kortet visar fångstens tid (TASK-42)
+    assert "2026-11-10" in view._section_headings
+    assert _header_text(view, 1).startswith("09:56:38")
     assert "2 bilder" in _header_text(view, 1)
+    assert "2 objekt" in _header_text(view, 1)
 
 
 def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
@@ -76,8 +79,9 @@ def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
     view.refresh()
     view.wait_for_refresh()
 
-    expected = datetime.fromtimestamp(stamp).strftime("%Y-%m-%d %H:%M:%S")
-    assert _header_text(view, 1).startswith(expected)
+    expected = datetime.fromtimestamp(stamp)
+    assert expected.strftime("%Y-%m-%d") in view._section_headings
+    assert _header_text(view, 1).startswith(expected.strftime("%H:%M:%S"))
 
 
 def test_pending_header_shows_saved_at(qapp, config, tmp_path, settings):
