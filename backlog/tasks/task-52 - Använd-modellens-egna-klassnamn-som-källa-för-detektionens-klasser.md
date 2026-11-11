@@ -1,11 +1,11 @@
 ---
 id: TASK-52
 title: Detektion - Använd modellens egna klassnamn som källa för detektionens klasser
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T12:49:00Z'
-updated_date: '2026-11-11T22:27:00Z'
+updated_date: '2026-11-11T22:28:00Z'
 labels: []
 dependencies: []
 references:
@@ -48,11 +48,11 @@ Detektionsvyn skickar AppConfig.classes (cigaretter, cannabis, kniv, pistol) til
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
