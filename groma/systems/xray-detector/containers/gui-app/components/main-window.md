@@ -14,7 +14,7 @@ groma:
 description: Bygger flikarna och dirigerar flödet mellan vyerna.
 ---
 
-QMainWindow med flikarna Detektion, Annotation, Dataset och Träning. Wiring: fångade bilder till annotering, sparade annoteringar uppdaterar datasetvyn, träning pausar/återupptar detektion, F11 växlar fullskärm, inställningar persistas vid stängning (fönstergeometri, modell, källor, träningsparametrar, tema). Varje vy har sin egen inställningsknapp i stället för en gemensam inställningsflik.
+QMainWindow med flikarna Detektion, Annotation, Dataset, Träning och Inställningar. Wiring: fångade bilder till annotering, sparade annoteringar uppdaterar datasetvyn, träning pausar/återupptar detektion, F11 växlar fullskärm, inställningar persistas vid stängning (fönstergeometri, modell, källor, träningsparametrar, tema). Inställningsfliken håller applikationens globala inställningar; varje vy har dessutom en egen inställningsknapp.
 
 ## Relationships
 

@@ -1,6 +1,6 @@
 ---
 type: C4 Component
-title: Inställningar per flik
+title: Inställningsdelar och knapp per vy
 status: stable
 groma:
   id: settings-dialog
@@ -9,10 +9,10 @@ groma:
     - scanner: python
       file: xray_detector/ui/settings_dialog.py
   group: Användargränssnitt
-description: Inställningsknapp och dialog per vy, med tema och träningsschema.
+description: Sektionerna, dialogen och knappen som öppnar en vys egna inställningar.
 ---
 
-Varje vy har en inställningsknapp (Alt+I) sist i sin åtgärdsrad som öppnar en modal dialog med de sektioner som hör till vyn. Träningsvyn visar träningsschemat (nattfönster och inaktivitet); temat ligger i sektionen Utseende, märkt som global, och finns i varje fliks dialog. Ändringarna skrivs direkt till QSettings och Stäng lämnar dem orörda.
+settings_button() bygger knappen Vyns inställningar (Alt+V) med ett kugghjul framför texten. En vy utan egna inställningar får en avstängd knapp på samma plats, så placeringen är densamma oavsett flik. SettingsDialog visar vyens sektioner modalt med en Stäng-knapp; ändringarna skrivs direkt till QSettings. Träningsschemat (nattfönster och inaktivitet) är den enda vyinställningen i dag. ThemeSection ligger här men visas i inställningsfliken, eftersom temat gäller hela appen.
 
 ## Relationships
 

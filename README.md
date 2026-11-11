@@ -58,9 +58,11 @@ Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 192
 
 ## Inställningar
 
-Det finns ingen inställningsflik. Varje flik har i stället en **Inställningar**-knapp sist i sin åtgärdsrad som öppnar de inställningar som hör till fliken. Detektions-, annoterings- och datasetvyn har allt sitt inställningsbart direkt i vyn, så deras dialog innehåller bara temat; träningsvyns dialog innehåller dessutom träningsschemat.
+Inställningsfliken håller applikationens globala inställningar, det vill säga sådant som inte hör till någon av de andra flikarna. I dag är det temat.
 
-Temat gäller hela appen och ligger därför i en egen sektion, **Utseende (gäller hela appen)**, i varje fliks dialog – det går att byta från vilken flik som helst. Ändringar sparas direkt, och **Stäng** (eller Esc) lämnar allt orört. Nycklarna i `settings.ini` är oförändrade (`ui/theme`, `training/night_start_hour`, `training/night_end_hour`, `training/inactivity_minutes`), så sparade val från den gamla inställningsfliken fortsätter att gälla.
+Varje vy har dessutom en **Vyns inställningar**-knapp högst upp till höger, med ett kugghjul framför texten. Den öppnar de inställningar som hör till vyn; i dag är det bara träningsvyn som har några (träningsschemat med nattfönster och inaktivitet). En vy utan egna inställningar har kvar knappen men avstängd, så placeringen är densamma oavsett vilken flik som är öppen.
+
+Ändringar sparas direkt, och **Stäng** (eller Esc) lämnar allt orört. Nycklarna i `settings.ini` är oförändrade (`ui/theme`, `training/night_start_hour`, `training/night_end_hour`, `training/inactivity_minutes`), så sparade val fortsätter att gälla.
 
 ## Tidskrävande operationer
 
@@ -72,8 +74,8 @@ Allt som går att klicka på går också att nå från tangentbordet. Genvägen 
 
 | Var | Genväg |
 | --- | --- |
-| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning |
-| Inställningar | Alt+I öppnar den aktiva flikens inställningar |
+| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+I Inställningar |
+| Vyns inställningar | Alt+V öppnar den aktiva vyns inställningar; avstängd när vyn inte har några |
 | Detektion | Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
 | Annotation | Alt+P Spara till dataset, Alt+B Ta bort markerad, Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
 | Dataset | Alt+B Ta bort markerade |

@@ -12,4 +12,4 @@ groma:
 description: Temaval (system/ljust/mörkt) som gäller hela appen.
 ---
 
-Applicerar Fusion-stil med ljus eller mörk QPalette; läget "System" följer operativsystemets färgschema i realtid. Temat persistas i QSettings (ui/theme) och tillämpas vid start. Det byts från sektionen Utseende i valfri fliks inställningsdialog.
+Applicerar Fusion-stil med ljus eller mörk QPalette; läget "System" följer operativsystemets färgschema i realtid. Temat persistas i QSettings (ui/theme) och tillämpas vid start. Det byts i inställningsfliken, som är gemensam för hela appen.

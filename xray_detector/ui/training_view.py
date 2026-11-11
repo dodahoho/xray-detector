@@ -21,11 +21,7 @@ from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.training import TrainConfig
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.settings_dialog import (
-    ThemeSection,
-    TrainingScheduleSection,
-    settings_button,
-)
+from xray_detector.ui.settings_dialog import TrainingScheduleSection, settings_button
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 
 
@@ -48,6 +44,7 @@ class TrainingView(QWidget):
         self._activity_filter = _ActivityFilter(self.training_service.scheduler().record_activity)
         QApplication.instance().installEventFilter(self._activity_filter)
         layout = QVBoxLayout(self)
+        layout.addLayout(self._build_header())
         layout.addLayout(self._build_settings())
         layout.addLayout(self._build_export_row())
         self.log = QPlainTextEdit()
@@ -70,6 +67,18 @@ class TrainingView(QWidget):
                     self.model_combo.setItemText(
                         row, f"{item.text()} (rfdetr ej installerat)"
                     )
+
+    def _build_header(self) -> QHBoxLayout:
+        """Inställningsknappen högst upp till höger, som i de andra vyerna."""
+        header = QHBoxLayout()
+        header.addStretch(1)
+        self.settings_button = settings_button(
+            self,
+            "Inställningar – Träning",
+            lambda: [TrainingScheduleSection(self.settings)],
+        )
+        header.addWidget(self.settings_button)
+        return header
 
     def _build_settings(self) -> QFormLayout:
         form = QFormLayout()
@@ -111,16 +120,6 @@ class TrainingView(QWidget):
         buttons = QHBoxLayout()
         buttons.addWidget(self.start_button)
         buttons.addWidget(self.abort_button)
-        buttons.addStretch(1)
-        self.settings_button = settings_button(
-            self,
-            "Inställningar – Träning",
-            lambda: [
-                TrainingScheduleSection(self.settings),
-                ThemeSection(self.settings),
-            ],
-        )
-        buttons.addWidget(self.settings_button)
         form.addRow(buttons)
         bind_shortcut(self, "Esc", self._on_abort)
         return form

@@ -9,7 +9,7 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
-from xray_detector.ui.settings_dialog import ThemeSection, settings_button
+from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 
 HANDLE_SIZE = 8
@@ -415,9 +415,7 @@ class AnnotationView(QWidget):
         self.cancel_button = QPushButton(with_hint("Avbryt", "Esc"))
         self.cancel_button.clicked.connect(self.cancelled.emit)
         bar.addWidget(self.cancel_button)
-        self.settings_button = settings_button(
-            self, "Inställningar – Annotation", lambda: [ThemeSection(self.settings)]
-        )
+        self.settings_button = settings_button(self, "Inställningar – Annotation")
         bar.addWidget(self.settings_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()

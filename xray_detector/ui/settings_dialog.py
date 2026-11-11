@@ -1,10 +1,12 @@
-"""Inställningar per flik (TASK-43).
+"""Inställningsdelar (TASK-43).
 
-Inställningsfliken är borta. Varje vy har en inställningsknapp som öppnar de
-inställningar som hör till vyn. Temat gäller hela appen och ligger därför i en
-egen sektion som är märkt som global i varje fliks dialog.
+Sektionerna som bygger inställningsfliken och vyernas dialoger, dialogen och
+knappen som öppnar den. Applikationens globala inställningar ligger i
+settings_view.py, som komponerar ThemeSection härifrån.
 """
 
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -22,12 +24,14 @@ from PySide6.QtWidgets import (
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
 
+GEAR_COLOR = "#8a8a8a"
+
 
 class ThemeSection(QGroupBox):
-    """Temaval; gäller hela appen, inte bara fliken (TASK-43)."""
+    """Temaval; gäller hela appen och visas i inställningsfliken."""
 
     def __init__(self, settings, parent=None) -> None:
-        super().__init__("Utseende (gäller hela appen)", parent)
+        super().__init__("Utseende", parent)
         self.settings = settings
         form = QFormLayout(self)
         self.theme_combo = QComboBox()
@@ -101,9 +105,48 @@ class SettingsDialog(QDialog):
         layout.addWidget(buttons)
 
 
-def settings_button(parent: QWidget, title: str, sections) -> QPushButton:
-    """Knapp som öppnar vyens inställningar (Alt+I, TASK-41)."""
-    button = QPushButton(mnemonic("Inställningar", "I"), parent)
+def gear_icon(size: int = 16) -> QIcon:
+    """Kugghjul framför texten i inställningsknappen (TASK-43).
+
+    Grå nyansen syns på både ljus och mörk palett; Qt tonar den själv när
+    knappen är avstängd.
+    """
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(GEAR_COLOR))
+    center = size / 2
+    painter.drawEllipse(QPointF(center, center), size * 0.30, size * 0.30)
+    for index in range(8):
+        painter.save()
+        painter.translate(center, center)
+        painter.rotate(index * 45)
+        painter.drawRoundedRect(
+            QRectF(-size * 0.09, -size * 0.48, size * 0.18, size * 0.26),
+            size * 0.05,
+            size * 0.05,
+        )
+        painter.restore()
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+    painter.drawEllipse(QPointF(center, center), size * 0.12, size * 0.12)
+    painter.end()
+    return QIcon(pixmap)
+
+
+def settings_button(parent: QWidget, title: str, sections=None) -> QPushButton:
+    """Knapp som öppnar vyens inställningar (Alt+V, TASK-41).
+
+    En vy utan egna inställningar får en avstängd knapp på samma plats, så
+    placeringen är densamma oavsett vilken flik som är öppen.
+    """
+    button = QPushButton(mnemonic("Vyns inställningar", "V"), parent)
+    button.setIcon(gear_icon())
+    if sections is None:
+        button.setEnabled(False)
+        button.setToolTip("Vyn har inga egna inställningar")
+        return button
     button.clicked.connect(
         lambda: SettingsDialog(title, sections(), parent.window()).exec()
     )

@@ -25,7 +25,7 @@ from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.settings_dialog import ThemeSection, settings_button
+from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.video_settings import (
     clear_video_mode,
@@ -461,9 +461,7 @@ class DetectionView(QWidget):
         self.detection_button.setToolTip("Slår av och på objektdetektionen i båda strömmarna")
         self.detection_button.toggled.connect(self._on_detection_toggled)
         bar.addWidget(self.detection_button)
-        self.settings_button = settings_button(
-            self, "Inställningar – Detektion", lambda: [ThemeSection(self.settings)]
-        )
+        self.settings_button = settings_button(self, "Inställningar – Detektion")
         bar.addWidget(self.settings_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
