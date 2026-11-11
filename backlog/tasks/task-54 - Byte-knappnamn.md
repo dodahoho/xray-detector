@@ -1,7 +1,7 @@
 ---
 id: TASK-54
 title: Byte knappnamn
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T19:35:00Z'
@@ -32,7 +32,7 @@ Byt namn på knappar "Vyns inställningar" till "Inställningar" och ge den en l
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
