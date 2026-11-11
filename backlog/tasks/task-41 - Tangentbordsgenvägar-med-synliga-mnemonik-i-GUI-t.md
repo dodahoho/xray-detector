@@ -1,7 +1,7 @@
 ---
 id: TASK-41
 title: Tangentbordsgenvägar med synliga mnemonik i GUI:t
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:23:00Z'
@@ -67,7 +67,7 @@ Att tänka på: annoteringscanvasen fångar redan Delete och Backspace, så nya 
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -99,3 +99,17 @@ Avsteg: + och − har ingen bokstav i etiketten, så deras genväg står i toolt
 
 Verifiering: tests/test_shortcuts.py med 15 tester (etiketter, unika bokstäver, Alt+bokstav per flik, inaktiv flik utlöser inte, Esc avbryter, Ctrl++/Ctrl+-). Hela sviten: 223 passed, 1 skipped. Uppdaterade befintliga tester: test_dataset_selection.py (Ta &bort markerade) och test_gui_smoke.py (&Inställningar).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+GUI:t går nu att köra från tangentbordet och genvägarna syns i etiketterna. Ny modul ui/shortcuts.py håller ihop reglerna: mnemonic() sätter & före genvägsbokstaven så Qt ritar den understruken och ger Alt+bokstav, with_hint() visar genvägen inom parentes när etiketten saknar bokstaven (Avbryt (Esc)), och bind_shortcut() binder Esc, Ctrl++ och Ctrl+- som QShortcut med WindowShortcut-kontext på vyn.
+
+Flikraden: Alt+D, Alt+A, Alt+S (Data&set), Alt+T, Alt+I. Detektionsvyn: Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen per ström. Annoteringsvyn: Alt+P Spara till dataset, Alt+B Ta bort markerad, Esc Avbryt, Ctrl++/Ctrl+- för klasslistan. Datasetvyn: Alt+B Ta bort markerade, mnemoniken behålls när knappen visar antal. Träningsvyn: Alt+R Starta träning, Esc Avbryt, Alt+E Exportera COCO, Alt+Y Exportera YOLO.
+
+Bokstäverna är unika per vy och krockar inte med flikraden, som alltid syns; två genvägar med samma bokstav i samma fönster blir tvetydiga och första trycket flyttar då bara fokus. Qt aktiverar bara genvägar vars widget syns och är påslagen, vilket ger AC 9 utan extra logik: en inaktiv flik utlöser varken mnemonik eller Esc, och en avstängd flik går inte att nå med sin mnemonik.
+
+Verifierat med tests/test_shortcuts.py (15 tester): etiketter med understrykning respektive parentes, registrerade mnemonik, Alt+bokstav per flik, att inaktiv flik inte utlöser Fånga bilder eller Esc, att Esc avbryter annotering och träning, Ctrl++/Ctrl+- för klasslistan samt att inga genvägar använder Delete/Backspace. Hela sviten: 223 passed, 1 skipped.
+
+Avsteg: + och − har ingen bokstav i etiketten, så deras genväg står i tooltip i stället för inom parentes. Två Försök igen-knappar (en per ström) fick var sin bokstav eftersom de annars blir tvetydiga när båda strömmarna tappas.
+<!-- SECTION:FINAL_SUMMARY:END -->
