@@ -11,14 +11,12 @@ from tests.conftest import FakeDetector, synthetic_frame
 from xray_detector.application import model_registry
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
-from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.annotation_view import AnnotationView, RectItem
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.detection_view import DetectionView
 from xray_detector.ui.main_window import MainWindow
-from xray_detector.ui.training_view import TrainingView
 
 
 def _spin_until(qapp, predicate, timeout_s: float = 5.0) -> bool:
@@ -30,14 +28,6 @@ def _spin_until(qapp, predicate, timeout_s: float = 5.0) -> bool:
         qapp.processEvents()
         time.sleep(0.005)
     return predicate()
-
-
-@pytest.fixture
-def config(tmp_path) -> AppConfig:
-    config = AppConfig()
-    config.data_dir = tmp_path
-    config.ensure_dirs()
-    return config
 
 
 @pytest.fixture
@@ -218,8 +208,10 @@ def test_main_window_opens_before_the_device_check_finishes(qapp, config, monkey
 # --- Datasetvyn: omladdning av bildlistan (AC 8) ---
 
 
-def test_dataset_refresh_shows_indicator_and_builds_list(qapp, dataset_service, settings):
-    view = DatasetView(dataset_service, settings)
+def test_dataset_refresh_shows_indicator_and_builds_list(
+    qapp, config, dataset_service, settings
+):
+    view = DatasetView(config, dataset_service, settings)
     view.refresh()
 
     assert view.busy.is_busy()
@@ -230,7 +222,7 @@ def test_dataset_refresh_shows_indicator_and_builds_list(qapp, dataset_service, 
 
 
 def test_dataset_refresh_decodes_off_the_gui_thread(
-    qapp, dataset_service, settings, monkeypatch
+    qapp, config, dataset_service, settings, monkeypatch
 ):
     threads: list = []
     original = DatasetView._load
@@ -240,19 +232,19 @@ def test_dataset_refresh_decodes_off_the_gui_thread(
         return original(self)
 
     monkeypatch.setattr(DatasetView, "_load", recording)
-    view = DatasetView(dataset_service, settings)
+    view = DatasetView(config, dataset_service, settings)
     view.wait_for_refresh()
 
     assert threads
     assert all(ident != threading.get_ident() for ident in threads)
 
 
-# --- Träningsvyn: export (AC 9) ---
+# --- Datasetvyn: export (AC 9) ---
 
 
 def test_export_shows_indicator_and_reports_result(qapp, config, settings, dataset_service):
-    view = TrainingView(config, dataset_service, settings)
-    view.refresh_dataset_info()
+    view = DatasetView(config, dataset_service, settings)
+    view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
 
@@ -270,8 +262,8 @@ def test_export_shows_indicator_and_reports_result(qapp, config, settings, datas
 def test_export_yolo_shows_indicator_and_reports_result(
     qapp, config, settings, dataset_service
 ):
-    view = TrainingView(config, dataset_service, settings)
-    view.refresh_dataset_info()
+    view = DatasetView(config, dataset_service, settings)
+    view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
 
@@ -282,8 +274,8 @@ def test_export_yolo_shows_indicator_and_reports_result(
 
 
 def test_export_failure_is_reported(qapp, config, settings, dataset_service, monkeypatch):
-    view = TrainingView(config, dataset_service, settings)
-    view.refresh_dataset_info()
+    view = DatasetView(config, dataset_service, settings)
+    view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
 
@@ -296,6 +288,31 @@ def test_export_failure_is_reported(qapp, config, settings, dataset_service, mon
 
     assert messages == ["Export av YOLO misslyckades: disken är full"]
     assert view.export_yolo_button.isEnabled()
+    assert not view.busy.is_busy()
+
+
+def test_export_keeps_the_indicator_while_the_list_reloads(
+    qapp, config, settings, dataset_service, monkeypatch
+):
+    """Export och omladdning delar indikatorn: den släcks först när båda är klara."""
+    release = threading.Event()
+
+    def slow_export(export_root):
+        release.wait(5)
+        return export_root / "coco"
+
+    monkeypatch.setattr(dataset_service, "export_coco", slow_export)
+    view = DatasetView(config, dataset_service, settings)
+    view.wait_for_refresh()
+
+    view._on_export_coco()
+    view.refresh()
+    view.wait_for_refresh()
+
+    assert view.busy.is_busy()
+    release.set()
+    view.wait_for_export()
+
     assert not view.busy.is_busy()
 
 
@@ -350,10 +367,9 @@ def test_views_share_the_busy_indicator_component(
 ):
     detection = DetectionView(config, settings)
     annotation = AnnotationView(config, dataset_service, settings)
-    dataset = DatasetView(dataset_service, settings)
-    training = TrainingView(config, dataset_service, settings)
+    dataset = DatasetView(config, dataset_service, settings)
     try:
-        for view in (detection, annotation, dataset, training):
+        for view in (detection, annotation, dataset):
             assert isinstance(view.busy, BusyIndicator)
             assert view.busy.parentWidget() is view
     finally:

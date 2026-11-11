@@ -49,9 +49,9 @@ def test_add_samples_records_capture_time(service):
     assert images[0]["captured"] == "2026-11-10T09:56:38"
 
 
-def test_header_shows_capture_time(qapp, service, settings):
+def test_header_shows_capture_time(qapp, config, service, settings):
     service.add_samples([_sample(60), _sample(120)], captured="2026-11-10T09:56:38")
-    view = DatasetView(service, settings)
+    view = DatasetView(config, service, settings)
     view.refresh()
     view.wait_for_refresh()
 
@@ -59,7 +59,7 @@ def test_header_shows_capture_time(qapp, service, settings):
     assert "2 bilder" in _header_text(view, 1)
 
 
-def test_header_falls_back_to_file_mtime(qapp, service, settings):
+def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
     """Äldre dataset saknar 'captured': då används bildfilens tidsstämpel."""
     service.add_samples([_sample()])
     path = service.store.root / "dataset.json"
@@ -72,7 +72,7 @@ def test_header_falls_back_to_file_mtime(qapp, service, settings):
     image_path = service.images_dir / coco["images"][0]["file_name"]
     os.utime(image_path, (stamp, stamp))
 
-    view = DatasetView(service, settings)
+    view = DatasetView(config, service, settings)
     view.refresh()
     view.wait_for_refresh()
 
@@ -80,13 +80,13 @@ def test_header_falls_back_to_file_mtime(qapp, service, settings):
     assert _header_text(view, 1).startswith(expected)
 
 
-def test_pending_header_shows_saved_at(qapp, tmp_path, settings):
+def test_pending_header_shows_saved_at(qapp, config, tmp_path, settings):
     service = DatasetService(tmp_path / "datasets", ["kniv"])
     group_id = save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
     ])
-    view = DatasetView(service, settings)
+    view = DatasetView(config, service, settings)
     view.refresh()
     view.wait_for_refresh()
 

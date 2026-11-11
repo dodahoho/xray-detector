@@ -38,8 +38,8 @@ def _three_captures(service) -> None:
         service.add_samples([_sample()], captured=f"2026-11-0{day}T09:00:00")
 
 
-def _built(service, settings) -> DatasetView:
-    view = DatasetView(service, settings)
+def _built(config, service, settings) -> DatasetView:
+    view = DatasetView(config, service, settings)
     view.refresh()
     view.wait_for_refresh()
     return view
@@ -54,26 +54,26 @@ def _save_pending_at(tmp_path, monkeypatch, stamp: float) -> str:
     )
 
 
-def test_newest_capture_is_listed_first_by_default(qapp, service, settings):
+def test_newest_capture_is_listed_first_by_default(qapp, config, service, settings):
     _three_captures(service)
 
-    view = _built(service, settings)
+    view = _built(config, service, settings)
 
     assert list(view._group_headers) == [3, 2, 1]
 
 
-def test_oldest_first_setting_reverses_the_list(qapp, service, settings):
+def test_oldest_first_setting_reverses_the_list(qapp, config, service, settings):
     _three_captures(service)
     settings.setValue(SORT_KEY, SORT_OLDEST)
 
-    view = _built(service, settings)
+    view = _built(config, service, settings)
 
     assert list(view._group_headers) == [1, 2, 3]
 
 
-def test_changing_the_setting_rebuilds_the_list(qapp, service, settings):
+def test_changing_the_setting_rebuilds_the_list(qapp, config, service, settings):
     _three_captures(service)
-    view = _built(service, settings)
+    view = _built(config, service, settings)
     assert list(view._group_headers) == [3, 2, 1]
 
     section = view._settings_sections()[0]
@@ -84,12 +84,12 @@ def test_changing_the_setting_rebuilds_the_list(qapp, service, settings):
     assert list(view._group_headers) == [1, 2, 3]
 
 
-def test_pending_captures_follow_the_same_order(qapp, tmp_path, monkeypatch, settings):
+def test_pending_captures_follow_the_same_order(qapp, config, tmp_path, monkeypatch, settings):
     service = DatasetService(tmp_path / "datasets", ["kniv"])
     older = _save_pending_at(tmp_path, monkeypatch, 1_700_000_000.0)
     newer = _save_pending_at(tmp_path, monkeypatch, 1_700_000_100.0)
 
-    view = _built(service, settings)
+    view = _built(config, service, settings)
     assert list(view._group_headers) == [newer, older]
 
     settings.setValue(SORT_KEY, SORT_OLDEST)

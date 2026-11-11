@@ -28,8 +28,8 @@ def settings(tmp_path) -> QSettings:
 
 
 @pytest.fixture
-def view(qapp, service, settings) -> DatasetView:
-    view = DatasetView(service, settings)
+def view(qapp, config, service, settings) -> DatasetView:
+    view = DatasetView(config, service, settings)
     view.refresh()
     view.wait_for_refresh()
     return view
@@ -128,7 +128,7 @@ def test_delete_without_selection_keeps_dataset(view, service):
     assert len(service.load_coco()["images"]) == 2
 
 
-def test_click_selects_whole_pending_capture(qapp, tmp_path, settings, monkeypatch):
+def test_click_selects_whole_pending_capture(qapp, config, tmp_path, settings, monkeypatch):
     from tests.conftest import synthetic_frame
     from xray_detector.domain.capture import StreamFrame
     from xray_detector.infrastructure.dataset_store.pending import save_pending
@@ -138,7 +138,7 @@ def test_click_selects_whole_pending_capture(qapp, tmp_path, settings, monkeypat
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
     ])
-    view = DatasetView(service, settings)
+    view = DatasetView(config, service, settings)
     view.refresh()
     view.wait_for_refresh()
 

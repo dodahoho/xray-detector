@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 
+from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 
@@ -41,6 +42,15 @@ def _collect_qt_objects():
     """
     yield
     gc.collect()
+
+
+@pytest.fixture
+def config(tmp_path) -> AppConfig:
+    """AppConfig med dataset-, export- och loggkataloger under tmp_path."""
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    return config
 
 
 @pytest.fixture

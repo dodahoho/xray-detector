@@ -37,7 +37,7 @@ class MainWindow(QMainWindow):
 
         self.detection_view = DetectionView(config, self.settings)
         self.annotation_view = AnnotationView(config, self.dataset_service, self.settings)
-        self.dataset_view = DatasetView(self.dataset_service, self.settings)
+        self.dataset_view = DatasetView(config, self.dataset_service, self.settings)
         self.training_view = TrainingView(config, self.dataset_service, self.settings)
         self.settings_view = SettingsView(self.settings)
 
@@ -203,6 +203,6 @@ class MainWindow(QMainWindow):
         # vänta in arbetstrådarna så en pågående skrivning blir klar före avslut (TASK-40)
         self.annotation_view.wait_for_save()
         self.dataset_view.wait_for_refresh()
-        self.training_view.wait_for_export()
+        self.dataset_view.wait_for_export()
         self.detection_view.stop()
         super().closeEvent(event)

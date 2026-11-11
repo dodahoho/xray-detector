@@ -287,6 +287,8 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
     assert started[0].output_dir.parent == config.trained_dir
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}", started[0].output_dir.name)
     assert started[0].weights == str(config.models_dir / "yolo26m.pt")
+    # starten exporterar datasetet till YOLO innan workern skapas (TASK-58)
+    assert (config.export_dir / "yolo" / "data.yaml").exists()
 
 
 # --- Gammal placering (AC 8) ---

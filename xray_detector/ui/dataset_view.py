@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import (
@@ -105,8 +106,9 @@ class DatasetView(QWidget):
     open_annotation_requested = Signal(object)
     status_changed = Signal(str)
 
-    def __init__(self, dataset: DatasetService, settings, parent=None) -> None:
+    def __init__(self, config: AppConfig, dataset: DatasetService, settings, parent=None) -> None:
         super().__init__(parent)
+        self.config = config
         self.dataset_service = dataset
         self.settings = settings
         self._thumbs: list[Thumbnail] = []
@@ -116,10 +118,18 @@ class DatasetView(QWidget):
         self._pending_by_group: dict[str, object] = {}
         self._refresh_task: BackgroundTask | None = None
         self._refresh_pending = False
+        self._export_task: BackgroundTask | None = None
+        self._export_label = ""
 
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addStretch(1)
+        self.export_coco_button = button(mnemonic("Exportera COCO", "E"))
+        self.export_coco_button.clicked.connect(self._on_export_coco)
+        bar.addWidget(self.export_coco_button)
+        self.export_yolo_button = button(mnemonic("Exportera YOLO", "Y"))
+        self.export_yolo_button.clicked.connect(self._on_export_yolo)
+        bar.addWidget(self.export_yolo_button)
         self.delete_button = button(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
@@ -153,7 +163,9 @@ class DatasetView(QWidget):
             # en omladdning pågår: kör en ny när den är klar så sista läget vinner
             self._refresh_pending = True
             return
-        self.busy.start("Bygger bildlistan...")
+        if not self.busy.is_busy():
+            # en pågående export äger indikatorn och sin egen text
+            self.busy.start("Bygger bildlistan...")
         task = BackgroundTask(self._load)
         task.succeeded.connect(self._build)
         task.failed.connect(self._on_load_failed)
@@ -181,16 +193,61 @@ class DatasetView(QWidget):
 
     def _on_refresh_finished(self) -> None:
         self._refresh_task = None
-        self.busy.stop()
+        self._update_busy()
         if self._refresh_pending:
             self._refresh_pending = False
             self.refresh()
+
+    def _update_busy(self) -> None:
+        """Stänger indikatorn först när varken omladdning eller export pågår."""
+        if self._refresh_task is None and self._export_task is None:
+            self.busy.stop()
 
     def wait_for_refresh(self, timeout_ms: int = 10000) -> None:
         """Väntar in en pågående omladdning (tester och stängning)."""
         while self._refresh_task is not None:
             if not self._refresh_task.wait(timeout_ms):
                 return
+
+    def _on_export_coco(self) -> None:
+        self._start_export("COCO", self.dataset_service.export_coco)
+
+    def _on_export_yolo(self) -> None:
+        self._start_export("YOLO", self.dataset_service.export_yolo)
+
+    def _start_export(self, label: str, export) -> None:
+        """Exporterar i en arbetstråd medan indikatorn visas (TASK-40)."""
+        if self._export_task is not None:
+            return
+        self._export_label = label
+        self.busy.start(f"Exporterar {label}...")
+        self._set_export_enabled(False)
+        task = BackgroundTask(lambda: export(self.config.export_dir))
+        task.succeeded.connect(self._on_export_done)
+        task.failed.connect(self._on_export_failed)
+        task.finished.connect(self._on_export_finished)
+        self._export_task = task
+        task.start()
+
+    def _set_export_enabled(self, enabled: bool) -> None:
+        self.export_coco_button.setEnabled(enabled)
+        self.export_yolo_button.setEnabled(enabled)
+
+    def _on_export_done(self, out) -> None:
+        self.status_changed.emit(f"Exporterade {self._export_label} till {out}")
+
+    def _on_export_failed(self, message: str) -> None:
+        self.status_changed.emit(f"Export av {self._export_label} misslyckades: {message}")
+
+    def _on_export_finished(self) -> None:
+        self._export_task = None
+        self._update_busy()
+        self._set_export_enabled(True)
+
+    def wait_for_export(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående export (tester och stängning)."""
+        if self._export_task is not None:
+            self._export_task.wait(timeout_ms)
 
     def _build(self, data: dict) -> None:
         """Ritar listan i GUI-tråden från det arbetstråden läste (TASK-40)."""

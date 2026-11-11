@@ -52,9 +52,9 @@ Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 192
 ## Lägen
 
 - **Detektion** (default): två videoströmmar i split screen (UVC-kort eller videofil), detektion med valbar modell (YOLO26/RF-DETR), "Fånga bilder" sparar aktuella rutor och öppnar annoteringsläget. Källväljaren visar enheternas riktiga namn, så ett capture-kort och en virtuell kamera går att skilja på. Raden ovanför bilden visar bara strömmens bildfrekvens i fps; källans namn står i källväljaren i stället för i raden. Videofiler spelas upp i videons egen bildfrekvens; ramen skickas till visningen innan detektionen körs, så overlayn ligger en ram efter bilden men uppspelningen håller jämn takt. Detektionerna jämnas ut mellan ramar (EMA + hysteres) så overlayn inte fladdrar. I den övre raden visas appens GPU-, VRAM-, CPU- och RAM-användning som staplar, uppdaterade varje sekund; CPU visas som andel av maskinens kärnor och GPU/VRAM visar `n/a` utan CUDA. Knappen längst till höger i samma rad slår av och på objektdetektionen och visar vad ett klick gör: "Detektion av" när detektionen är igång, "Detektion på" när den är av. Overlayn rensas och detektorn kopplas bort från strömmarna, men modellen ligger kvar i minnet så den går snabbt att slå på igen. Läget gäller till nästa start.
-- **Dataset**: bilderna visas grupperade per fångst med rubrik som visar när fångsten gjordes (`YYYY-MM-DD HH:MM:SS`). Den nyaste fångsten listas överst; i datasetvyns inställningar byts ordningen till äldst först, och osparade fångster följer samma ordning. Ett klick markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen visar antal markerade bilder.
+- **Dataset**: bilderna visas grupperade per fångst med rubrik som visar när fångsten gjordes (`YYYY-MM-DD HH:MM:SS`). Den nyaste fångsten listas överst; i datasetvyns inställningar byts ordningen till äldst först, och osparade fångster följer samma ordning. Ett klick markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen visar antal markerade bilder. "Exportera COCO" och "Exportera YOLO" skriver datasetet till `exports/` med manifest (format, datum, antal objekt).
 - **Annotation**: rita/redigera rektanglar, välj eller skriv in klass, spara till COCO-datasetet.
-- **Träning**: träna basmodell på datasetet; detektion pausas under träning. Export av dataset till COCO/YOLO med manifest (format, datum, antal objekt). Träningsschemat – nattfönster och inaktivitet innan träning – ställs in i träningsvyns inställningar.
+- **Träning**: träna basmodell på datasetet; detektion pausas under träning. Starten exporterar datasetet i den familj modellen tillhör. Träningsschemat – nattfönster och inaktivitet innan träning – ställs in i träningsvyns inställningar.
 
 ## Inställningar
 
@@ -72,7 +72,7 @@ Ett element som behöver egna mått skickar `height=` eller `width=` till `butto
 
 ## Tidskrävande operationer
 
-Fem operationer som tidigare blockerade GUI-tråden körs i en arbetstråd och visar en gemensam upptagenindikator (`xray_detector/ui/busy_indicator.py`) som läggs över vyn: modellbyte i detektionsvyn, omladdning av bildlistan i datasetvyn, export till COCO/YOLO, sparning av annoteringar och enhetskontrollen vid start. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning.
+Fem operationer som tidigare blockerade GUI-tråden körs i en arbetstråd och visar en gemensam upptagenindikator (`xray_detector/ui/busy_indicator.py`) som läggs över vyn: modellbyte i detektionsvyn, omladdning av bildlistan och export till COCO/YOLO i datasetvyn, sparning av annoteringar och enhetskontrollen vid start. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning.
 
 ## Tangentbord
 
@@ -84,8 +84,8 @@ Allt som går att klicka på går också att nå från tangentbordet. Genvägen 
 | Vyernas inställningar | Alt+I öppnar den aktiva vyns inställningar; avstängd när vyn inte har några |
 | Detektion | Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
 | Annotation | Alt+P Spara till dataset, Alt+B Ta bort markerad, Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
-| Dataset | Alt+B Ta bort markerade |
-| Träning | Alt+R Starta träning, Esc Avbryt, Alt+E Exportera COCO, Alt+Y Exportera YOLO |
+| Dataset | Alt+B Ta bort markerade, Alt+E Exportera COCO, Alt+Y Exportera YOLO |
+| Träning | Alt+R Starta träning, Esc Avbryt |
 | Övrigt | F11 helskärm, Delete/Backspace tar bort markerad rektangel, Ctrl+hjul zoomar |
 
 Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. Fliken Inställningar använder därför Alt+L i stället för Alt+I: inställningarna för vyn man arbetar i nås oftare än de globala, så Alt+I hör till vyernas inställningsknappar. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+- binds med `WindowShortcut` på vyn. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.

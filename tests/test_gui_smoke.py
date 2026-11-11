@@ -63,6 +63,16 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     assert not window.tabs.isTabEnabled(1)
 
 
+def test_export_buttons_live_in_the_dataset_tab(qapp, app_config):
+    """Exporten hör till datasetet, inte till träningen (TASK-58)."""
+    window = MainWindow(app_config)
+
+    assert window.dataset_view.export_coco_button.text() == "&Exportera COCO"
+    assert window.dataset_view.export_yolo_button.text() == "Exportera &YOLO"
+    assert not hasattr(window.training_view, "export_coco_button")
+    assert not hasattr(window.training_view, "export_yolo_button")
+
+
 def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
     import numpy as np
 

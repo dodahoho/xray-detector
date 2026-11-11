@@ -4,7 +4,6 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
-from xray_detector.domain.config import AppConfig
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import (
     SORT_KEY,
@@ -26,14 +25,6 @@ def reset_theme(qapp):
     """Temat är globalt: lämna tillbaka det till system efter varje test."""
     yield
     apply_theme(qapp, "system")
-
-
-@pytest.fixture
-def config(tmp_path) -> AppConfig:
-    config = AppConfig()
-    config.data_dir = tmp_path
-    config.ensure_dirs()
-    return config
 
 
 @pytest.fixture
