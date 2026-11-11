@@ -1,6 +1,3 @@
-## User notification
-Upon completion of long running tasks or if user input is needed: Use skill Notifications to alert the user.
-
 <!-- BACKLOG.MD GUIDELINES START -->
 <!-- backlog.md-instructions-version: 1.55.3 -->
 <CRITICAL_INSTRUCTION>
