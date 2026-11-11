@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
@@ -23,6 +22,7 @@ from xray_detector.domain.detection import Detection
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import mnemonic
+from xray_detector.ui.style import button
 
 THUMB_HEIGHT = 170
 SELECTED_BORDER = "#4da3ff"
@@ -120,7 +120,7 @@ class DatasetView(QWidget):
         self.version_combo.currentIndexChanged.connect(self.refresh)
         bar.addWidget(self.version_combo)
         bar.addStretch(1)
-        self.delete_button = QPushButton(mnemonic("Ta bort markerade", "B"))
+        self.delete_button = button(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
         self.settings_button = settings_button(self, "Inställningar – Dataset")

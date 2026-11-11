@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
-    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -23,6 +22,7 @@ from xray_detector.domain.training import TrainConfig
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import TrainingScheduleSection, settings_button
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
+from xray_detector.ui.style import button
 
 
 class TrainingView(QWidget):
@@ -111,10 +111,9 @@ class TrainingView(QWidget):
         self.run_combo.addItem("Nattetid (schema)", "night")
         self.run_combo.addItem("Efter inaktivitet", "inactivity")
         form.addRow("Kör:", self.run_combo)
-        self.start_button = QPushButton(mnemonic("Starta träning", "R"))
-        self.start_button.setMinimumHeight(40)
+        self.start_button = button(mnemonic("Starta träning", "R"), primary=True)
         self.start_button.clicked.connect(self._on_start)
-        self.abort_button = QPushButton(with_hint("Avbryt", "Esc"))
+        self.abort_button = button(with_hint("Avbryt", "Esc"))
         self.abort_button.setEnabled(False)
         self.abort_button.clicked.connect(self._on_abort)
         buttons = QHBoxLayout()
@@ -126,9 +125,9 @@ class TrainingView(QWidget):
 
     def _build_export_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
-        self.export_coco_button = QPushButton(mnemonic("Exportera COCO", "E"))
+        self.export_coco_button = button(mnemonic("Exportera COCO", "E"))
         self.export_coco_button.clicked.connect(self._on_export_coco)
-        self.export_yolo_button = QPushButton(mnemonic("Exportera YOLO", "Y"))
+        self.export_yolo_button = button(mnemonic("Exportera YOLO", "Y"))
         self.export_yolo_button.clicked.connect(self._on_export_yolo)
         row.addWidget(self.export_coco_button)
         row.addWidget(self.export_yolo_button)

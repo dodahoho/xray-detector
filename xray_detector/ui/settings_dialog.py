@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from xray_detector.ui.shortcuts import mnemonic
+from xray_detector.ui.style import apply_metrics, button
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
 
 GEAR_COLOR = "#8a8a8a"
@@ -100,7 +101,9 @@ class SettingsDialog(QDialog):
         for section in sections:
             layout.addWidget(section)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-        buttons.button(QDialogButtonBox.StandardButton.Close).setText("Stäng")
+        close = buttons.button(QDialogButtonBox.StandardButton.Close)
+        close.setText("Stäng")
+        apply_metrics(close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
@@ -141,13 +144,13 @@ def settings_button(parent: QWidget, title: str, sections=None) -> QPushButton:
     En vy utan egna inställningar får en avstängd knapp på samma plats, så
     placeringen är densamma oavsett vilken flik som är öppen.
     """
-    button = QPushButton(mnemonic("Vyns inställningar", "V"), parent)
-    button.setIcon(gear_icon())
+    widget = button(mnemonic("Vyns inställningar", "V"), parent=parent)
+    widget.setIcon(gear_icon())
     if sections is None:
-        button.setEnabled(False)
-        button.setToolTip("Vyn har inga egna inställningar")
-        return button
-    button.clicked.connect(
+        widget.setEnabled(False)
+        widget.setToolTip("Vyn har inga egna inställningar")
+        return widget
+    widget.clicked.connect(
         lambda: SettingsDialog(title, sections(), parent.window()).exec()
     )
-    return button
+    return widget

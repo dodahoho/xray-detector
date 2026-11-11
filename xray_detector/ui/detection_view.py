@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QProgressBar,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -27,6 +26,7 @@ from xray_detector.infrastructure.video.devices import list_device_modes
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import mnemonic
+from xray_detector.ui.style import button
 from xray_detector.ui.video_settings import (
     clear_video_mode,
     load_video_mode,
@@ -161,8 +161,7 @@ class StreamPanel(QFrame):
         self.lost_label = QLabel(S_LOST)
         self.lost_label.setStyleSheet("color: #c33; font-size: 16px; font-weight: bold;")
         self.lost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.retry_button = QPushButton(mnemonic(S_RETRY, retry_letter))
-        self.retry_button.setMinimumHeight(36)
+        self.retry_button = button(mnemonic(S_RETRY, retry_letter))
         self.retry_button.clicked.connect(self._on_retry)
         lost_layout.addWidget(self.lost_label)
         lost_layout.addWidget(self.retry_button, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -450,14 +449,12 @@ class DetectionView(QWidget):
         for meter in self.resource_meters.values():
             bar.addWidget(meter)
         bar.addStretch(1)
-        self.capture_button = QPushButton(mnemonic("Fånga bilder", "F"))
-        self.capture_button.setMinimumHeight(40)
+        self.capture_button = button(mnemonic("Fånga bilder", "F"), primary=True)
         self.capture_button.clicked.connect(self._on_capture)
         bar.addWidget(self.capture_button)
-        self.detection_button = QPushButton(DETECTION_TURN_OFF)
+        self.detection_button = button(DETECTION_TURN_OFF)
         self.detection_button.setCheckable(True)
         self.detection_button.setChecked(True)
-        self.detection_button.setMinimumHeight(40)
         self.detection_button.setToolTip("Slår av och på objektdetektionen i båda strömmarna")
         self.detection_button.toggled.connect(self._on_detection_toggled)
         bar.addWidget(self.detection_button)

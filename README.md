@@ -64,6 +64,12 @@ Varje vy har dessutom en **Vyns inställningar**-knapp högst upp till höger, m
 
 Ändringar sparas direkt, och **Stäng** (eller Esc) lämnar allt orört. Nycklarna i `settings.ini` är oförändrade (`ui/theme`, `training/night_start_hour`, `training/night_end_hour`, `training/inactivity_minutes`), så sparade val fortsätter att gälla.
 
+## GUI-element
+
+Knapparna har samma höjd (32 px) i alla vyer. Måtten ligger i `xray_detector/ui/style.py` i stället för i varje vy, och vyerna skapar knappar med `button()`; en ändring av `BUTTON_HEIGHT` slår då igenom överallt. Huvudåtgärden i en vy markeras med `primary=True`, vilket ger fet stil i stället för en högre knapp, så raden håller sig rak: **Fånga bilder**, **Spara till dataset** och **Starta träning**. Klassknapparna `+` och `−` i annoteringsvyn är 36 px breda (`ICON_BUTTON_WIDTH`).
+
+Ett element som behöver egna mått skickar `height=` eller `width=` till `button()`, eller använder `apply_metrics()` på en widget som Qt har skapat, som dialogens **Stäng**-knapp. `height=None` lämnar höjden till Qt. `tests/test_style.py` mäter att alla knappar i alla vyer har samma höjd, så en ny knapp som sätter en egen höjd fastnar i testet.
+
 ## Tidskrävande operationer
 
 Fem operationer som tidigare blockerade GUI-tråden körs i en arbetstråd och visar en gemensam upptagenindikator (`xray_detector/ui/busy_indicator.py`) som läggs över vyn: modellbyte i detektionsvyn, omladdning av bildlistan i datasetvyn, export till COCO/YOLO, sparning av annoteringar och enhetskontrollen vid start. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning.

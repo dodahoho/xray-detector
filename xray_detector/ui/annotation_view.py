@@ -1,7 +1,7 @@
 import numpy as np
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
 
 from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
@@ -11,6 +11,7 @@ from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
+from xray_detector.ui.style import ICON_BUTTON_WIDTH, button
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
@@ -394,25 +395,22 @@ class AnnotationView(QWidget):
             self.class_combo.addItems(config.classes)
         self.class_combo.currentTextChanged.connect(self._on_class_changed)
         bar.addWidget(self.class_combo)
-        self.add_class_button = QPushButton("+")
-        self.add_class_button.setFixedWidth(36)
+        self.add_class_button = button("+", width=ICON_BUTTON_WIDTH)
         self.add_class_button.setToolTip("Lägg till klassen som är angiven i rutan (Ctrl++)")
         self.add_class_button.clicked.connect(self._on_add_class)
         bar.addWidget(self.add_class_button)
-        self.remove_class_button = QPushButton("−")
-        self.remove_class_button.setFixedWidth(36)
+        self.remove_class_button = button("−", width=ICON_BUTTON_WIDTH)
         self.remove_class_button.setToolTip("Ta bort den valda klassen ur listan (Ctrl+-)")
         self.remove_class_button.clicked.connect(self._on_remove_class)
         bar.addWidget(self.remove_class_button)
-        self.delete_button = QPushButton(mnemonic("Ta bort markerad", "B"))
+        self.delete_button = button(mnemonic("Ta bort markerad", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
         bar.addStretch(1)
-        self.save_button = QPushButton(mnemonic("Spara till dataset", "P"))
-        self.save_button.setMinimumHeight(40)
+        self.save_button = button(mnemonic("Spara till dataset", "P"), primary=True)
         self.save_button.clicked.connect(self._on_save)
         bar.addWidget(self.save_button)
-        self.cancel_button = QPushButton(with_hint("Avbryt", "Esc"))
+        self.cancel_button = button(with_hint("Avbryt", "Esc"))
         self.cancel_button.clicked.connect(self.cancelled.emit)
         bar.addWidget(self.cancel_button)
         self.settings_button = settings_button(self, "Inställningar – Annotation")
