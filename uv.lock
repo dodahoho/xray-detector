@@ -1858,9 +1858,9 @@ name = "pygrabber"
 version = "0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "comtypes" },
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "comtypes", marker = "sys_platform == 'win32'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12' and sys_platform == 'win32'" },
+    { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12' and sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d4/24/e7e5efa1d915853f3f34cedf751cbee9d88bee47a41122d495ee95452dad/pygrabber-0.2.tar.gz", hash = "sha256:e584b119d4c9b9a8f339eb34d1fe7fdd16214a2bf5a1876171145caebdb9e413", size = 18487, upload-time = "2023-10-20T07:17:14.97Z" }
 wheels = [
@@ -2754,6 +2754,7 @@ dependencies = [
     { name = "numpy", version = "2.5.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "opencv-python" },
     { name = "psutil" },
+    { name = "pygrabber", marker = "sys_platform == 'win32'" },
     { name = "pyside6" },
     { name = "ultralytics" },
 ]
@@ -2765,9 +2766,6 @@ cu128 = [
 ]
 rfdetr = [
     { name = "rfdetr" },
-]
-windows = [
-    { name = "pygrabber" },
 ]
 
 [package.dev-dependencies]
@@ -2781,14 +2779,14 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.26" },
     { name = "opencv-python", specifier = ">=4.9" },
     { name = "psutil", specifier = ">=5.9" },
-    { name = "pygrabber", marker = "extra == 'windows'", specifier = ">=0.2" },
+    { name = "pygrabber", marker = "sys_platform == 'win32'", specifier = ">=0.2" },
     { name = "pyside6", specifier = ">=6.7" },
     { name = "rfdetr", marker = "extra == 'rfdetr'", specifier = ">=1.7" },
     { name = "torch", marker = "extra == 'cu128'", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "extra == 'cu128'", specifier = ">=0.22", index = "https://download.pytorch.org/whl/cu128" },
     { name = "ultralytics", specifier = ">=8.3" },
 ]
-provides-extras = ["rfdetr", "windows", "cu128"]
+provides-extras = ["rfdetr", "cu128"]
 
 [package.metadata.requires-dev]
 dev = [

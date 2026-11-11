@@ -124,7 +124,7 @@ def test_persistence_roundtrip_via_detection_view(qapp, tmp_path, monkeypatch):
     view = DetectionView(config, QSettings(str(ini), QSettings.Format.IniFormat))
     monkeypatch.setattr(
         type(view.video_service), "set_source",
-        lambda self, source_id, kind, value: captured.append((source_id, kind, value)) or None,
+        lambda self, source_id, kind, value, mode=None: captured.append((source_id, kind, value)) or None,
     )
     view.restore_settings()
     assert ("left", "file", Path("C:/media/x.mp4")) in captured
@@ -137,7 +137,7 @@ def test_persistence_roundtrip_via_detection_view(qapp, tmp_path, monkeypatch):
     view2 = DetectionView(config, QSettings(str(ini), QSettings.Format.IniFormat))
     monkeypatch.setattr(
         type(view2.video_service), "set_source",
-        lambda self, source_id, kind, value: captured.append((source_id, kind, value)) or None,
+        lambda self, source_id, kind, value, mode=None: captured.append((source_id, kind, value)) or None,
     )
     view2.restore_settings()
     assert ("left", "file", Path("C:/media/x.mp4")) in captured

@@ -22,6 +22,7 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
+from xray_detector.ui.video_settings import load_video_mode
 
 NO_SOURCE = "Ingen videokälla"
 OPEN_FILE = "Öppna videofil..."
@@ -355,9 +356,9 @@ class DetectionView(QWidget):
         bar.addWidget(self.detection_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
-        devices = self.video_service.list_devices()
-        self.left = StreamPanel("left", "Ström 1", devices)
-        self.right = StreamPanel("right", "ström 2", devices)
+        self.devices = self.video_service.list_devices()
+        self.left = StreamPanel("left", "Ström 1", self.devices)
+        self.right = StreamPanel("right", "ström 2", self.devices)
         for panel in (self.left, self.right):
             panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):
@@ -462,7 +463,9 @@ class DetectionView(QWidget):
             self.settings.setValue(f"detection/source_{panel.source_id}_value", value)
 
     def _on_source_requested(self, source_id: str, kind: str, value: object) -> None:
-        worker = self.video_service.set_source(source_id, kind, value)
+        worker = self.video_service.set_source(
+            source_id, kind, value, load_video_mode(self.settings)
+        )
         if worker is not None:
             worker.frame_ready.connect(self._on_frame)
             worker.source_lost.connect(self._on_source_lost)

@@ -9,14 +9,12 @@ dependencies = [
     "numpy>=1.26",
     "ultralytics>=8.3",
     "psutil>=5.9",
+    "pygrabber>=0.2; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
 rfdetr = [
     "rfdetr>=1.7",
-]
-windows = [
-    "pygrabber>=0.2",
 ]
 cu128 = [
     "torch>=2.7",

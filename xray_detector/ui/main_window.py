@@ -38,7 +38,7 @@ class MainWindow(QMainWindow):
         self.annotation_view = AnnotationView(config, self.dataset_service, self.settings)
         self.dataset_view = DatasetView(self.dataset_service)
         self.training_view = TrainingView(config, self.dataset_service, self.settings)
-        self.settings_view = SettingsView(self.settings)
+        self.settings_view = SettingsView(self.settings, self.detection_view.devices)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.detection_view, "Detektion")

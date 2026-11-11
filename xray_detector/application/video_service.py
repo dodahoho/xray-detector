@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from xray_detector.domain.capture import VideoMode
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.video.camera_service import CameraService
 from xray_detector.infrastructure.video.devices import DeviceInfo, list_devices
@@ -17,10 +18,16 @@ class VideoService:
         """Tillgängliga UVC-enheter med namn (pygrabber) eller indexfallback."""
         return list_devices()
 
-    def set_source(self, source_id: str, kind: str, value: object):
+    def set_source(
+        self,
+        source_id: str,
+        kind: str,
+        value: object,
+        mode: VideoMode | None = None,
+    ):
         source: VideoSource | None = None
         if kind == "uvc" and value is not None:
-            source = UvcSource(int(value))
+            source = UvcSource(int(value), mode)
         elif kind == "file" and value:
             source = FileSource(Path(value))
         return self.camera_service.set_source(source_id, source)

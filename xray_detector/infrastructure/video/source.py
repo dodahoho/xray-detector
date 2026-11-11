@@ -5,6 +5,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from xray_detector.domain.capture import VideoMode
+
 
 @dataclass
 class SourceInfo:
@@ -41,20 +43,44 @@ class VideoSource(ABC):
 
 
 class UvcSource(VideoSource):
-    def __init__(self, device_index: int) -> None:
+    def __init__(self, device_index: int, mode: VideoMode | None = None) -> None:
         super().__init__(SourceInfo(label=f"UVC {device_index}"))
         self.device_index = device_index
+        self.mode = mode
+
+    def _open_params(self) -> list[int]:
+        """Formatet måste anges när källan öppnas (TASK-39).
+
+        DSHOW-backend ignorerar cap.set(CAP_PROP_FOURCC) efter öppning, så
+        utan MJPG i params-listan förhandlar kortet fram okomprimerad YUY2
+        och kapas av USB-bandbredden (1920x1080 gav 9 fps mot 52 fps med
+        MJPG på kortet i TASK-39).
+        """
+        if self.mode is None:
+            return []
+        params: list[int] = []
+        if len(self.mode.fourcc) == 4:
+            params += [cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.mode.fourcc)]
+        params += [
+            cv2.CAP_PROP_FRAME_WIDTH,
+            self.mode.width,
+            cv2.CAP_PROP_FRAME_HEIGHT,
+            self.mode.height,
+        ]
+        return params
 
     def _open(self) -> cv2.VideoCapture:
-        capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+        params = self._open_params()
+        capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW, params)
         if not capture.isOpened():
             capture.release()
-            capture = cv2.VideoCapture(self.device_index, cv2.CAP_MSMF)
+            capture = cv2.VideoCapture(self.device_index, cv2.CAP_MSMF, params)
         if not capture.isOpened():
             capture.release()
-            capture = cv2.VideoCapture(self.device_index)
-        capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-        capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+            capture = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+        if self.mode is None:
+            capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+            capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         # Drivrutinens interna buffert haller bara senaste ramen: lag latens.
         capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return capture
