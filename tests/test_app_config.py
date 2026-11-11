@@ -59,7 +59,7 @@ def test_load_config_falls_back_to_workdir(tmp_path):
 
 
 def test_setup_logging_rotates_to_file(tmp_path):
-    log = setup_logging(tmp_path)
+    log = setup_logging(tmp_path / "logs")
     log.warning("test-varning 123")
     for handler in logging.getLogger().handlers[:]:
         handler.flush()
@@ -67,6 +67,6 @@ def test_setup_logging_rotates_to_file(tmp_path):
     assert "test-varning 123" in content
     assert "WARNING" in content
     # idempotent: ingen dubbel handler
-    setup_logging(tmp_path)
+    setup_logging(tmp_path / "logs")
     rotating = [h for h in logging.getLogger().handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
     assert len(rotating) == 1

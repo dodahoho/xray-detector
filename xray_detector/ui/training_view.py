@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.application.app_config import file_logger, log_path
 from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.training_service import TrainingService
@@ -37,6 +38,7 @@ class TrainingView(QWidget):
         self.settings = settings
         self.training_service = TrainingService()
         self.worker = None
+        self.training_log = None
         self._export_task: BackgroundTask | None = None
         self._export_label = ""
         self.training_service.worker_created.connect(self._on_worker_created)
@@ -285,16 +287,28 @@ class TrainingView(QWidget):
     def _on_worker_created(self, worker) -> None:
         """Kopplar en (direkt eller schemalagd) worker till loggen och startar den."""
         self.worker = worker
-        worker.progress.connect(self.log.appendPlainText)
+        self.training_log = file_logger(
+            "xray.training", log_path(self.config.logs_dir, "training")
+        )
+        worker.progress.connect(self._on_progress)
         worker.finished_training.connect(self._on_finished)
         self.start_button.setEnabled(False)
         self.abort_button.setEnabled(True)
-        self.log.appendPlainText(
+        header = (
             f"Startar träning: {worker.config.weights} på {worker.config.dataset_yaml} "
-            f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, batch {worker.config.batch})"
+            f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, batch {worker.config.batch}) "
+            f"-> {worker.config.output_dir}"
         )
+        self.log.appendPlainText(header)
+        self.training_log.info("=== %s ===", header)
         worker.start()
         self.training_started.emit()
+
+    def _on_progress(self, line: str) -> None:
+        """Visar träningsprocessens rad och skriver den till logs/training.log."""
+        self.log.appendPlainText(line)
+        if self.training_log is not None:
+            self.training_log.info(line)
 
     def _on_abort(self) -> None:
         if self.worker is not None and self.worker.is_running():
@@ -307,6 +321,8 @@ class TrainingView(QWidget):
 
     def _on_finished(self, ok: bool, message: str) -> None:
         self.log.appendPlainText(message)
+        if self.training_log is not None:
+            self.training_log.info(message)
         self.start_button.setEnabled(True)
         self.abort_button.setEnabled(False)
         self.training_finished.emit()

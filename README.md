@@ -95,19 +95,24 @@ Modellväljaren är avstängd medan en modell laddas, så två laddningar inte k
 
 ## Filer och mappar
 
-Dataset, exporter, loggar och inställningar ligger under `~/.xray-detector/`. Modellvikterna ligger i stället i projektets `models/`, som skapas vid behov och är gitignorerad:
+Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Modellvikterna och loggarna ligger i stället i projektets `models/` respektive `logs/`, som båda skapas vid behov och är gitignorerade:
 
 | Sökväg | Innehåll |
 | --- | --- |
 | `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
 | `models/trained/` | Egentränade modeller, en katalog per träningskörning (`v<datasetversion>`) med `training_manifest.json` och bästa vikterna under `<basmodell>/weights/best.pt`. |
+| `logs/app.log` | Applikationsloggen: start, statusmeddelanden och ohanterade undantag. |
+| `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med tidsstämpel, basmodell och körningskatalog. |
 
 Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad v<version> (<basmodell>)`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
 
-Sökvägen till `models/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar vikterna även när den startas från en annan mapp. Den går att peka om i `config.yaml`:
+Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`:
 
 ```yaml
 models_dir: /sökväg/till/models   # relativ sökväg tolkas mot projektroten
+logs_dir: /sökväg/till/logs       # relativ sökväg tolkas mot projektroten
 ```
 
-Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/`. Den katalogen läses inte längre; flytta i så fall innehållet till `models/trained/` för att få modellerna i väljaren.
+Loggfilerna roteras vid 1 MB och sparas i fem backupfiler (`app.log.1`–`app.log.5`). Rotationen och formatet delas av alla loggtyper, så en ny loggtyp under `logs/` är bara ett nytt namn i `log_path(logs_dir, namn)` – ingen ny kod för katalog eller rotation behövs.
+
+Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/` och loggarna under `~/.xray-detector/logs/`. De katalogerna skrivs inte längre; flytta i så fall modellerna till `models/trained/` för att få dem i väljaren. Gamla loggar kan flyttas till `logs/` eller tas bort.

@@ -1,15 +1,20 @@
-"""Initiering av konfiguration och loggning (TASK-15).
+"""Initiering av konfiguration och loggning (TASK-15, TASK-51).
 
 Appen laser en valfri config.yaml i datakatalogen (eller arbetskatalogen)
 som overrider AppConfig-defaults, och startar loggning med filrotation
-under datakatalogens logs/ via stdlib logging (ingen extra dependency).
+under projektets logs/ via stdlib logging (ingen extra dependency).
 """
 
 import logging
+import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from xray_detector.domain.config import PROJECT_ROOT, AppConfig
+
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+LOG_MAX_BYTES = 1_000_000
+LOG_BACKUP_COUNT = 5
 
 
 def _parse_scalar(value):
@@ -35,6 +40,7 @@ def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
       confidence_threshold: 0.4
       data_dir: /sökväg
       models_dir: /sökväg (relativ tolkas mot projektroten)
+      logs_dir: /sökväg (relativ tolkas mot projektroten)
 
     Returnerar True om filen fanns och kunde tolkas.
     """
@@ -61,9 +67,9 @@ def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
                 config.confidence_threshold = float(raw)
             except ValueError:
                 continue
-        elif key in ("data_dir", "models_dir") and raw:
+        elif key in ("data_dir", "models_dir", "logs_dir") and raw:
             path = Path(str(raw).strip("'\""))
-            if key == "models_dir" and not path.is_absolute():
+            if key in ("models_dir", "logs_dir") and not path.is_absolute():
                 path = PROJECT_ROOT / path
             setattr(config, key, path)
     return True
@@ -88,16 +94,57 @@ def load_config_with_yaml(config_dir: Path | None = None, workdir: Path | None =
     return config, None
 
 
-def setup_logging(data_dir: Path, level: int = logging.INFO) -> logging.Logger:
-    """Rotationsloggnings till <data_dir>/logs/app.log; returnerar root-loggern."""
-    log_dir = Path(data_dir) / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
+def log_path(logs_dir: Path, name: str) -> Path:
+    """Sökväg till en loggtyp under logs/, t.ex. log_path(logs_dir, "training").
+
+    En ny loggtyp är bara ett nytt namn; katalog och rotation sköts av
+    rotating_handler()/file_logger() (TASK-51).
+    """
+    return Path(logs_dir) / f"{name}.log"
+
+
+def rotating_handler(path: Path) -> RotatingFileHandler:
+    """Roterande filhandler (1 MB, 5 backups) med appens loggformat."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     handler = RotatingFileHandler(
-        log_dir / "app.log", maxBytes=1_000_000, backupCount=5, encoding="utf-8"
+        path, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT, encoding="utf-8"
     )
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    return handler
+
+
+def file_logger(name: str, path: Path, level: int = logging.INFO) -> logging.Logger:
+    """Logger som skriver till en egen loggfil under logs/ (TASK-51).
+
+    Loggern propagerar inte till root, så en loggtyp hamnar bara i sin egen
+    fil. Handlern byts ut om sökvägen ändras, så samma namn kan pekas om
+    (t.ex. mellan tester) utan att gamla filer fortsätter skrivas.
+    """
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+    logger.propagate = False
+    target = os.path.abspath(path)
+    for handler in list(logger.handlers):
+        if isinstance(handler, RotatingFileHandler) and handler.baseFilename == target:
+            return logger
+        logger.removeHandler(handler)
+        handler.close()
+    logger.addHandler(rotating_handler(path))
+    return logger
+
+
+def setup_logging(logs_dir: Path, level: int = logging.INFO) -> logging.Logger:
+    """Rotationsloggning till <logs_dir>/app.log; returnerar xray-loggern."""
+    handler = rotating_handler(log_path(logs_dir, "app"))
     root = logging.getLogger()
-    if not any(isinstance(h, RotatingFileHandler) for h in root.handlers):
+    if any(
+        isinstance(existing, RotatingFileHandler)
+        and existing.baseFilename == handler.baseFilename
+        for existing in root.handlers
+    ):
+        handler.close()
+    else:
         root.addHandler(handler)
     root.setLevel(level)
     return logging.getLogger("xray")

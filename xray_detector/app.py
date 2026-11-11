@@ -69,7 +69,7 @@ def main() -> int:
     app.setApplicationName("X-ray detector")
     config, config_file = load_config_with_yaml(config_dir=None, workdir=Path.cwd())
     config.ensure_dirs()
-    log = setup_logging(config.data_dir)
+    log = setup_logging(config.logs_dir)
     log.info("Startar X-ray detector (konfig: %s)", config_file or "default")
     _warn_about_legacy_models(config, log)
     window = MainWindow(config)

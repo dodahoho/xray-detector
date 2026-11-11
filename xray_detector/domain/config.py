@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Projektroten ur paketets placering, så modellkatalogen hittas även när appen
-# startas från en annan arbetskatalog (TASK-50).
+# Projektroten ur paketets placering, så modell- och loggkatalogerna hittas även
+# när appen startas från en annan arbetskatalog (TASK-50, TASK-51).
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -13,6 +13,7 @@ class AppConfig:
     )
     data_dir: Path = field(default_factory=lambda: Path.home() / ".xray-detector")
     models_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "models")
+    logs_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "logs")
     confidence_threshold: float = 0.4
     default_model: str = "yolo26m"
 
@@ -36,6 +37,7 @@ class AppConfig:
             self.export_dir,
             self.models_dir,
             self.trained_dir,
+            self.logs_dir,
         ):
             path.mkdir(parents=True, exist_ok=True)
 
