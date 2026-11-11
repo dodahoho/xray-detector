@@ -1,7 +1,12 @@
+---
+name: notifications
+description: Load this skill when a long-running task (over 30 seconds) finishes successfully, fails, or needs a decision or clarification from the user, so the user is alerted with a push notification via ntfy.
+---
+
 # Skill: Notifications
 
-Use this skill to send push notifications to the user via ntfy by using the PowerShell script in the repo:  
-scripts/notify.ps1
+Use this skill to send push notifications to the user via ntfy by using the PowerShell script:  
+<skill-directory>/scripts/notify.ps1
 
 The script takes parameters event and message. The event can be one of: success, error, or input. The message is a short description of the event, for example the task id and time spent.
 
