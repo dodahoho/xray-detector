@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QObject, Signal
@@ -53,7 +54,7 @@ class TrainingView(QWidget):
         self.log.setReadOnly(True)
         layout.addWidget(self.log, 1)
         self.busy = BusyIndicator(self)
-        self.refresh_versions()
+        self.refresh_dataset_info()
         self._disable_missing_rfdetr()
 
     def _disable_missing_rfdetr(self) -> None:
@@ -94,11 +95,8 @@ class TrainingView(QWidget):
             self.model_combo.addItem(spec.label, spec.key)
             self._specs[spec.key] = spec
         form.addRow("Basmodell:", self.model_combo)
-        self.version_combo = QComboBox()
-        self.version_combo.currentIndexChanged.connect(self._on_version_changed)
-        form.addRow("Datasetversion:", self.version_combo)
-        self.version_info = QLabel("-")
-        form.addRow("", self.version_info)
+        self.dataset_info = QLabel("-")
+        form.addRow("Dataset:", self.dataset_info)
         self.epochs_spin = QSpinBox()
         self.epochs_spin.setRange(1, 1000)
         self.epochs_spin.setValue(100)
@@ -157,45 +155,22 @@ class TrainingView(QWidget):
             value = self.settings.value(f"training/{key}", default, type=int)
             if value:
                 spin.setValue(value)
-        version = self.settings.value("training/version", type=int)
-        if version:
-            index = self.version_combo.findData(version)
-            if index >= 0:
-                self.version_combo.setCurrentIndex(index)
 
     def save_settings(self) -> None:
         self.settings.setValue("training/base_model", self.model_combo.currentData())
         self.settings.setValue("training/epochs", self.epochs_spin.value())
         self.settings.setValue("training/imgsz", self.imgsz_spin.value())
         self.settings.setValue("training/batch", self.batch_spin.value())
-        version = self.version_combo.currentData()
-        if version is not None:
-            self.settings.setValue("training/version", version)
 
-    def refresh_versions(self) -> None:
-        self.version_combo.blockSignals(True)
-        self.version_combo.clear()
-        for version in self.dataset_service.versions():
-            self.version_combo.addItem(f"v{version}", version)
-        self.version_combo.blockSignals(False)
-        self._on_version_changed()
-
-    def _on_version_changed(self) -> None:
-        data = self.version_combo.currentData()
-        if data is None:
-            self.version_info.setText("-")
-            return
-        info = self.dataset_service.metadata(data)
-        num_train, num_val = self.dataset_service.train_val_counts(int(data))
-        self.version_info.setText(
+    def refresh_dataset_info(self) -> None:
+        """Visar sammanställningen för datasetet som träningen utgår från."""
+        info = self.dataset_service.metadata()
+        num_train, num_val = self.dataset_service.train_val_counts()
+        self.dataset_info.setText(
             f"Bilder: {info['num_images']}  Objekt: {info['num_objects']}  "
             f"Train/val: {num_train}/{num_val}  "
             f"Uppdaterad: {info['updated'][:10]}"
         )
-
-    def _current_version(self) -> int | None:
-        data = self.version_combo.currentData()
-        return None if data is None else int(data)
 
     def _on_export_coco(self) -> None:
         self._start_export("COCO", self.dataset_service.export_coco)
@@ -205,13 +180,12 @@ class TrainingView(QWidget):
 
     def _start_export(self, label: str, export) -> None:
         """Exporterar i en arbetstråd medan indikatorn visas (TASK-40)."""
-        version = self._current_version()
-        if version is None or self._export_task is not None:
+        if self._export_task is not None:
             return
         self._export_label = label
         self.busy.start(f"Exporterar {label}...")
         self._set_export_enabled(False)
-        task = BackgroundTask(lambda: export(version, self.config.export_dir))
+        task = BackgroundTask(lambda: export(self.config.export_dir))
         task.succeeded.connect(self._on_export_done)
         task.failed.connect(self._on_export_failed)
         task.finished.connect(self._on_export_finished)
@@ -241,9 +215,8 @@ class TrainingView(QWidget):
     def _on_start(self) -> None:
         import importlib.util
 
-        version = self._current_version()
-        if version is None:
-            self.status_changed.emit("Ingen datasetversion vald")
+        if self.dataset_service.metadata()["num_images"] == 0:
+            self.status_changed.emit("Datasetet är tomt")
             return
         spec = self._specs.get(self.model_combo.currentData())
         if spec is None:
@@ -257,15 +230,14 @@ class TrainingView(QWidget):
                     "RF-DETR kraver rfdetr-paketet (uv sync --extra rfdetr)"
                 )
                 return
-            dataset_dir = self.dataset_service.export_rfdetr(version, self.config.export_dir)
-            dataset_path = dataset_dir
+            dataset_path = self.dataset_service.export_rfdetr(self.config.export_dir)
         else:
-            self.dataset_service.export_yolo(version, self.config.export_dir)
-            dataset_path = self.config.export_dir / f"v{version}_yolo" / "data.yaml"
+            self.dataset_service.export_yolo(self.config.export_dir)
+            dataset_path = self.config.export_dir / "yolo" / "data.yaml"
         config = TrainConfig(
             dataset_yaml=Path(dataset_path),
             weights=weights,
-            output_dir=self.config.trained_dir / f"v{version}",
+            output_dir=self.config.trained_dir / datetime.now().strftime("%Y-%m-%d_%H%M%S"),
             epochs=self.epochs_spin.value(),
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),
@@ -326,7 +298,7 @@ class TrainingView(QWidget):
         self.start_button.setEnabled(True)
         self.abort_button.setEnabled(False)
         self.training_finished.emit()
-        self.refresh_versions()
+        self.refresh_dataset_info()
 
 
 class _ActivityFilter(QObject):

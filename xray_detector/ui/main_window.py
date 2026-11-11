@@ -147,7 +147,7 @@ class MainWindow(QMainWindow):
         # sparningen är asynkron (TASK-40): fliken kan redan ha bytts medan den skrevs
         if self.tabs.currentIndex() == 1:
             self.tabs.setCurrentIndex(0)
-        self.training_view.refresh_versions()
+        self.training_view.refresh_dataset_info()
         self.dataset_view.refresh()
         self._show_status("Annoteringar sparade till dataset")
 

@@ -20,53 +20,44 @@ from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
 class DatasetService:
-    """Fasad över datasetlagringen: versioner, sparade bilder och exporter."""
+    """Fasad över datasetlagringen: sparade bilder och exporter."""
 
     def __init__(self, root: Path, classes: list[str]) -> None:
         self.store = DatasetStore(root, classes)
         self.data_dir = Path(root).parent
 
-    def versions(self) -> list[int]:
-        return self.store.versions()
-
-    def current_version(self) -> int:
-        return self.store.current_version()
-
-    def new_version(self) -> int:
-        return self.store.new_version()
+    @property
+    def images_dir(self) -> Path:
+        return self.store.images_dir
 
     def add_samples(
         self,
-        version: int,
         samples: list[AnnotatedImage],
         captured: str | None = None,
     ) -> None:
-        self.store.add_samples(version, samples, captured)
+        self.store.add_samples(samples, captured)
 
-    def delete_images(self, version: int, image_ids: list[int]) -> None:
-        self.store.delete_images(version, image_ids)
+    def delete_images(self, image_ids: list[int]) -> None:
+        self.store.delete_images(image_ids)
 
-    def load_coco(self, version: int) -> dict:
-        return self.store.load_coco(version)
+    def load_coco(self) -> dict:
+        return self.store.load_coco()
 
-    def metadata(self, version: int) -> dict:
-        return self.store.metadata(version)
+    def metadata(self) -> dict:
+        return self.store.metadata()
 
-    def version_dir(self, version: int) -> Path:
-        return self.store.version_dir(version)
+    def export_yolo(self, export_root: Path) -> Path:
+        return export_yolo(self.store, export_root)
 
-    def export_yolo(self, version: int, export_root: Path) -> Path:
-        return export_yolo(self.store, version, export_root)
+    def export_coco(self, export_root: Path) -> Path:
+        return export_coco(self.store, export_root)
 
-    def export_coco(self, version: int, export_root: Path) -> Path:
-        return export_coco(self.store, version, export_root)
+    def export_rfdetr(self, export_root: Path) -> Path:
+        return export_rfdetr(self.store, export_root)
 
-    def export_rfdetr(self, version: int, export_root: Path) -> Path:
-        return export_rfdetr(self.store, version, export_root)
-
-    def train_val_counts(self, version: int, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
+    def train_val_counts(self, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
         """Antal bilder i train respektive val för den seedade grupp-delningen."""
-        train, val = train_val_split(self.load_coco(version), ratio, seed)
+        train, val = train_val_split(self.load_coco(), ratio, seed)
         return len(train), len(val)
 
 

@@ -11,7 +11,7 @@ groma:
     - scanner: python
       file: xray_detector/application/__init__.py
   group: Dataset och träning
-description: 'Fasad över datasetlagringen: versioner, sparade bilder, radering och export.'
+description: 'Fasad över datasetlagringen: sparade bilder, radering och export.'
 ---
 
-Applikationslagrets gränssnitt mot DatasetStore och export: annoteringsvyn sparar via add_samples, datasetvyn listar och raderar via versions/load_coco/delete_images, träningsvyn exporterar YOLO, COCO eller RF-DETR. UI:t berör aldrig lagringsmodulerna direkt.
+Applikationslagrets gränssnitt mot DatasetStore och export: annoteringsvyn sparar via add_samples, datasetvyn listar och raderar via load_coco/delete_images, träningsvyn exporterar YOLO, COCO eller RF-DETR. UI:t berör aldrig lagringsmodulerna direkt.

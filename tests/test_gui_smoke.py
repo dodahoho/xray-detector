@@ -31,15 +31,14 @@ def app_config(tmp_path) -> AppConfig:
 
 def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     service = DatasetService(app_config.dataset_dir, app_config.classes)
-    service.add_samples(1, [AnnotatedImage(synthetic_frame(), [
+    service.add_samples([AnnotatedImage(synthetic_frame(), [
         {"class_name": "kniv", "bbox": [8, 8, 20, 24]}
     ])])
 
     window = MainWindow(app_config)
     view = window.dataset_view
-    view.refresh_versions()
+    view.refresh()
     view.wait_for_refresh()
-    assert view.version_combo.currentData() == 1
     assert len(view._thumbs) == 1
 
     # dubbelklicka -> annoteringsvy med rektangeln inladdad
@@ -49,10 +48,10 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     assert [rect.class_name for rect in canvas.rects] == ["kniv"]
     assert window.tabs.currentIndex() == 1
 
-    # spara -> ny fångstgrupp i samma version
+    # spara -> ny fångstgrupp i samma dataset
     window.annotation_view._on_save()
     window.annotation_view.wait_for_save()
-    coco = service.load_coco(1)
+    coco = service.load_coco()
     assert len(coco["images"]) == 2
     groups = {image.get("group") for image in coco["images"]}
     assert None not in groups and len(groups) == 2
@@ -74,7 +73,7 @@ def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
     service = window.dataset_service
     # avbryt (cancel) utan sparande
     window.annotation_view.cancelled.emit()
-    assert service.versions() == []
+    assert service.load_coco()["images"] == []
 
 
 def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):

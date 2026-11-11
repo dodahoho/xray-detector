@@ -1,6 +1,7 @@
 """Modellvikternas placering under models/ (TASK-50)."""
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -270,12 +271,11 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
     config = _config(tmp_path)
     dataset = DatasetService(config.dataset_dir, config.classes)
     dataset.add_samples(
-        1,
         [AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                         [{"class_name": "kniv", "bbox": [1, 1, 4, 4]}])],
     )
     view = TrainingView(config, dataset, QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat))
-    view.refresh_versions()
+    view.refresh_dataset_info()
 
     started = []
     view.training_service.create_worker = lambda cfg: started.append(cfg)
@@ -284,7 +284,8 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
     view._on_start()
 
     assert started, "ingen träning startades"
-    assert started[0].output_dir == config.trained_dir / "v1"
+    assert started[0].output_dir.parent == config.trained_dir
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}", started[0].output_dir.name)
     assert started[0].weights == str(config.models_dir / "yolo26m.pt")
 
 

@@ -120,8 +120,8 @@ def test_draw_marks_dirty_and_save_clears(qapp, tmp_path, monkeypatch):
     view._on_save()
     view.wait_for_save()
     assert not view.is_dirty()
-    assert service.current_version() >= 1
-    assert service.metadata(service.current_version())["num_objects"] == 1
+    assert service.metadata()["num_images"] >= 1
+    assert service.metadata()["num_objects"] == 1
 
 
 def test_save_without_boxes_asks_negative(qapp, tmp_path, monkeypatch):
@@ -131,7 +131,7 @@ def test_save_without_boxes_asks_negative(qapp, tmp_path, monkeypatch):
     view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
     view._on_save()
     view.wait_for_save()
-    info = service.metadata(service.current_version())
+    info = service.metadata()
     assert info["num_images"] == 1
     assert info["num_objects"] == 0
 
@@ -142,7 +142,7 @@ def test_save_without_boxes_declined_writes_nothing(qapp, tmp_path, monkeypatch)
     view, service = _make_view(qapp, tmp_path)
     view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
     view._on_save()
-    assert service.versions() == []
+    assert service.load_coco()["images"] == []
 
 
 def test_tab_change_with_dirty_warns_and_can_revert(qapp, tmp_path, monkeypatch):

@@ -5,7 +5,6 @@ import cv2
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -120,10 +119,6 @@ class DatasetView(QWidget):
 
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
-        bar.addWidget(QLabel("Datasetversion:"))
-        self.version_combo = QComboBox()
-        self.version_combo.currentIndexChanged.connect(self.refresh)
-        bar.addWidget(self.version_combo)
         bar.addStretch(1)
         self.delete_button = button(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
@@ -144,7 +139,7 @@ class DatasetView(QWidget):
         layout.addWidget(self.scroll, 1)
 
         self.busy = BusyIndicator(self)
-        self.refresh_versions()
+        self.refresh()
 
     def _settings_sections(self) -> list:
         """Vyns egna inställningar; en ny sortering bygger om listan (TASK-56)."""
@@ -152,48 +147,34 @@ class DatasetView(QWidget):
         section.order_changed.connect(self.refresh)
         return [section]
 
-    def refresh_versions(self) -> None:
-        self.version_combo.blockSignals(True)
-        self.version_combo.clear()
-        for version in self.dataset_service.versions():
-            self.version_combo.addItem(f"v{version}", version)
-        self.version_combo.blockSignals(False)
-        if self.version_combo.count() > 0 and self.version_combo.currentIndex() < 0:
-            self.version_combo.setCurrentIndex(self.version_combo.count() - 1)
-        self.refresh()
-
     def refresh(self) -> None:
         """Bygger om bildlistan; bilderna dekodas i en arbetstråd (TASK-40)."""
         if self._refresh_task is not None:
             # en omladdning pågår: kör en ny när den är klar så sista läget vinner
             self._refresh_pending = True
             return
-        version = self.version_combo.currentData()
         self.busy.start("Bygger bildlistan...")
-        task = BackgroundTask(lambda: self._load(version))
+        task = BackgroundTask(self._load)
         task.succeeded.connect(self._build)
         task.failed.connect(self._on_load_failed)
         task.finished.connect(self._on_refresh_finished)
         self._refresh_task = task
         task.start()
 
-    def _load(self, version) -> dict:
+    def _load(self) -> dict:
         """Läser datasetet och dekoder bilderna utan att röra widgets (TASK-40).
 
         Bildavkodningen är den dyra delen: mätt 826 av 870 ms för 200 bilder.
         QImage får skapas utanför GUI-tråden, QPixmap får det inte.
         """
         pending = self.dataset_service.pending_captures()
-        if version is None:
-            return {"version": None, "coco": None, "images": {}, "pending": pending}
-        number = int(version)
-        coco = self.dataset_service.load_coco(number)
-        images_dir = self.dataset_service.version_dir(number) / "images"
+        coco = self.dataset_service.load_coco()
+        images_dir = self.dataset_service.images_dir
         decoded = {
             image["id"]: QImage(str(images_dir / image["file_name"]))
             for image in coco["images"]
         }
-        return {"version": number, "coco": coco, "images": decoded, "pending": pending}
+        return {"coco": coco, "images": decoded, "pending": pending}
 
     def _on_load_failed(self, message: str) -> None:
         self.status_changed.emit(f"Kunde inte läsa datasetet: {message}")
@@ -224,16 +205,14 @@ class DatasetView(QWidget):
 
         newest_first = sort_order(self.settings) == SORT_NEWEST
         self._add_pending_section(data["pending"], newest_first)
-        if data["version"] is None:
-            self._coco = None
+        coco = data["coco"]
+        self._coco = coco
+        if not coco["images"]:
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
             self.content_layout.addStretch(1)
             self._update_delete_button()
             return
-        version = data["version"]
-        coco = data["coco"]
-        self._coco = coco
         annotations_by_image: dict[int, list[dict]] = {}
         for annotation in coco["annotations"]:
             annotations_by_image.setdefault(annotation["image_id"], []).append(annotation)
@@ -248,7 +227,7 @@ class DatasetView(QWidget):
             images = sorted(groups[key], key=lambda img: img["id"])
             object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
             stamp = _format_timestamp(images[0].get("captured")) or _mtime_timestamp(
-                self.dataset_service.version_dir(version) / "images" / images[0]["file_name"]
+                self.dataset_service.images_dir / images[0]["file_name"]
             )
             title = stamp or f"Fångst {key}"
             header = QLabel(f"{title} · {len(images)} bilder · {object_count} objekt")
@@ -375,7 +354,7 @@ class DatasetView(QWidget):
         frames: list[StreamFrame] = []
         for member in group:
             entry = next(img for img in self._coco["images"] if img["id"] == member.image_id)
-            frame = cv2.imread(str(self.dataset_service.version_dir(self._current_version()) / "images" / entry["file_name"]))
+            frame = cv2.imread(str(self.dataset_service.images_dir / entry["file_name"]))
             if frame is None:
                 continue
             detections = []
@@ -397,9 +376,6 @@ class DatasetView(QWidget):
         if frames:
             self.open_annotation_requested.emit(frames)
 
-    def _current_version(self) -> int:
-        return int(self.version_combo.currentData())
-
     def _on_delete(self) -> None:
         selected = [thumb for thumb in self._thumbs if thumb.selected]
         pending_ids = list(dict.fromkeys(t.group_id for t in selected if t.pending))
@@ -417,7 +393,7 @@ class DatasetView(QWidget):
         if answer != QMessageBox.StandardButton.Yes:
             return
         if ids:
-            self.dataset_service.delete_images(self._current_version(), ids)
+            self.dataset_service.delete_images(ids)
         for group_id in pending_ids:
             self.dataset_service.remove_pending(group_id)
         self.status_changed.emit(f"Tog bort {count} bild(er) från datasetet")

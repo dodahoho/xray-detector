@@ -54,7 +54,7 @@ Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 192
 - **Detektion** (default): två videoströmmar i split screen (UVC-kort eller videofil), detektion med valbar modell (YOLO26/RF-DETR), "Fånga bilder" sparar aktuella rutor och öppnar annoteringsläget. Källväljaren visar enheternas riktiga namn, så ett capture-kort och en virtuell kamera går att skilja på. Raden ovanför bilden visar bara strömmens bildfrekvens i fps; källans namn står i källväljaren i stället för i raden. Videofiler spelas upp i videons egen bildfrekvens; ramen skickas till visningen innan detektionen körs, så overlayn ligger en ram efter bilden men uppspelningen håller jämn takt. Detektionerna jämnas ut mellan ramar (EMA + hysteres) så overlayn inte fladdrar. I den övre raden visas appens GPU-, VRAM-, CPU- och RAM-användning som staplar, uppdaterade varje sekund; CPU visas som andel av maskinens kärnor och GPU/VRAM visar `n/a` utan CUDA. Knappen längst till höger i samma rad slår av och på objektdetektionen och visar vad ett klick gör: "Detektion av" när detektionen är igång, "Detektion på" när den är av. Overlayn rensas och detektorn kopplas bort från strömmarna, men modellen ligger kvar i minnet så den går snabbt att slå på igen. Läget gäller till nästa start.
 - **Dataset**: bilderna visas grupperade per fångst med rubrik som visar när fångsten gjordes (`YYYY-MM-DD HH:MM:SS`). Den nyaste fångsten listas överst; i datasetvyns inställningar byts ordningen till äldst först, och osparade fångster följer samma ordning. Ett klick markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen visar antal markerade bilder.
 - **Annotation**: rita/redigera rektanglar, välj eller skriv in klass, spara till COCO-datasetet.
-- **Träning**: träna basmodell på vald datasetversion; detektion pausas under träning. Export av dataset till COCO/YOLO med manifest (version, datum, antal objekt). Träningsschemat – nattfönster och inaktivitet innan träning – ställs in i träningsvyns inställningar.
+- **Träning**: träna basmodell på datasetet; detektion pausas under träning. Export av dataset till COCO/YOLO med manifest (format, datum, antal objekt). Träningsschemat – nattfönster och inaktivitet innan träning – ställs in i träningsvyns inställningar.
 
 ## Inställningar
 
@@ -95,16 +95,16 @@ Modellväljaren är avstängd medan en modell laddas, så två laddningar inte k
 
 ## Filer och mappar
 
-Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Modellvikterna och loggarna ligger i stället i projektets `models/` respektive `logs/`, som båda skapas vid behov och är gitignorerade:
+Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Datasetet är en enda samling: `datasets/dataset.json` (COCO) med bilderna i `datasets/images/`, och exporten hamnar i `exports/yolo/`, `exports/coco/` eller `exports/rfdetr/`. Modellvikterna och loggarna ligger i stället i projektets `models/` respektive `logs/`, som båda skapas vid behov och är gitignorerade:
 
 | Sökväg | Innehåll |
 | --- | --- |
 | `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
-| `models/trained/` | Egentränade modeller, en katalog per träningskörning (`v<datasetversion>`) med `training_manifest.json` och bästa vikterna under `<basmodell>/weights/best.pt` (YOLO) eller `rfdetr/checkpoint_best_total.pth` (RF-DETR). |
+| `models/trained/` | Egentränade modeller, en katalog per träningskörning (`<datum>_<tid>`) med `training_manifest.json` och bästa vikterna under `<basmodell>/weights/best.pt` (YOLO) eller `rfdetr/checkpoint_best_total.pth` (RF-DETR). |
 | `logs/app.log` | Applikationsloggen: start, statusmeddelanden och ohanterade undantag. |
 | `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med tidsstämpel, basmodell och körningskatalog. |
 
-Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad v<version> (<basmodell>)`. Manifestets `family` avgör vilken detektor posten laddas med: `yolo` ger `YoloDetector` och `rfdetr` ger `RfDetrDetector`, som läser snapshoten med `rfdetr.from_checkpoint`. Manifest som skrevs innan fältet fanns saknar `family` och behandlas som `yolo`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
+Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad <körning> (<basmodell>)`. Manifestets `family` avgör vilken detektor posten laddas med: `yolo` ger `YoloDetector` och `rfdetr` ger `RfDetrDetector`, som läser snapshoten med `rfdetr.from_checkpoint`. Manifest som skrevs innan fältet fanns saknar `family` och behandlas som `yolo`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
 
 Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`:
 
@@ -116,3 +116,5 @@ logs_dir: /sökväg/till/logs       # relativ sökväg tolkas mot projektroten
 Loggfilerna roteras vid 1 MB och sparas i fem backupfiler (`app.log.1`–`app.log.5`). Rotationen och formatet delas av alla loggtyper, så en ny loggtyp under `logs/` är bara ett nytt namn i `log_path(logs_dir, namn)` – ingen ny kod för katalog eller rotation behövs.
 
 Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/` och loggarna under `~/.xray-detector/logs/`. De katalogerna skrivs inte längre; flytta i så fall modellerna till `models/trained/` för att få dem i väljaren. Gamla loggar kan flyttas till `logs/` eller tas bort.
+
+Dataset som sparades som `datasets/v1`, `datasets/v2` och så vidare flyttas automatiskt upp till `datasets/` vid start; den nyaste versionen blir då datasetet.

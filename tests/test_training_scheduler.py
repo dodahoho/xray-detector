@@ -106,9 +106,9 @@ def test_training_view_queue_flow(qapp, tmp_path, monkeypatch):
     config.ensure_dirs()
     window = MainWindow(config)
     view = window.training_view
-    view.dataset_service.add_samples(1, [AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
+    view.dataset_service.add_samples([AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                                                         [{"class_name": "kniv", "bbox": [1, 1, 4, 4]}])])
-    view.refresh_versions()
+    view.refresh_dataset_info()
     assert view.run_combo.count() == 3
     index = view.run_combo.findData("night")
     view.run_combo.setCurrentIndex(index)

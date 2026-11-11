@@ -35,12 +35,12 @@ def settings(tmp_path) -> QSettings:
 def _three_captures(service) -> None:
     """Tre fångster i tidsordning: grupp 1 är äldst och grupp 3 nyast."""
     for day in (1, 2, 3):
-        service.add_samples(1, [_sample()], captured=f"2026-11-0{day}T09:00:00")
+        service.add_samples([_sample()], captured=f"2026-11-0{day}T09:00:00")
 
 
 def _built(service, settings) -> DatasetView:
     view = DatasetView(service, settings)
-    view.refresh_versions()
+    view.refresh()
     view.wait_for_refresh()
     return view
 

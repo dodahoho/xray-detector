@@ -1,4 +1,3 @@
-import json
 import random
 import shutil
 from datetime import UTC, datetime
@@ -38,14 +37,21 @@ def train_val_split(coco: dict, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SE
     return train, val
 
 
-def export_yolo(store: DatasetStore, version: int, export_root: Path) -> Path:
-    coco = store.load_coco(version)
+def _fresh_dir(path: Path) -> Path:
+    """Tömmer exportkatalogen så bilder från en tidigare export inte ligger kvar."""
+    shutil.rmtree(path, ignore_errors=True)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def export_yolo(store: DatasetStore, export_root: Path) -> Path:
+    coco = store.load_coco()
     categories = _category_map(coco)
     class_names = [categories[cid] for cid in sorted(categories)]
     name_to_index = {name: index for index, name in enumerate(class_names)}
 
-    out_dir = export_root / f"v{version}_yolo"
-    source_images = store.version_dir(version) / "images"
+    out_dir = _fresh_dir(export_root / "yolo")
+    source_images = store.images_dir
     train_images, val_images = train_val_split(coco)
 
     for split, images in (("train", train_images), ("val", val_images)):
@@ -87,26 +93,25 @@ def export_yolo(store: DatasetStore, version: int, export_root: Path) -> Path:
         ),
         encoding="utf-8",
     )
-    write_manifest(out_dir, coco, version, "yolo",
+    write_manifest(out_dir, coco, "yolo",
                    num_train=len(train_images), num_val=len(val_images))
     return out_dir
 
 
-def export_coco(store: DatasetStore, version: int, export_root: Path) -> Path:
-    coco = store.load_coco(version)
-    out_dir = export_root / f"v{version}_coco"
+def export_coco(store: DatasetStore, export_root: Path) -> Path:
+    coco = store.load_coco()
+    out_dir = _fresh_dir(export_root / "coco")
     (out_dir / "images").mkdir(parents=True, exist_ok=True)
-    source_images = store.version_dir(version) / "images"
+    source_images = store.images_dir
     for image in coco["images"]:
         shutil.copy2(source_images / image["file_name"], out_dir / "images" / image["file_name"])
     atomic_write_json(out_dir / "dataset.json", coco)
-    write_manifest(out_dir, coco, version, "coco")
+    write_manifest(out_dir, coco, "coco")
     return out_dir
 
 
-def write_manifest(out_dir: Path, coco: dict, version: int, export_format: str, **extra) -> None:
+def write_manifest(out_dir: Path, coco: dict, export_format: str, **extra) -> None:
     manifest = {
-        "version": version,
         "format": export_format,
         "date": datetime.now(UTC).isoformat(),
         "num_images": len(coco["images"]),
@@ -131,13 +136,11 @@ def _coco_for_split(coco: dict, images: list[dict]) -> dict:
     }
 
 
-def export_rfdetr(store: DatasetStore, version: int, export_root: Path) -> Path:
+def export_rfdetr(store: DatasetStore, export_root: Path) -> Path:
     """Exporterar i RF-DETR:s forvantalade format: train/valid/test med _annotations.coco.json."""
-    import json
-
-    coco = store.load_coco(version)
-    out_dir = export_root / f"v{version}_rfdetr"
-    source_images = store.version_dir(version) / "images"
+    coco = store.load_coco()
+    out_dir = _fresh_dir(export_root / "rfdetr")
+    source_images = store.images_dir
     train, val = train_val_split(coco)
 
     for split, images in (("train", train), ("valid", val), ("test", val)):
@@ -153,6 +156,6 @@ def export_rfdetr(store: DatasetStore, version: int, export_root: Path) -> Path:
             image["file_name"] = f"images/{image['file_name']}"
         atomic_write_json(split_dir / "_annotations.coco.json", split_coco)
 
-    write_manifest(out_dir, coco, version, "rfdetr",
+    write_manifest(out_dir, coco, "rfdetr",
                    num_train=len(train), num_val=len(val), num_test=len(val))
     return out_dir

@@ -159,9 +159,9 @@ def test_alt_letter_toggles_detection(qapp, window):
 
 
 def test_alt_letter_deletes_in_dataset_view(qapp, window, monkeypatch):
-    window.dataset_service.add_samples(1, [AnnotatedImage(synthetic_frame(), [])])
+    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
     view = window.dataset_view
-    view.refresh_versions()
+    view.refresh()
     view.wait_for_refresh()
     view._on_thumb_clicked(view._thumbs[0])
     assert view.delete_button.isEnabled()
@@ -189,7 +189,7 @@ def test_alt_letter_starts_training(qapp, window):
 
     alt(qapp, window, Qt.Key.Key_R)
 
-    assert messages == ["Ingen datasetversion vald"]
+    assert messages == ["Datasetet är tomt"]
 
 
 def test_alt_letter_opens_the_view_settings(qapp, window, monkeypatch):

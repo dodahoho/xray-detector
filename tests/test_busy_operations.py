@@ -48,7 +48,7 @@ def settings(tmp_path) -> QSettings:
 @pytest.fixture
 def dataset_service(tmp_path) -> DatasetService:
     service = DatasetService(tmp_path / "datasets", ["kniv"])
-    service.add_samples(1, [
+    service.add_samples([
         AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
                        [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),
         AnnotatedImage(np.full((30, 40, 3), 120, np.uint8),
@@ -220,7 +220,7 @@ def test_main_window_opens_before_the_device_check_finishes(qapp, config, monkey
 
 def test_dataset_refresh_shows_indicator_and_builds_list(qapp, dataset_service, settings):
     view = DatasetView(dataset_service, settings)
-    view.refresh_versions()
+    view.refresh()
 
     assert view.busy.is_busy()
     view.wait_for_refresh()
@@ -235,9 +235,9 @@ def test_dataset_refresh_decodes_off_the_gui_thread(
     threads: list = []
     original = DatasetView._load
 
-    def recording(self, version):
+    def recording(self):
         threads.append(threading.get_ident())
-        return original(self, version)
+        return original(self)
 
     monkeypatch.setattr(DatasetView, "_load", recording)
     view = DatasetView(dataset_service, settings)
@@ -252,7 +252,7 @@ def test_dataset_refresh_decodes_off_the_gui_thread(
 
 def test_export_shows_indicator_and_reports_result(qapp, config, settings, dataset_service):
     view = TrainingView(config, dataset_service, settings)
-    view.refresh_versions()
+    view.refresh_dataset_info()
     messages: list = []
     view.status_changed.connect(messages.append)
 
@@ -271,7 +271,7 @@ def test_export_yolo_shows_indicator_and_reports_result(
     qapp, config, settings, dataset_service
 ):
     view = TrainingView(config, dataset_service, settings)
-    view.refresh_versions()
+    view.refresh_dataset_info()
     messages: list = []
     view.status_changed.connect(messages.append)
 
@@ -283,11 +283,11 @@ def test_export_yolo_shows_indicator_and_reports_result(
 
 def test_export_failure_is_reported(qapp, config, settings, dataset_service, monkeypatch):
     view = TrainingView(config, dataset_service, settings)
-    view.refresh_versions()
+    view.refresh_dataset_info()
     messages: list = []
     view.status_changed.connect(messages.append)
 
-    def broken(version, export_root):
+    def broken(export_root):
         raise OSError("disken är full")
 
     monkeypatch.setattr(dataset_service, "export_yolo", broken)
@@ -322,7 +322,7 @@ def test_save_shows_indicator_and_writes_dataset(qapp, config, settings, dataset
     assert not view.busy.is_busy()
     assert view.save_button.isEnabled()
     assert not view.is_dirty()
-    assert dataset_service.metadata(1)["num_images"] == 3
+    assert dataset_service.metadata()["num_images"] == 3
 
 
 def test_save_runs_off_the_gui_thread(qapp, config, settings, dataset_service, monkeypatch):

@@ -529,7 +529,6 @@ class AnnotationView(QWidget):
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        version = self.dataset_service.current_version() or self.dataset_service.new_version()
         pending_group_id = self.pending_group_id
         # fångsttiden finns i pending-indexet, som skrevs vid knapptrycket
         captured = (
@@ -540,7 +539,7 @@ class AnnotationView(QWidget):
         self.busy.start("Sparar annoteringar...")
         self.save_button.setEnabled(False)
         task = BackgroundTask(
-            lambda: self._write(version, samples, captured, pending_group_id)
+            lambda: self._write(samples, captured, pending_group_id)
         )
         task.succeeded.connect(self._on_saved)
         task.failed.connect(self._on_save_failed)
@@ -548,9 +547,9 @@ class AnnotationView(QWidget):
         self._save_task = task
         task.start()
 
-    def _write(self, version, samples, captured, pending_group_id) -> None:
+    def _write(self, samples, captured, pending_group_id) -> None:
         """Skriver datasetet i arbetstråden, inklusive städning av pending (TASK-40)."""
-        self.dataset_service.add_samples(version, samples, captured)
+        self.dataset_service.add_samples(samples, captured)
         if pending_group_id:
             self.dataset_service.remove_pending(pending_group_id)
 

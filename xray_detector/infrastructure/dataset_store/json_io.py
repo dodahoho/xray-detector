@@ -1,7 +1,7 @@
 """Atomisk JSON-skrivning (TASK-3).
 
 En krasch mitt i en direkt skrivning korrumperar hela filen (t.ex.
-dataset.json for en version). atomic_write_json skriver därför till en
+dataset.json). atomic_write_json skriver därför till en
 temporär fil i samma katalog, synkar till disk och byter ut målet med
 os.replace(), som är atomärt på samma volume: antingen den gamla eller
 den nya kompletta filen finns kvar.

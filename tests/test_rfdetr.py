@@ -14,7 +14,7 @@ from xray_detector.domain.training import TrainConfig
 def service(tmp_path) -> DatasetService:
     svc = DatasetService(tmp_path / "datasets", ["kniv", "pistol"])
     for group in range(4):
-        svc.add_samples(1, [
+        svc.add_samples([
             AnnotatedImage(np.full((30, 40, 3), 50 + group * 40, np.uint8),
                            [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}])
             for _ in range(2)
@@ -23,7 +23,7 @@ def service(tmp_path) -> DatasetService:
 
 
 def test_export_rfdetr_layout(service, tmp_path):
-    out = service.export_rfdetr(1, tmp_path / "exports")
+    out = service.export_rfdetr(tmp_path / "exports")
     for split in ("train", "valid", "test"):
         split_dir = out / split
         assert (split_dir / "_annotations.coco.json").exists(), split

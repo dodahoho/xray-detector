@@ -40,9 +40,9 @@ def test_store_and_export_still_work(tmp_path):
     from xray_detector.domain.dataset import AnnotatedImage
 
     service = DatasetService(tmp_path / "datasets", ["kniv"])
-    service.add_samples(1, [AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
-                                            [{"class_name": "kniv", "bbox": [1, 2, 3, 4]}])])
-    assert json.loads((service.version_dir(1) / "dataset.json").read_text(encoding="utf-8"))["images"]
-    service.export_yolo(1, tmp_path / "exports")
-    manifest = json.loads((tmp_path / "exports" / "v1_yolo" / "manifest.json").read_text(encoding="utf-8"))
+    service.add_samples([AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
+                                        [{"class_name": "kniv", "bbox": [1, 2, 3, 4]}])])
+    assert json.loads((service.store.root / "dataset.json").read_text(encoding="utf-8"))["images"]
+    service.export_yolo(tmp_path / "exports")
+    manifest = json.loads((tmp_path / "exports" / "yolo" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_images"] == 1

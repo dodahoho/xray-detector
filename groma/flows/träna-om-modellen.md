@@ -5,7 +5,7 @@ groma:
   id: träna-om-modellen
 ---
 
-Operatören exporterar den valda datasetversionen och startar träningen från GUI:t. TrainingWorker startar träningsprocessen och bevakar dess utmatning rad för rad. Modellvikterna sparas i models-katalogen under respektive datasetversion.
+Operatören exporterar datasetet och startar träningen från GUI:t. TrainingWorker startar träningsprocessen och bevakar dess utmatning rad för rad. Modellvikterna sparas i models/trained/ under en katalog per körning.
 
 ## Steps
 

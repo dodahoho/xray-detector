@@ -13,7 +13,7 @@ from xray_detector.ui.dataset_view import SELECTED_BORDER, DatasetView
 @pytest.fixture
 def service(tmp_path) -> DatasetService:
     svc = DatasetService(tmp_path / "datasets", ["kniv"])
-    svc.add_samples(1, [
+    svc.add_samples([
         AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
                        [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),
         AnnotatedImage(np.full((30, 40, 3), 120, np.uint8),
@@ -30,7 +30,7 @@ def settings(tmp_path) -> QSettings:
 @pytest.fixture
 def view(qapp, service, settings) -> DatasetView:
     view = DatasetView(service, settings)
-    view.refresh_versions()
+    view.refresh()
     view.wait_for_refresh()
     return view
 
@@ -112,8 +112,8 @@ def test_delete_removes_whole_capture(view, service, monkeypatch):
     view._on_delete()
     view.wait_for_refresh()
 
-    assert service.load_coco(1)["images"] == []
-    assert service.load_coco(1)["annotations"] == []
+    assert service.load_coco()["images"] == []
+    assert service.load_coco()["annotations"] == []
     assert view._thumbs == []
     assert not view.delete_button.isEnabled()
 
@@ -125,7 +125,7 @@ def test_delete_without_selection_keeps_dataset(view, service):
     view._on_delete()
 
     assert messages == ["Markera bilder att ta bort först"]
-    assert len(service.load_coco(1)["images"]) == 2
+    assert len(service.load_coco()["images"]) == 2
 
 
 def test_click_selects_whole_pending_capture(qapp, tmp_path, settings, monkeypatch):
@@ -139,7 +139,7 @@ def test_click_selects_whole_pending_capture(qapp, tmp_path, settings, monkeypat
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
     ])
     view = DatasetView(service, settings)
-    view.refresh_versions()
+    view.refresh()
     view.wait_for_refresh()
 
     pending = [thumb for thumb in view._thumbs if thumb.pending]

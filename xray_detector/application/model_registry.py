@@ -66,7 +66,7 @@ def trained_models(trained_dir: Path) -> list[ModelSpec]:
     """Listar egentränade modeller utifrån training_manifest.json under models/trained/.
 
     Sökningen är rekursiv så att varje träningskörnings egen katalog
-    (v<version> eller en framtida snapshotkatalog) hittas var för sig.
+    hittas var för sig.
     """
     trained_dir = Path(trained_dir)
     specs: list[ModelSpec] = []

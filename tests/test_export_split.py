@@ -14,7 +14,6 @@ def make_service(tmp_path) -> DatasetService:
 
 
 def add_groups(svc: DatasetService, groups: int, per_group: int = 2) -> None:
-    version = svc.new_version()
     for group in range(groups):
         samples = [
             AnnotatedImage(
@@ -23,7 +22,7 @@ def add_groups(svc: DatasetService, groups: int, per_group: int = 2) -> None:
             )
             for _ in range(per_group)
         ]
-        svc.add_samples(version, samples)
+        svc.add_samples(samples)
 
 
 def test_split_is_group_aware():
@@ -53,7 +52,7 @@ def test_split_is_reproducible():
 def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(1, tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports")
 
     train_images = list((out / "images" / "train").glob("*.png"))
     val_images = list((out / "images" / "val").glob("*.png"))
@@ -75,9 +74,9 @@ def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
 def test_export_yolo_group_integrity(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(1, tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports")
 
-    coco = svc.load_coco(1)
+    coco = svc.load_coco()
     group_of = {image["id"]: image.get("group") for image in coco["images"]}
     train_groups = {group_of[int(p.stem.split("_")[1])] for p in (out / "images" / "train").glob("*.png")}
     val_groups = {group_of[int(p.stem.split("_")[1])] for p in (out / "images" / "val").glob("*.png")}
@@ -87,7 +86,7 @@ def test_export_yolo_group_integrity(tmp_path):
 def test_manifest_contains_split_counts(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(1, tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports")
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_train"] == 10
     assert manifest["num_val"] == 2
@@ -97,13 +96,26 @@ def test_manifest_contains_split_counts(tmp_path):
 def test_export_coco_copies_images_and_dataset(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 2)
-    out = svc.export_coco(1, tmp_path / "exports")
+    out = svc.export_coco(tmp_path / "exports")
     assert len(list((out / "images").glob("*.png"))) == 4
     dataset = json.loads((out / "dataset.json").read_text(encoding="utf-8"))
     assert len(dataset["images"]) == 4
 
 
+def test_export_replaces_images_from_an_earlier_export(tmp_path):
+    """En ny export får inte lämna kvar bilder som raderats ur datasetet."""
+    svc = make_service(tmp_path)
+    add_groups(svc, 2)
+    svc.export_yolo(tmp_path / "exports")
+    svc.delete_images([image["id"] for image in svc.load_coco()["images"][:2]])
+
+    out = svc.export_yolo(tmp_path / "exports")
+
+    assert len(list((out / "images" / "train").glob("*.png"))) == 2
+    assert len(list((out / "labels" / "train").glob("*.txt"))) == 2
+
+
 def test_service_train_val_counts(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    assert svc.train_val_counts(1) == (10, 2)
+    assert svc.train_val_counts() == (10, 2)

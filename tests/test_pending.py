@@ -65,7 +65,7 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     # "omstart": ny MainWindow ser den osparade fangsten
     window2 = MainWindow(config)
     view = window2.dataset_view
-    view.refresh_versions()
+    view.refresh()
     view.wait_for_refresh()
     pending = view._pending_by_group
     assert len(pending) == 1
@@ -83,7 +83,7 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     view.wait_for_refresh()
     assert not any(t.pending for t in view._thumbs)
     # datan hamnade i datasetet
-    assert window2.dataset_service.current_version() >= 1
+    assert window2.dataset_service.metadata()["num_images"] >= 1
 
 
 def test_pending_can_be_deleted_from_view(qapp, tmp_path, monkeypatch):
