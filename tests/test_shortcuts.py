@@ -10,6 +10,7 @@ from tests.conftest import synthetic_frame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.main_window import MainWindow
+from xray_detector.ui.settings_dialog import SettingsDialog
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +54,7 @@ def test_tab_row_shows_mnemonics(window):
         "&Annotation",
         "Data&set",
         "&Träning",
-        "&Inställningar",
+        "Instä&llningar",
     ]
 
 
@@ -64,7 +65,7 @@ def test_alt_letter_switches_tab(qapp, window):
     alt(qapp, window, Qt.Key.Key_S)
     assert window.tabs.currentIndex() == 2
 
-    alt(qapp, window, Qt.Key.Key_I)
+    alt(qapp, window, Qt.Key.Key_L)
     assert window.tabs.currentIndex() == 4
 
 
@@ -134,10 +135,10 @@ def test_buttons_register_their_mnemonic(window):
         window.training_view.start_button: "Alt+R",
         window.training_view.export_coco_button: "Alt+E",
         window.training_view.export_yolo_button: "Alt+Y",
-        window.detection_view.settings_button: "Alt+V",
-        window.annotation_view.settings_button: "Alt+V",
-        window.dataset_view.settings_button: "Alt+V",
-        window.training_view.settings_button: "Alt+V",
+        window.detection_view.settings_button: "Alt+I",
+        window.annotation_view.settings_button: "Alt+I",
+        window.dataset_view.settings_button: "Alt+I",
+        window.training_view.settings_button: "Alt+I",
     }
 
     for button, sequence in expected.items():
@@ -189,6 +190,19 @@ def test_alt_letter_starts_training(qapp, window):
     alt(qapp, window, Qt.Key.Key_R)
 
     assert messages == ["Ingen datasetversion vald"]
+
+
+def test_alt_letter_opens_the_view_settings(qapp, window, monkeypatch):
+    """Alt+I hör till vyns inställningsknapp, inte till fliken (TASK-54)."""
+    opened: list = []
+    monkeypatch.setattr(SettingsDialog, "exec", lambda self: opened.append(self))
+    window.tabs.setCurrentIndex(3)
+    qapp.processEvents()
+
+    alt(qapp, window, Qt.Key.Key_I)
+
+    assert [dialog.windowTitle() for dialog in opened] == ["Inställningar – Träning"]
+    assert window.tabs.currentIndex() == 3
 
 
 def test_shortcut_on_inactive_tab_does_not_fire(qapp, window):

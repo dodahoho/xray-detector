@@ -139,12 +139,12 @@ def gear_icon(size: int = 16) -> QIcon:
 
 
 def settings_button(parent: QWidget, title: str, sections=None) -> QPushButton:
-    """Knapp som öppnar vyens inställningar (Alt+V, TASK-41).
+    """Knapp som öppnar vyens inställningar (Alt+I, TASK-54).
 
     En vy utan egna inställningar får en avstängd knapp på samma plats, så
     placeringen är densamma oavsett vilken flik som är öppen.
     """
-    widget = button(mnemonic("Vyns inställningar", "V"), parent=parent)
+    widget = button(mnemonic("Inställningar", "I"), parent=parent)
     widget.setIcon(gear_icon())
     if sections is None:
         widget.setEnabled(False)

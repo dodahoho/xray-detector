@@ -60,7 +60,7 @@ Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 192
 
 Inställningsfliken håller applikationens globala inställningar, det vill säga sådant som inte hör till någon av de andra flikarna. I dag är det temat.
 
-Varje vy har dessutom en **Vyns inställningar**-knapp högst upp till höger, med ett kugghjul framför texten. Den öppnar de inställningar som hör till vyn; i dag är det bara träningsvyn som har några (träningsschemat med nattfönster och inaktivitet). En vy utan egna inställningar har kvar knappen men avstängd, så placeringen är densamma oavsett vilken flik som är öppen.
+Varje vy har dessutom en **Inställningar**-knapp högst upp till höger, med ett kugghjul framför texten. Den öppnar de inställningar som hör till vyn; i dag är det bara träningsvyn som har några (träningsschemat med nattfönster och inaktivitet). En vy utan egna inställningar har kvar knappen men avstängd, så placeringen är densamma oavsett vilken flik som är öppen.
 
 Ändringar sparas direkt, och **Stäng** (eller Esc) lämnar allt orört. Nycklarna i `settings.ini` är oförändrade (`ui/theme`, `training/night_start_hour`, `training/night_end_hour`, `training/inactivity_minutes`), så sparade val fortsätter att gälla.
 
@@ -80,15 +80,15 @@ Allt som går att klicka på går också att nå från tangentbordet. Genvägen 
 
 | Var | Genväg |
 | --- | --- |
-| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+I Inställningar |
-| Vyns inställningar | Alt+V öppnar den aktiva vyns inställningar; avstängd när vyn inte har några |
+| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+L Inställningar |
+| Vyernas inställningar | Alt+I öppnar den aktiva vyns inställningar; avstängd när vyn inte har några |
 | Detektion | Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
 | Annotation | Alt+P Spara till dataset, Alt+B Ta bort markerad, Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
 | Dataset | Alt+B Ta bort markerade |
 | Träning | Alt+R Starta träning, Esc Avbryt, Alt+E Exportera COCO, Alt+Y Exportera YOLO |
 | Övrigt | F11 helskärm, Delete/Backspace tar bort markerad rektangel, Ctrl+hjul zoomar |
 
-Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+- binds med `WindowShortcut` på vyn. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.
+Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. Fliken Inställningar använder därför Alt+L i stället för Alt+I: inställningarna för vyn man arbetar i nås oftare än de globala, så Alt+I hör till vyernas inställningsknappar. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+- binds med `WindowShortcut` på vyn. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.
 
 
 Modellväljaren är avstängd medan en modell laddas, så två laddningar inte kan köra samtidigt. En misslyckad laddning ger samma felmeddelande som förut och lämnar detektorn avstängd. Mätt på RTX 5080 tar RF-DETR nano 6,3 s att ladda; under hela den tiden animeras snurran och fönstret ritas om. Datasetvyns bildavkodning var den dyra delen av omladdningen (826 av 870 ms för 200 bilder) och ligger därför i arbetstråden, medan widgetbygget (cirka 45 ms) sker i GUI-tråden. Enhetskontrollen, som initierar CUDA-kontexten på cirka 1 s, har ingen indikator: den flyttades bara bort från `MainWindow.__init__` så fönstret kan visas direkt.

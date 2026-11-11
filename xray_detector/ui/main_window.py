@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.annotation_view, mnemonic("Annotation", "A"))
         self.tabs.addTab(self.dataset_view, mnemonic("Dataset", "S"))
         self.tabs.addTab(self.training_view, mnemonic("Träning", "T"))
-        self.tabs.addTab(self.settings_view, mnemonic("Inställningar", "I"))
+        self.tabs.addTab(self.settings_view, mnemonic("Inställningar", "L"))
         self.tabs.setTabEnabled(1, False)
         self._tab_guard = False
         self.tabs.currentChanged.connect(self._on_tab_changed)

@@ -83,7 +83,7 @@ def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):
     settings.sync()
 
     window = MainWindow(app_config)
-    assert window.tabs.tabText(4) == "&Inställningar"
+    assert window.tabs.tabText(4) == "Instä&llningar"
     assert current_theme() == "dark"
     combo = window.settings_view.theme_section.theme_combo
     assert combo.currentData() == "dark"

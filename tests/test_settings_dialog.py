@@ -62,7 +62,7 @@ def _opened_dialog(monkeypatch, button) -> SettingsDialog:
 
 def test_settings_tab_holds_the_global_theme(window):
     assert window.tabs.count() == 5
-    assert window.tabs.tabText(4) == "&Inställningar"
+    assert window.tabs.tabText(4) == "Instä&llningar"
     assert window.tabs.widget(4) is window.settings_view
     assert isinstance(window.settings_view.theme_section, ThemeSection)
 
@@ -73,16 +73,16 @@ def test_tab_row_has_five_tabs(window):
         "&Annotation",
         "Data&set",
         "&Träning",
-        "&Inställningar",
+        "Instä&llningar",
     ]
 
 
 def test_every_view_has_a_settings_button_with_a_gear(window):
     for name in VIEWS:
         button = getattr(window, name).settings_button
-        assert button.text() == "&Vyns inställningar"
+        assert button.text() == "&Inställningar"
         assert not button.icon().isNull(), "kugghjulet ska stå framför texten"
-        assert button.shortcut().toString() == "Alt+V"
+        assert button.shortcut().toString() == "Alt+I"
 
 
 def test_settings_button_sits_top_right_in_every_view(window):
@@ -160,4 +160,4 @@ def test_dialog_closes_without_changing_anything(qapp, settings):
 def test_settings_button_without_sections_is_disabled(qapp):
     button = settings_button(None, "Inställningar – Test")
     assert not button.isEnabled()
-    assert button.text() == "&Vyns inställningar"
+    assert button.text() == "&Inställningar"
