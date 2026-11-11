@@ -12,4 +12,4 @@ groma:
 description: Bygger videokällor (UVC, fil, ingen) och delegerar till kameratrådarna.
 ---
 
-Applikationslagrets fasad över CameraService: detektionsvyn anropar set_source(source_id, kind, value) och tjänsten bygger UvcSource/FileSource internt, så att UI:t inte importerar infrastructure. Hanterar även set_detector (alla strömmar) och stopp av strömmar vid avstängning.
+Applikationslagrets fasad över CameraService: detektionsvyn anropar set_source(source_id, kind, value, mode) och tjänsten bygger UvcSource eller FileSource internt, så att UI:t inte importerar infrastructure. Mode bär vald upplösning och pixelformat för UVC-källor. Hanterar även set_detector (alla strömmar), stop_source och stopp av alla strömmar vid avstängning.

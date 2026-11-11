@@ -22,4 +22,4 @@ groma:
 description: 'Rena dataklasser som båda lagren delar: kantdata utan GUI- eller bildbibliotek.'
 ---
 
-Domänlagret i den lagerindelade arkitekturen (TASK-22): Detection (rektygeln med klass och säkerhet), StreamFrame (ram + detektioner per ström), AnnotatedImage (bild + annoteringar vid sparning), TrainConfig (träningsparametrar) samt AppConfig (klasser, datakataloger, trösklar). Importerar enbart numpy/pathlib - inga Qt-, OpenCV- eller torch-beroenden, vilket gör lagret testbart isolerat.
+Domänlagret i den lagerindelade arkitekturen (TASK-22): Detection (rektangeln med klass och säkerhet), StreamFrame (ram + detektioner per ström), AnnotatedImage (bild + annoteringar vid sparning), TrainConfig (träningsparametrar) samt AppConfig (klasser, datakataloger, trösklar). Importerar enbart numpy/pathlib - inga Qt-, OpenCV- eller torch-beroenden, vilket gör lagret testbart isolerat.

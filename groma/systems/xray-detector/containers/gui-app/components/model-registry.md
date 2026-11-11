@@ -12,4 +12,4 @@ groma:
 description: Modellspecar, detektorfabrik och enhetsstatus.
 ---
 
-Applikationslagrets register: MODEL_SPECS listar YOLO26 n/s/m och RF-DETR base, spec_by_key/create_detector bygger vald detektorbackend, och device_status() ger text+färg för enhetsindikatorn (CUDA/CPU/torch saknas) som detektionsvyn visar. Flyttad hit från infrastructure när registry.py blev applikationstjänst.
+Applikationslagrets register: MODEL_SPECS listar YOLO26 nano/small/medium och RF-DETR nano/small/medium/large, spec_by_key/create_detector bygger vald detektorbackend, och device_status() ger text och färg för enhetsindikatorn (CUDA/CPU/torch saknas) som detektionsvyn visar. RF-DETR-posten är avstängd och märkt när rfdetr-paketet saknas. Ligger i applikationslagret eftersom UI:t inte ska importera infrastructure.

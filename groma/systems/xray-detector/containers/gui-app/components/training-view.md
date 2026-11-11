@@ -12,7 +12,7 @@ groma:
 description: Konfigurerar och startar modellträning.
 ---
 
-Val av basmodell (YOLO26 n/s/m, RF-DETR), datasetversion, epoker, bildstorlek och batch. Starten exporterar YOLO-datasetet och startar TrainingWorker; loggen visar processens stdout-rad för rad; detektionen pausas under träning.
+Val av basmodell (YOLO26 nano/small/medium eller RF-DETR nano/small/medium/large), datasetversion, epoker, bildstorlek och batch. Starten exporterar datasetet i den familj modellen tillhör — YOLO till data.yaml, RF-DETR till train/valid/test — och startar TrainingWorker; loggen visar processens stdout-rad för rad och detektionen pausas under träning. Egna knappar exporterar datasetversionen till COCO eller YOLO utan att starta träning.
 
 ## Relationships
 

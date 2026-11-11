@@ -14,4 +14,4 @@ groma:
 description: 'Fasad över datasetlagringen: versioner, sparade bilder, radering och export.'
 ---
 
-Applikationslagrets gränssnitt mot DatasetStore och export: klasserna annoterings/sparning kallar add_samples, datasetvyn listar/raderar via versions/load_coco/delete_images, träningsvyn exporterar YOLO/COCO. UI:t berör aldrig lagringsmodulerna direkt.
+Applikationslagrets gränssnitt mot DatasetStore och export: annoteringsvyn sparar via add_samples, datasetvyn listar och raderar via versions/load_coco/delete_images, träningsvyn exporterar YOLO, COCO eller RF-DETR. UI:t berör aldrig lagringsmodulerna direkt.

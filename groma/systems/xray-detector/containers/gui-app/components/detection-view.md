@@ -9,10 +9,10 @@ groma:
     - scanner: python
       file: xray_detector/ui/detection_view.py
   group: Användargränssnitt
-description: Visar två live-strömmar med detektionsoveralay och fångar bildpar.
+description: Visar två live-strömmar med detektionsoverlay och fångar bildpar.
 ---
 
-Två StreamPanel (Ström 1/2) med källval (ingen, UVC 0/1, videofil), modellval, tröskel och enhetsindikator (CUDA/CPU). Fångar senaste ramen från båda panelerna till Annotation. FPS-pacerad uppspelning av videofiler sker i källorna.
+Två StreamPanel (Ström 1/2) med källval (ingen, UVC-enhet eller videofil), valbar upplösning och pixelformat för UVC-källor, och en återanslutningsknapp när källan tappas. Den övre raden har modellval, confidence-tröskel, enhetsindikator (CUDA/CPU), resursmätare för GPU, VRAM, CPU och RAM, knappen Fånga bilder och en av/på-knapp för detektionen. Av/på-knappen visar vad ett klick gör, kopplar bort detektorn från strömmarna och rensar overlayn men behåller modellen i minnet. Fångst skickar senaste ramen från båda panelerna till annoteringsvyn.
 
 ## Relationships
 

@@ -25,7 +25,7 @@ groma:
 description: Läser två parallella videoströmmar i trådar.
 ---
 
-CameraService håller en StreamWorker (QThread) per källa ("left"/"right"). VideoSource-abstraktionen har UvcSource (DSHOW först med MSMF-fallback, 1920x1080) och FileSource (FPS-pacerad uppspelning, loop vid filslut). Detektorn injiceras per ström och körs på varje inläst ram.
+CameraService håller en StreamWorker (QThread) per källa ("left"/"right"). Varje worker äger sin egen detektionssmoother, mäter faktisk bildfrekvens över 30 ramar och signalerar när källan tappas. VideoSource-abstraktionen har UvcSource och FileSource. UvcSource öppnar med DSHOW först och MSMF som fallback; vald upplösning och pixelformat måste anges i öppningsanropet eftersom DSHOW ignorerar CAP_PROP_FOURCC efter öppning, och utan valt läge begärs 1920x1080. FileSource spelar upp i videons egen bildfrekvens och börjar om vid filslut. Detektorn injiceras per ström och körs på varje inläst ram.
 
 ## Relationships
 

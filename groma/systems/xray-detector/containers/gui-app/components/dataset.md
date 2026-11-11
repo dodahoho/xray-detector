@@ -21,4 +21,4 @@ groma:
 description: Versionshanterade COCO-dataset samt YOLO/COCO-export.
 ---
 
-DatasetStore skriver bilder och annoteringar som COCO-JSON per version (v1, v2, ...) med metadata; bilder som sparats i samma annoteringssession får samma "group"-id (fångstgrupp) i datafilen. export_yolo/export_coco skriver träningsklara kataloger med manifest. Kataloger under ~/.xray-detector.
+DatasetStore skriver bilder och annoteringar som COCO-JSON per version (v1, v2, ...) med metadata; bilder som sparats i samma annoteringssession får samma "group"-id (fångstgrupp) i datafilen. export_yolo, export_coco och export_rfdetr skriver träningsklara kataloger med manifest; rfdetr-exporten delar upp i train/valid/test med `_annotations.coco.json` per split. Kataloger under ~/.xray-detector.

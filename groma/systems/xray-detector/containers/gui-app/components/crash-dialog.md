@@ -12,4 +12,4 @@ groma:
 description: Global excepthook som loggar och visar ohanterade undantag.
 ---
 
-ui/crash_dialog.py (TASK-16): installeras i app.py efter QApplication-start; loggar undantaget med traceback till xray-loggern (rotationsloggen), skriver till stderr och visar en kritisk QMessageBox med undantagsnamn, meddelande och traceback som detaljtext innan appen far fortsatta - ingen tyst krasch. Kraschhanteraren själv sväljer aldrig fel utan loggar.
+ui/crash_dialog.py (TASK-16): installeras i app.py efter QApplication-start; loggar undantaget med traceback till xray-loggern (rotationsloggen), skriver till stderr och visar en kritisk QMessageBox med undantagsnamn, meddelande och traceback som detaljtext innan appen får fortsätta - ingen tyst krasch. Kraschhanteraren själv sväljer aldrig fel utan loggar.

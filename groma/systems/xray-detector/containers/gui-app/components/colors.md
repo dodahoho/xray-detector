@@ -13,4 +13,4 @@ groma:
 description: Deterministisk klass-till-färg-mappning delad av detektion och annotering.
 ---
 
-class_color() mapper kanda klasser till fast index i klasslistan och okanda till CRC32, sa samma klass far samma farg vid varje appstart (Pythons hash() seedas slumpvis per process och ersattes ur TASK-5). Anvands av StreamPanels overlay och annoteringsrektanglar; CLASS_COLORS ar paletten.
+class_color() mappar kända klasser till fast index i klasslistan och okända till CRC32, så samma klass får samma färg vid varje appstart (Pythons hash() seedas slumpvis per process och ersattes ur TASK-5). Används av StreamPanels overlay och annoteringsrektanglar; CLASS_COLORS är paletten.

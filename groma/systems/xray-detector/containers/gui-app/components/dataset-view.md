@@ -12,7 +12,7 @@ groma:
 description: Bläddrar sparade bilder som grupperade thumbnails.
 ---
 
-Visar en datasetversion som fångstgrupper (bilder som fångats samtidigt ramas in tillsammans), med versionsval, markering, dubbelklick som öppnar gruppen i Annotation och borttagning med bekräftelsedialog.
+Visar en datasetversion som fångstgrupper (bilder som fångats samtidigt ramas in tillsammans), med versionsval, markering av hela gruppen, dubbelklick som öppnar gruppen i Annotation och borttagning med bekräftelsedialog. Varje grupprubrik visar när fångsten gjordes samt antal bilder och objekt, och knappen Ta bort markerade visar hur många bilder som är markerade. Osparade fångster från pending-kön listas först, med rubriken OSPÅRAD, och kan annoteras klart eller raderas.
 
 ## Relationships
 

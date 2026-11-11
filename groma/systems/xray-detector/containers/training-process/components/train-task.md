@@ -12,10 +12,10 @@ groma:
     - scanner: python
       file: xray_detector/infrastructure/training/train_task.py
       symbol: main
-description: Själva YOLO-träningen i egen process.
+description: Tränar YOLO- eller RF-DETR-modellen i egen process.
 ---
 
-Argparse-CLI som körs som modul: laddar YOLO-vikter, tränar på exporterat data.yaml (epochs, imgsz, batch) på CUDA med CPU-fallback via resolve_device och skriver ut TRAINING_DONE på sista raden. Endast YOLO-träning är implementerad (RF-DETR-träning finns ej).
+Argparse-CLI som körs som modul: väljer familj med --family (yolo eller rfdetr), laddar basvikterna och tränar på exporterat dataset på CUDA med CPU-fallback via resolve_device. YOLO tränas med ultralytics på data.yaml; RF-DETR tränas på det exporterade rfdetr-datasetet med vald storlek, och kwargs filtreras mot paketets faktiska train()-signatur eftersom den varierar mellan versioner. Efter träningen skrivs training_manifest.json med basvikter, klasser, epoker och metrics, och TRAINING_DONE skrivs på sista raden.
 
 ## Relationships
 

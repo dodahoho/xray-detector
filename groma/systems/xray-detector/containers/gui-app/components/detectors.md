@@ -27,7 +27,7 @@ groma:
 description: Detektionskontrakt och YOLO/RF-DETR-backends.
 ---
 
-Infrastructure-lager för detektion: BaseDetector-ABC är det gemensamma kontraktet som kameratrådarna anropar per ram. YoloDetector kör ultralytics med CUDA->CPU-fallback (resolve_device) och enhetsetikett i GUI; RfDetrDetector är ett valfritt backend (rfdetr-paketet). Modellspecarna och fabriken (create_detector) ligger i applikationslagret (Modellregister).
+Infrastructure-lager för detektion: BaseDetector-ABC är det gemensamma kontraktet som kameratrådarna anropar per ram. YoloDetector kör ultralytics med CUDA->CPU-fallback (resolve_device) och enhetsetikett i GUI; RfDetrDetector är ett valfritt backend (rfdetr-paketet) med storlekarna nano till large. Båda begränsar torch och OpenCV till en tråd via Inferenstrådar. Modellspecarna och fabriken (create_detector) ligger i applikationslagret (Modellregister).
 
 ## Relationships
 
