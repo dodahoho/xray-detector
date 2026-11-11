@@ -1,11 +1,11 @@
 ---
 id: TASK-40
 title: Tydlig spinner vid tidskrävande operationer
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:18:00Z'
-updated_date: '2026-11-11T13:17:00Z'
+updated_date: '2026-11-11T13:20:00Z'
 labels: []
 dependencies: []
 references:
@@ -65,26 +65,26 @@ Källbytet behöver ingen indikator: arbetstråden öppnar kameran asynkront och
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Detektionsvyn visar en tydlig, animerad upptagenindikator medan en modell laddas
-- [ ] #2 Indikatorn syns innan arbetet börjar och försvinner när det lyckats eller misslyckats
-- [ ] #3 Modelladdningen blockerar inte GUI-tråden, så indikatorn animeras och fönstret går att rita om under tiden
-- [ ] #4 Modellväljaren är avstängd medan en laddning pågår, så två laddningar inte kan köra samtidigt
-- [ ] #5 En misslyckad laddning ger samma felmeddelande som i dag och lämnar detektorn avstängd
-- [ ] #6 Indikatorn är en egen komponent som kan användas på fler ställen än detektionsvyn
-- [ ] #7 Indikatorn visas först efter en kort fördröjning, så snabba operationer inte ger en blinkning
-- [ ] #8 Datasetvyn visar en animerad indikator medan bildlistan byggs om
-- [ ] #9 Export till COCO och YOLO visar en animerad indikator medan den skriver
-- [ ] #10 Spara annoteringar visar en animerad indikator medan datasetet skrivs
-- [ ] #11 Enhetskontrollen vid start körs i en arbetstråd, så fönstret kan visas utan att vänta på CUDA-initieringen
+- [x] #1 Detektionsvyn visar en tydlig, animerad upptagenindikator medan en modell laddas
+- [x] #2 Indikatorn syns innan arbetet börjar och försvinner när det lyckats eller misslyckats
+- [x] #3 Modelladdningen blockerar inte GUI-tråden, så indikatorn animeras och fönstret går att rita om under tiden
+- [x] #4 Modellväljaren är avstängd medan en laddning pågår, så två laddningar inte kan köra samtidigt
+- [x] #5 En misslyckad laddning ger samma felmeddelande som i dag och lämnar detektorn avstängd
+- [x] #6 Indikatorn är en egen komponent som kan användas på fler ställen än detektionsvyn
+- [x] #7 Indikatorn visas först efter en kort fördröjning, så snabba operationer inte ger en blinkning
+- [x] #8 Datasetvyn visar en animerad indikator medan bildlistan byggs om
+- [x] #9 Export till COCO och YOLO visar en animerad indikator medan den skriver
+- [x] #10 Spara annoteringar visar en animerad indikator medan datasetet skrivs
+- [x] #11 Enhetskontrollen vid start körs i en arbetstråd, så fönstret kan visas utan att vänta på CUDA-initieringen
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -124,3 +124,20 @@ Tester: 24 nya tester i tests/test_busy_indicator.py, tests/test_background_task
 
 Ruff: inga nya anmärkningar (63 mot 64 före ändringen).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Modellbytet, datasetvyns omladdning, COCO-/YOLO-exporten, sparningen av annoteringar och enhetskontrollen vid start körs nu utanför GUI-tråden, med en gemensam upptagenindikator som animeras under tiden.
+
+Vad som ändrades:
+- ui/busy_indicator.py: halvtransparent överlägg med snurra och text, barn till den widget det täcker. Tänds först efter 150 ms så snabba operationer inte blinkar.
+- application/background_task.py: BackgroundTask kör en funktion som QRunnable i Qt:s trådpool och rapporterar succeeded/failed/finished med köad anslutning till GUI-tråden. Ett undantag blir ett felmeddelande i stället för en krasch i arbetstråden.
+- Detektionsvyn: modelladdningen i arbetstråd, modellväljaren avstängd under tiden, samma felmeddelande som förut och detektorn lämnas avstängd vid fel. Enhetskontrollen i arbetstråd utan indikator.
+- Datasetvyn: COCO-läsning och bildavkodning i arbetstråd, widgetbygget kvar i GUI-tråden. En omladdning som begärs medan en pågår körs när den första är klar.
+- Träningsvyn: export i arbetstråd med avstängda exportknappar. Annoteringsvyn: add_samples + remove_pending i arbetstråd med avstängd spara-knapp. MainWindow väntar in arbetet vid stängning och byter bara till detektionsfliken om annoteringsfliken är aktiv.
+
+Verifiering: 24 nya tester plus uppdaterade befintliga tester; hela sviten gav 208 passed, 1 skipped i en ren worktree på den committade revisionen. Mätt på RTX 5080: RF-DETR nano laddar på 6,31 s med 12 snurrvinklar och 286 GUI-timertick under tiden, datasetvyn med 200 bilder laddar om på 0,33 s med 11 tick, och COCO-exporten på 0,16 s hinner aldrig visa indikatorn. Ruff: inga nya anmärkningar.
+
+Risker och uppföljning: stängning väntar in en pågående modelladdning, vilket kan frysa fönstret i upp till några sekunder i det ovanliga fallet att användaren stänger direkt efter ett modellbyte. groma/config.json undantar .scratch/ från arkitekturscanningen eftersom skripten där annars blir egna komponenter.
+<!-- SECTION:FINAL_SUMMARY:END -->
