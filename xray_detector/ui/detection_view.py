@@ -25,6 +25,7 @@ from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.video_settings import (
     clear_video_mode,
     load_video_mode,
@@ -40,8 +41,8 @@ S_LOST = "Källa tappad"
 S_CONNECTING = "Ansluter  (försök {0}/{1})"
 S_LOST_AFTER = "Källan tappad efter {0} försök"
 S_RETRY = "Försök igen"
-DETECTION_TURN_OFF = "Detektion av"
-DETECTION_TURN_ON = "Detektion på"
+DETECTION_TURN_OFF = mnemonic("Detektion av", "O")
+DETECTION_TURN_ON = mnemonic("Detektion på", "O")
 AUTO_MODE = "Auto"
 
 from xray_detector.ui.colors import class_color
@@ -103,7 +104,13 @@ class StreamPanel(QFrame):
     source_requested = Signal(str, str, object, object)
 
     def __init__(
-        self, source_id: str, title: str, devices=None, settings=None, parent=None
+        self,
+        source_id: str,
+        title: str,
+        devices=None,
+        settings=None,
+        retry_letter: str = "G",
+        parent=None,
     ) -> None:
         super().__init__(parent)
         self.source_id = source_id
@@ -153,7 +160,7 @@ class StreamPanel(QFrame):
         self.lost_label = QLabel(S_LOST)
         self.lost_label.setStyleSheet("color: #c33; font-size: 16px; font-weight: bold;")
         self.lost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.retry_button = QPushButton(S_RETRY)
+        self.retry_button = QPushButton(mnemonic(S_RETRY, retry_letter))
         self.retry_button.setMinimumHeight(36)
         self.retry_button.clicked.connect(self._on_retry)
         lost_layout.addWidget(self.lost_label)
@@ -442,7 +449,7 @@ class DetectionView(QWidget):
         for meter in self.resource_meters.values():
             bar.addWidget(meter)
         bar.addStretch(1)
-        self.capture_button = QPushButton("Fånga bilder")
+        self.capture_button = QPushButton(mnemonic("Fånga bilder", "F"))
         self.capture_button.setMinimumHeight(40)
         self.capture_button.clicked.connect(self._on_capture)
         bar.addWidget(self.capture_button)
@@ -456,8 +463,8 @@ class DetectionView(QWidget):
         layout.addLayout(bar)
         panels = QHBoxLayout()
         devices = self.video_service.list_devices()
-        self.left = StreamPanel("left", "Ström 1", devices, self.settings)
-        self.right = StreamPanel("right", "ström 2", devices, self.settings)
+        self.left = StreamPanel("left", "Ström 1", devices, self.settings, retry_letter="G")
+        self.right = StreamPanel("right", "ström 2", devices, self.settings, retry_letter="N")
         for panel in (self.left, self.right):
             panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):

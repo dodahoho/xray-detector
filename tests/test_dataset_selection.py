@@ -46,17 +46,17 @@ def test_second_click_deselects_whole_capture(view):
 
 def test_delete_button_reflects_selection(view):
     assert not view.delete_button.isEnabled()
-    assert view.delete_button.text() == "Ta bort markerade"
+    assert view.delete_button.text() == "Ta &bort markerade"
 
     view._on_thumb_clicked(view._thumbs[0])
 
     assert view.delete_button.isEnabled()
-    assert view.delete_button.text() == "Ta bort markerade (2)"
+    assert view.delete_button.text() == "Ta &bort markerade (2)"
 
     view._on_thumb_clicked(view._thumbs[0])
 
     assert not view.delete_button.isEnabled()
-    assert view.delete_button.text() == "Ta bort markerade"
+    assert view.delete_button.text() == "Ta &bort markerade"
 
 
 def test_selected_capture_is_visually_marked(view):
@@ -142,7 +142,7 @@ def test_click_selects_whole_pending_capture(qapp, tmp_path, monkeypatch):
     view._on_thumb_clicked(pending[0])
 
     assert all(thumb.selected for thumb in pending)
-    assert view.delete_button.text() == "Ta bort markerade (2)"
+    assert view.delete_button.text() == "Ta &bort markerade (2)"
 
     monkeypatch.setattr(QMessageBox, "question",
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))

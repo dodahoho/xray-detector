@@ -21,6 +21,7 @@ from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.shortcuts import mnemonic
 
 THUMB_HEIGHT = 170
 SELECTED_BORDER = "#4da3ff"
@@ -117,7 +118,7 @@ class DatasetView(QWidget):
         self.version_combo.currentIndexChanged.connect(self.refresh)
         bar.addWidget(self.version_combo)
         bar.addStretch(1)
-        self.delete_button = QPushButton("Ta bort markerade")
+        self.delete_button = QPushButton(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
         layout.addLayout(bar)
@@ -340,9 +341,8 @@ class DatasetView(QWidget):
 
     def _update_delete_button(self) -> None:
         count = sum(1 for thumb in self._thumbs if thumb.selected)
-        self.delete_button.setText(
-            f"Ta bort markerade ({count})" if count else "Ta bort markerade"
-        )
+        label = f"Ta bort markerade ({count})" if count else "Ta bort markerade"
+        self.delete_button.setText(mnemonic(label, "B"))
         self.delete_button.setEnabled(count > 0)
 
     def _on_thumb_double_clicked(self, thumb: Thumbnail) -> None:

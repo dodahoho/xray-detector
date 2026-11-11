@@ -60,6 +60,22 @@ Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 192
 
 Fem operationer som tidigare blockerade GUI-tråden körs i en arbetstråd och visar en gemensam upptagenindikator (`xray_detector/ui/busy_indicator.py`) som läggs över vyn: modellbyte i detektionsvyn, omladdning av bildlistan i datasetvyn, export till COCO/YOLO, sparning av annoteringar och enhetskontrollen vid start. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning.
 
+## Tangentbord
+
+Allt som går att klicka på går också att nå från tangentbordet. Genvägen syns i etiketten: Qt:s mnemonik ritar en understruken bokstav som ger **Alt+bokstav**, och genvägar som inte är mnemonik visas i stället inom parentes, som `Avbryt (Esc)`. Hjälpmodulen `xray_detector/ui/shortcuts.py` sätter `&` på rätt plats och binder de genvägar som inte är mnemonik.
+
+| Var | Genväg |
+| --- | --- |
+| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+I Inställningar |
+| Detektion | Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
+| Annotation | Alt+P Spara till dataset, Alt+B Ta bort markerad, Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
+| Dataset | Alt+B Ta bort markerade |
+| Träning | Alt+R Starta träning, Esc Avbryt, Alt+E Exportera COCO, Alt+Y Exportera YOLO |
+| Övrigt | F11 helskärm, Delete/Backspace tar bort markerad rektangel, Ctrl+hjul zoomar |
+
+Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+- binds med `WindowShortcut` på vyn. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.
+
+
 Modellväljaren är avstängd medan en modell laddas, så två laddningar inte kan köra samtidigt. En misslyckad laddning ger samma felmeddelande som förut och lämnar detektorn avstängd. Mätt på RTX 5080 tar RF-DETR nano 6,3 s att ladda; under hela den tiden animeras snurran och fönstret ritas om. Datasetvyns bildavkodning var den dyra delen av omladdningen (826 av 870 ms för 200 bilder) och ligger därför i arbetstråden, medan widgetbygget (cirka 45 ms) sker i GUI-tråden. Enhetskontrollen, som initierar CUDA-kontexten på cirka 1 s, har ingen indikator: den flyttades bara bort från `MainWindow.__init__` så fönstret kan visas direkt.
 
 Data lagras i `~/.xray-detector/` (dataset, exporter, modeller).

@@ -10,6 +10,7 @@ from xray_detector.ui.annotation_view import AnnotationView
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.detection_view import DetectionView
 from xray_detector.ui.settings_view import SettingsView
+from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.theme import apply_theme
 from xray_detector.ui.training_view import TrainingView
 
@@ -41,11 +42,11 @@ class MainWindow(QMainWindow):
         self.settings_view = SettingsView(self.settings)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self.detection_view, "Detektion")
-        self.tabs.addTab(self.annotation_view, "Annotation")
-        self.tabs.addTab(self.dataset_view, "Dataset")
-        self.tabs.addTab(self.training_view, "Träning")
-        self.tabs.addTab(self.settings_view, "Inställningar")
+        self.tabs.addTab(self.detection_view, mnemonic("Detektion", "D"))
+        self.tabs.addTab(self.annotation_view, mnemonic("Annotation", "A"))
+        self.tabs.addTab(self.dataset_view, mnemonic("Dataset", "S"))
+        self.tabs.addTab(self.training_view, mnemonic("Träning", "T"))
+        self.tabs.addTab(self.settings_view, mnemonic("Inställningar", "I"))
         self.tabs.setTabEnabled(1, False)
         self._tab_guard = False
         self.tabs.currentChanged.connect(self._on_tab_changed)

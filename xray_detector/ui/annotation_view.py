@@ -9,6 +9,7 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
+from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
@@ -394,23 +395,23 @@ class AnnotationView(QWidget):
         bar.addWidget(self.class_combo)
         self.add_class_button = QPushButton("+")
         self.add_class_button.setFixedWidth(36)
-        self.add_class_button.setToolTip("Lägg till klassen som är angiven i rutan")
+        self.add_class_button.setToolTip("Lägg till klassen som är angiven i rutan (Ctrl++)")
         self.add_class_button.clicked.connect(self._on_add_class)
         bar.addWidget(self.add_class_button)
         self.remove_class_button = QPushButton("−")
         self.remove_class_button.setFixedWidth(36)
-        self.remove_class_button.setToolTip("Ta bort den valda klassen ur listan")
+        self.remove_class_button.setToolTip("Ta bort den valda klassen ur listan (Ctrl+-)")
         self.remove_class_button.clicked.connect(self._on_remove_class)
         bar.addWidget(self.remove_class_button)
-        self.delete_button = QPushButton("Ta bort markerad")
+        self.delete_button = QPushButton(mnemonic("Ta bort markerad", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
         bar.addStretch(1)
-        self.save_button = QPushButton("Spara till dataset")
+        self.save_button = QPushButton(mnemonic("Spara till dataset", "P"))
         self.save_button.setMinimumHeight(40)
         self.save_button.clicked.connect(self._on_save)
         bar.addWidget(self.save_button)
-        self.cancel_button = QPushButton("Avbryt")
+        self.cancel_button = QPushButton(with_hint("Avbryt", "Esc"))
         self.cancel_button.clicked.connect(self.cancelled.emit)
         bar.addWidget(self.cancel_button)
         layout.addLayout(bar)
@@ -421,6 +422,9 @@ class AnnotationView(QWidget):
             panels.addWidget(canvas, 1)
         layout.addLayout(panels, 1)
         self.busy = BusyIndicator(self)
+        bind_shortcut(self, "Esc", self.cancelled.emit)
+        bind_shortcut(self, "Ctrl++", self._on_add_class)
+        bind_shortcut(self, "Ctrl+-", self._on_remove_class)
 
     def restore_settings(self) -> None:
         class_name = self.settings.value("annotation/class", type=str)

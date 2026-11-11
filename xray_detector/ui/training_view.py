@@ -21,6 +21,7 @@ from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.training import TrainConfig
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 
 
 class TrainingView(QWidget):
@@ -96,23 +97,24 @@ class TrainingView(QWidget):
         self.run_combo.addItem("Nattetid (schema)", "night")
         self.run_combo.addItem("Efter inaktivitet", "inactivity")
         form.addRow("Kör:", self.run_combo)
-        self.start_button = QPushButton("Starta träning")
+        self.start_button = QPushButton(mnemonic("Starta träning", "R"))
         self.start_button.setMinimumHeight(40)
         self.start_button.clicked.connect(self._on_start)
-        self.abort_button = QPushButton("Avbryt")
+        self.abort_button = QPushButton(with_hint("Avbryt", "Esc"))
         self.abort_button.setEnabled(False)
         self.abort_button.clicked.connect(self._on_abort)
         buttons = QHBoxLayout()
         buttons.addWidget(self.start_button)
         buttons.addWidget(self.abort_button)
         form.addRow(buttons)
+        bind_shortcut(self, "Esc", self._on_abort)
         return form
 
     def _build_export_row(self) -> QHBoxLayout:
         row = QHBoxLayout()
-        self.export_coco_button = QPushButton("Exportera COCO")
+        self.export_coco_button = QPushButton(mnemonic("Exportera COCO", "E"))
         self.export_coco_button.clicked.connect(self._on_export_coco)
-        self.export_yolo_button = QPushButton("Exportera YOLO")
+        self.export_yolo_button = QPushButton(mnemonic("Exportera YOLO", "Y"))
         self.export_yolo_button.clicked.connect(self._on_export_yolo)
         row.addWidget(self.export_coco_button)
         row.addWidget(self.export_yolo_button)
