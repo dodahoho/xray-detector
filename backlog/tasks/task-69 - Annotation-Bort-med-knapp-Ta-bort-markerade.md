@@ -1,7 +1,7 @@
 ---
 id: TASK-69
 title: Annotation - Bort med knapp "Ta bort markerade"
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-12T17:15:00Z'
@@ -32,7 +32,7 @@ Ta bort enskilda anotationer gör man med tangentbord (delete eller backspace)
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
