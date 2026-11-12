@@ -31,11 +31,14 @@ from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
 
 THUMB_HEIGHT = 170
+THUMB_BORDER = 3
 SELECTED_BORDER = "#4da3ff"
 SELECTED_BACKGROUND = "#1d3b57"
 IDLE_BORDER = "#555"
 IDLE_BACKGROUND = "#2b2b2b"
 UNKNOWN_DATE = "Okänt datum"
+MARKED_SUFFIX = " · Markerad"
+HEADER_MARGINS = (6, 2, 6, 2)
 
 
 class FlowLayout(QLayout):
@@ -146,6 +149,35 @@ def _mtime_timestamp(path: Path) -> str:
         return ""
 
 
+def _header_style(color: str, background: str | None = None) -> str:
+    """Rubrikens stil; bara färgerna skiljer så rubriken behåller sin storlek (TASK-63)."""
+    fill = f"background: {background}; " if background else ""
+    return f"font-weight: bold; color: {color}; {fill}border-radius: 3px;"
+
+
+def _card_style(color: str, dashed: bool = False) -> str:
+    """Kortets ram; samma bredd i alla lägen så kortet inte byter storlek (TASK-63)."""
+    line = "dashed" if dashed else "solid"
+    return f"QFrame {{ border: 1px {line} {color}; border-radius: 8px; }}"
+
+
+def _capture_header(text: str, color: str, parent: QWidget) -> QLabel:
+    """Rubrikrad för en fångst med plats för ' · Markerad' redan omarkerad (TASK-63).
+
+    Rubriken skapas med det markerade läget, mäter upp sin bredd och behåller den
+    som minimum. Då byter kortet inte storlek och korten intill inte flyttas när
+    fångsten markeras. Rubriken behöver kortet som förälder redan här, annars har
+    stilmallen inte lagt på sin ram när bredden mäts.
+    """
+    header = QLabel(text + MARKED_SUFFIX, parent)
+    header.setContentsMargins(*HEADER_MARGINS)
+    header.setStyleSheet(_header_style(color))
+    header.ensurePolished()
+    header.setMinimumWidth(header.sizeHint().width())
+    header.setText(text)
+    return header
+
+
 class Thumbnail(QWidget):
     clicked = Signal(object)
     double_clicked = Signal(object)
@@ -172,11 +204,11 @@ class Thumbnail(QWidget):
         self._apply_style()
 
     def _apply_style(self) -> None:
+        """Bara färgen växlar; samma rambredd håller bildens storlek fast (TASK-63)."""
         border = SELECTED_BORDER if self.selected else IDLE_BORDER
         background = SELECTED_BACKGROUND if self.selected else IDLE_BACKGROUND
-        width = 4 if self.selected else 3
         self.setStyleSheet(
-            f"Thumbnail {{ background: {background}; border: {width}px solid {border}; "
+            f"Thumbnail {{ background: {background}; border: {THUMB_BORDER}px solid {border}; "
             "border-radius: 6px; }"
         )
 
@@ -430,11 +462,12 @@ class DatasetView(QWidget):
         """Ett kort per fångst: tid, antal bilder och objekt samt bildparet (TASK-42)."""
         object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
         time_label = stamp[11:] if stamp else f"Fångst {key}"
-        header = QLabel(f"{time_label} · {len(images)} bilder · {object_count} objekt")
-        header.setStyleSheet("font-weight: bold; color: #888;")
         card = QFrame()
         card.setFrameShape(QFrame.Shape.Box)
-        card.setStyleSheet("QFrame { border: 1px solid #666; border-radius: 8px; }")
+        card.setStyleSheet(_card_style("#666"))
+        header = _capture_header(
+            f"{time_label} · {len(images)} bilder · {object_count} objekt", "#888", card
+        )
         self._group_headers[key] = (header, card, header.text())
         inner = QVBoxLayout(card)
         inner.setContentsMargins(8, 8, 8, 8)
@@ -467,11 +500,12 @@ class DatasetView(QWidget):
             self._pending_by_group[capture.group_id] = capture
             stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
             title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"
-            header = QLabel(f"{title} · {len(capture.frames)} bild(er)")
-            header.setStyleSheet("font-weight: bold; color: #e5a52a;")
             card = QFrame()
             card.setFrameShape(QFrame.Shape.Box)
-            card.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
+            card.setStyleSheet(_card_style("#e5a52a", dashed=True))
+            header = _capture_header(
+                f"{title} · {len(capture.frames)} bild(er)", "#e5a52a", card
+            )
             self._group_headers[capture.group_id] = (header, card, header.text())
             inner = QVBoxLayout(card)
             inner.setContentsMargins(8, 8, 8, 8)
@@ -509,7 +543,11 @@ class DatasetView(QWidget):
         return [thumb for thumb in self._thumbs if thumb.group_id == group_id]
 
     def _update_group_header(self, group_id) -> None:
-        """Fyller fångstens rubrikrad och avslutar den med 'Markerad' (TASK-29)."""
+        """Fyller fångstens rubrikrad och avslutar den med 'Markerad' (TASK-29).
+
+        Bara text och färger växlar; ramens bredd och rubrikens mått är fasta så
+        att kortet behåller sin storlek och vyn inte hoppar (TASK-63).
+        """
         entry = self._group_headers.get(group_id)
         if entry is None:
             return
@@ -517,21 +555,16 @@ class DatasetView(QWidget):
         members = self._thumbs_for_group(group_id)
         selected = any(thumb.selected for thumb in members)
         pending = any(thumb.pending for thumb in members)
-        header.setText(f"{base_text} · Markerad" if selected else base_text)
+        header.setText(f"{base_text}{MARKED_SUFFIX}" if selected else base_text)
         if selected:
-            header.setStyleSheet(
-                f"font-weight: bold; color: #10202e; background: {SELECTED_BORDER}; "
-                "border-radius: 3px; padding: 2px 6px;"
-            )
-            frame.setStyleSheet(
-                f"QFrame {{ border: 2px solid {SELECTED_BORDER}; border-radius: 8px; }}"
-            )
+            header.setStyleSheet(_header_style("#10202e", SELECTED_BORDER))
+            frame.setStyleSheet(_card_style(SELECTED_BORDER))
         elif pending:
-            header.setStyleSheet("font-weight: bold; color: #e5a52a;")
-            frame.setStyleSheet("QFrame { border: 1px dashed #e5a52a; border-radius: 8px; }")
+            header.setStyleSheet(_header_style("#e5a52a"))
+            frame.setStyleSheet(_card_style("#e5a52a", dashed=True))
         else:
-            header.setStyleSheet("font-weight: bold; color: #888;")
-            frame.setStyleSheet("QFrame { border: 1px solid #666; border-radius: 8px; }")
+            header.setStyleSheet(_header_style("#888"))
+            frame.setStyleSheet(_card_style("#666"))
 
     def _update_delete_button(self) -> None:
         count = sum(1 for thumb in self._thumbs if thumb.selected)

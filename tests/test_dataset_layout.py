@@ -4,7 +4,7 @@ import json
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QRect, QSettings
+from PySide6.QtCore import QRect, QSettings, QSize
 from PySide6.QtWidgets import QWidget
 
 from tests.conftest import synthetic_frame
@@ -58,6 +58,13 @@ def _images_per_row(view, title: str, width: int) -> int:
         card = flow.itemAt(index).widget()
         rows[card.y()] = rows.get(card.y(), 0) + 1
     return max(rows.values()) * 2  # varje kort har fångstens två bilder
+
+
+def _card_geometry(view, title: str, width: int = 1920) -> list[tuple[QRect, QSize]]:
+    """Kortens läge och storlek när sektionen lagts ut på given bredd."""
+    flow = view._section_cards[title].layout()
+    flow.setGeometry(QRect(0, 0, width, flow.heightForWidth(width)))
+    return [(card.geometry(), card.sizeHint()) for card in _cards(view, title)]
 
 
 def test_captures_are_grouped_by_capture_date(qapp, config, service, settings):
@@ -173,3 +180,34 @@ def test_flow_layout_wraps_when_the_row_is_full(qapp):
     assert [box.x() for box in boxes] == [0, 110, 220, 0, 110]
     assert [box.y() for box in boxes] == [0, 0, 0, 50, 50]
     assert flow.heightForWidth(width) == 90
+
+
+def test_selection_keeps_the_card_size_and_position(qapp, config, service, settings):
+    """Markering får inte ändra kortets storlek eller flytta korten intill (TASK-63)."""
+    for hour in range(4):
+        service.add_samples(
+            [_sample(60), _sample(120)], captured=f"2026-11-10T0{hour}:00:00"
+        )
+
+    view = _built(config, service, settings)
+    before = _card_geometry(view, "2026-11-10")
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert _card_geometry(view, "2026-11-10") == before
+
+
+def test_selection_keeps_the_pending_card_size(qapp, config, tmp_path, settings):
+    """Osparade fångster behåller också kortets storlek vid markering (TASK-63)."""
+    service = DatasetService(tmp_path / "datasets")
+    save_pending(tmp_path, [
+        StreamFrame("left", synthetic_frame(), [], "kamera-vanster"),
+        StreamFrame("right", synthetic_frame(), [], "kamera-hoger"),
+    ])
+
+    view = _built(config, service, settings)
+    before = _card_geometry(view, "Osparade fångster")
+
+    view._on_thumb_clicked(view._thumbs[0])
+
+    assert _card_geometry(view, "Osparade fångster") == before
