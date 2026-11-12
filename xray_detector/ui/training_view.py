@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QSpinBox,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -26,6 +27,7 @@ from xray_detector.ui.settings_dialog import TrainingScheduleSection, settings_b
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.style import button
 from xray_detector.ui.training_chart import TrainingChart
+from xray_detector.ui.training_history import TrainingHistoryView
 
 
 class TrainingView(QWidget):
@@ -49,8 +51,9 @@ class TrainingView(QWidget):
         layout.addLayout(self._build_header())
         layout.addLayout(self._build_settings())
         self.progress_bar = QProgressBar()
-        self.progress_bar.setFormat("Epok %v/%m")
+        self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Ingen träning")
         layout.addWidget(self.progress_bar)
         self.epoch_label = QLabel("Ingen träning pågår")
         layout.addWidget(self.epoch_label)
@@ -58,7 +61,11 @@ class TrainingView(QWidget):
         layout.addWidget(self.chart, 2)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        layout.addWidget(self.log, 1)
+        self.history = TrainingHistoryView(self.config.trained_dir)
+        self.bottom_tabs = QTabWidget()
+        self.bottom_tabs.addTab(self.log, "Logg")
+        self.bottom_tabs.addTab(self.history, "Tidigare träningar")
+        layout.addWidget(self.bottom_tabs, 1)
         self.refresh_dataset_info()
         self._disable_missing_rfdetr()
 
@@ -238,6 +245,7 @@ class TrainingView(QWidget):
         self.overfitting_check.setEnabled(False)
         self.progress_bar.setRange(0, worker.config.epochs)
         self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Epok %v/%m")
         self.epoch_label.setText("Väntar på första epoken")
         self.chart.clear()
         header = (
@@ -258,6 +266,7 @@ class TrainingView(QWidget):
 
     def _on_epoch_metrics(self, metrics) -> None:
         """Uppdaterar progressbaren och grafen med epokens värden (TASK-44, TASK-45)."""
+        self.progress_bar.setFormat("Epok %v/%m")
         self.progress_bar.setMaximum(metrics.total_epochs)
         self.progress_bar.setValue(metrics.epoch)
         self.epoch_label.setText(metrics.summary())
@@ -286,6 +295,7 @@ class TrainingView(QWidget):
         self.overfitting_check.setEnabled(True)
         self.training_finished.emit()
         self.refresh_dataset_info()
+        self.history.refresh()
 
 
 class _ActivityFilter(QObject):
