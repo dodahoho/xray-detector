@@ -852,8 +852,15 @@ class DatasetView(QWidget):
             header.setStyleSheet(_header_text_style("#888"))
             frame.setStyleSheet(_card_style("#666"))
 
+    def _selected_groups(self) -> list:
+        """Fångstgrupperna som har minst en markerad bild, i listordning (TASK-73)."""
+        return list(
+            dict.fromkeys(thumb.group_id for thumb in self._thumbs if thumb.selected)
+        )
+
     def _update_delete_button(self) -> None:
-        count = sum(1 for thumb in self._thumbs if thumb.selected)
+        """Antalet markerade bildpar; bilderna hanteras alltid i par (TASK-73)."""
+        count = len(self._selected_groups())
         label = f"Ta bort markerade ({count})" if count else "Ta bort markerade"
         self.delete_button.setText(mnemonic(label, "B"))
         self.delete_button.setEnabled(count > 0)
@@ -898,11 +905,12 @@ class DatasetView(QWidget):
         if not ids and not pending_ids:
             self.status_changed.emit("Markera bilder att ta bort först")
             return
-        count = len(selected)
+        # bilderna tas alltid bort i par, så antalet är fångstgrupper (TASK-73)
+        count = len(self._selected_groups())
         answer = QMessageBox.question(
             self,
-            "Ta bort bilder",
-            f"Ta bort {count} bild(er) med tillhörande annoteringar? Det går inte att ångra.",
+            "Ta bort bildpar",
+            f"Ta bort {count} bildpar med tillhörande annoteringar? Det går inte att ångra.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -911,5 +919,5 @@ class DatasetView(QWidget):
             self.dataset_service.delete_images(ids)
         for group_id in pending_ids:
             self.dataset_service.remove_pending(group_id)
-        self.status_changed.emit(f"Tog bort {count} bild(er) från datasetet")
+        self.status_changed.emit(f"Tog bort {count} bildpar från datasetet")
         self.refresh()

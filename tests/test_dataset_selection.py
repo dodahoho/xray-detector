@@ -57,7 +57,7 @@ def test_delete_button_reflects_selection(view):
     view._on_thumb_clicked(view._thumbs[0])
 
     assert view.delete_button.isEnabled()
-    assert view.delete_button.text() == "Ta &bort markerade (2)"
+    assert view.delete_button.text() == "Ta &bort markerade (1)"
 
     view._on_thumb_clicked(view._thumbs[0])
 
@@ -121,6 +121,28 @@ def test_delete_removes_whole_capture(view, service, monkeypatch):
     assert not view.delete_button.isEnabled()
 
 
+def test_delete_counts_image_pairs(view, monkeypatch):
+    """Dialog och statusrad räknar bildpar, inte enskilda bilder (TASK-73)."""
+    asked = []
+
+    def answer(*args, **_kwargs):
+        asked.append(args[2])
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(answer))
+    messages = []
+    view.status_changed.connect(messages.append)
+    view._on_thumb_clicked(view._thumbs[0])
+
+    view._on_delete()
+    view.wait_for_refresh()
+
+    assert asked == [
+        "Ta bort 1 bildpar med tillhörande annoteringar? Det går inte att ångra."
+    ]
+    assert messages == ["Tog bort 1 bildpar från datasetet"]
+
+
 def test_delete_without_selection_keeps_dataset(view, service):
     messages = []
     view.status_changed.connect(messages.append)
@@ -151,7 +173,7 @@ def test_click_selects_whole_pending_capture(qapp, config, tmp_path, settings, m
     view._on_thumb_clicked(pending[0])
 
     assert all(thumb.selected for thumb in pending)
-    assert view.delete_button.text() == "Ta &bort markerade (2)"
+    assert view.delete_button.text() == "Ta &bort markerade (1)"
 
     monkeypatch.setattr(QMessageBox, "question",
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))

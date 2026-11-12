@@ -46,7 +46,7 @@ def test_click_on_the_card_selects_the_whole_capture(qapp, config, service, sett
     QTest.mouseClick(_card(view, 1), Qt.MouseButton.LeftButton)
 
     assert all(thumb.selected for thumb in view._thumbs)
-    assert view.delete_button.text() == "Ta &bort markerade (2)"
+    assert view.delete_button.text() == "Ta &bort markerade (1)"
 
 
 def test_second_click_on_the_card_deselects(qapp, config, service, settings):
