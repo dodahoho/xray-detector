@@ -1,14 +1,16 @@
-"""Annoteringsvyns klasslista: modellens klasser är standard, datasetet är master (TASK-61)."""
+"""Annoteringsvyns klasslista: datasetet är master och modellen erbjuds i en fråga (TASK-61, TASK-71)."""
 
 import numpy as np
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import QEvent, QPointF, QSettings, Qt
+from PySide6.QtGui import QMouseEvent
+from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from tests.conftest import FakeDetector, synthetic_frame
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.domain.detection import Detection
 from xray_detector.ui.annotation_view import AnnotationView
 
 
@@ -26,8 +28,9 @@ def model(*names: str):
     return lambda: list(names)
 
 
-def capture() -> StreamFrame:
-    return StreamFrame("left", synthetic_frame(), [], "kamera")
+def capture(*class_names: str, y: int = 2) -> StreamFrame:
+    detections = [Detection(2, y, 20, y + 18, name, 0.9) for name in class_names]
+    return StreamFrame("left", synthetic_frame(), detections, "kamera")
 
 
 def sample(class_name: str) -> AnnotatedImage:
@@ -37,36 +40,178 @@ def sample(class_name: str) -> AnnotatedImage:
     )
 
 
-# --- Standardvärden från modellen (AC 1) ---
+def answer(monkeypatch, button, messages: list[str] | None = None) -> None:
+    """Svarar på QMessageBox.question och samlar dialogtexterna."""
+
+    def question(parent, title, text, *args, **kwargs):
+        if messages is not None:
+            messages.append(text)
+        return button
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(question))
 
 
-def test_annotation_view_lists_the_models_classes(qapp, tmp_path):
-    view, _ = make_view(tmp_path, model("kniv", "pistol"))
+def click(canvas, point) -> None:
+    def event(event_type):
+        return QMouseEvent(
+            event_type,
+            QPointF(point),
+            QPointF(point),
+            Qt.MouseButton.LeftButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
 
-    assert view._class_names() == ["kniv", "pistol"]
+    canvas.mousePressEvent(event(QEvent.Type.MouseButtonPress))
+    canvas.mouseReleaseEvent(event(QEvent.Type.MouseButtonRelease))
 
 
-def test_model_classes_are_written_to_the_dataset_when_the_view_opens(qapp, tmp_path):
+def sized_canvas(view: AnnotationView):
+    """Första canvasen med en känd storlek, så etiketten går att träffa."""
+    canvas = view.canvases[0]
+    canvas.resize(160, 120)
+    return canvas
+
+
+# --- Tom lista vid nyinstallation (AC 1) ---
+
+
+def test_annotation_list_is_empty_by_default(qapp, tmp_path):
+    view, service = make_view(tmp_path, model("kniv", "pistol"))
+
+    assert view._class_names() == []
+    assert service.classes() == []
+
+
+def test_config_classes_do_not_fill_the_annotation_list(qapp, tmp_path):
+    view, _ = make_view(tmp_path)
+
+    assert AppConfig().classes, "config.classes finns kvar för overlayfärgerna"
+    assert view._class_names() == []
+
+
+# --- Frågan om modellens klasser (AC 2) ---
+
+
+def test_model_classes_are_offered_when_the_list_is_empty(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
     view, service = make_view(tmp_path, model("kniv", "pistol"))
 
     view.load_captures([capture()])
 
+    assert view._class_names() == ["kniv", "pistol"]
     assert service.classes() == ["kniv", "pistol"]
+    assert messages and "2 klasser" in messages[0]
+    assert "kniv" not in messages[0] and "pistol" not in messages[0]
 
 
-def test_model_classes_are_not_written_before_the_view_opens(qapp, tmp_path):
-    _, service = make_view(tmp_path, model("kniv", "pistol"))
+def test_the_offer_counts_a_single_class_in_the_singular(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
+    view, _ = make_view(tmp_path, model("kniv"))
 
-    assert service.classes() == [], "först när vyn öppnas blir modellens klasser datasetets"
+    view.load_captures([capture()])
+
+    assert messages and "1 klass " in messages[0]
 
 
-def test_config_classes_are_the_fallback_without_a_model(qapp, tmp_path):
+def test_declining_the_offer_keeps_the_list_empty(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.No)
+    view, service = make_view(tmp_path, model("kniv", "pistol"))
+
+    view.load_captures([capture()])
+
+    assert view._class_names() == []
+    assert service.classes() == []
+
+
+def test_no_offer_without_a_model(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
     view, _ = make_view(tmp_path)
 
-    assert view._class_names() == AppConfig().classes
+    view.load_captures([capture()])
+
+    assert messages == []
+    assert view._class_names() == []
 
 
-# --- Datasetet är master (AC 2) ---
+def test_no_offer_when_the_dataset_already_has_classes(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
+    view, service = make_view(tmp_path, model("kniv", "pistol"))
+    service.set_classes(["cigaretter"])
+
+    view.load_captures([capture()])
+
+    assert messages == []
+    assert view._class_names() == ["cigaretter"]
+
+
+def test_the_offer_returns_when_the_list_is_empty_again(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
+    view, service = make_view(tmp_path, model("kniv"))
+    view.load_captures([capture()])
+    view._on_remove_class()
+
+    view.load_captures([capture()])
+
+    assert service.classes() == ["kniv"]
+
+
+# --- Klasser som bildparet detekterat men listan saknar (AC 3) ---
+
+
+def test_detected_class_missing_from_the_list_is_offered_by_name(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
+    view, service = make_view(tmp_path, model("kniv"))
+    service.set_classes(["kniv"])
+
+    view.load_captures([capture("pistol")])
+
+    assert view._class_names() == ["kniv", "pistol"]
+    assert service.classes() == ["kniv", "pistol"]
+    assert any('"pistol"' in message for message in messages)
+
+
+def test_declining_the_missing_class_keeps_the_list(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.No)
+    view, service = make_view(tmp_path, model("kniv"))
+    service.set_classes(["kniv"])
+
+    view.load_captures([capture("pistol")])
+
+    assert view._class_names() == ["kniv"]
+    assert service.classes() == ["kniv"]
+
+
+def test_known_detected_class_is_not_offered(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
+    view, service = make_view(tmp_path, model("kniv"))
+    service.set_classes(["kniv"])
+
+    view.load_captures([capture("kniv")])
+
+    assert messages == []
+    assert view._class_names() == ["kniv"]
+
+
+def test_each_missing_class_is_offered_once(qapp, tmp_path, monkeypatch):
+    messages: list[str] = []
+    answer(monkeypatch, QMessageBox.StandardButton.Yes, messages)
+    view, service = make_view(tmp_path, model("kniv"))
+    service.set_classes(["kniv"])
+
+    view.load_captures([capture("pistol", "pistol", "cigaretter")])
+
+    assert view._class_names() == ["kniv", "pistol", "cigaretter"]
+    assert len(messages) == 2
+
+
+# --- Datasetet är master (AC 4) ---
 
 
 def test_dataset_classes_win_over_the_model(qapp, tmp_path):
@@ -86,7 +231,8 @@ def test_dataset_classes_win_over_the_model(qapp, tmp_path):
     assert view._class_names() == ["cigaretter"]
 
 
-def test_class_list_survives_a_new_view_with_another_model(qapp, tmp_path):
+def test_class_list_survives_a_new_view_with_another_model(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
     first, service = make_view(tmp_path, model("kniv"))
     first.load_captures([capture()])
 
@@ -108,10 +254,8 @@ def test_classes_are_not_stored_in_the_settings(qapp, tmp_path):
     assert view.settings.value("annotation/classes") is None
 
 
-# --- Lägga till och ta bort klasser (AC 3) ---
-
-
-def test_added_class_is_stored_in_the_dataset(qapp, tmp_path):
+def test_added_class_is_stored_in_the_dataset(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
     view, service = make_view(tmp_path, model("kniv"))
     view.load_captures([capture()])
 
@@ -123,9 +267,7 @@ def test_added_class_is_stored_in_the_dataset(qapp, tmp_path):
 
 
 def test_removed_class_is_removed_from_the_dataset(qapp, tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes)
-    )
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
     view, service = make_view(tmp_path, model("kniv", "pistol"))
     view.load_captures([capture()])
     view.class_combo.setCurrentIndex(view.class_combo.findText("pistol"))
@@ -152,20 +294,15 @@ def test_class_in_use_cannot_be_removed(qapp, tmp_path, monkeypatch):
 
 
 def test_removing_every_class_keeps_the_list_empty(qapp, tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        QMessageBox, "question", staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes)
-    )
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
     view, service = make_view(tmp_path, model("kniv"))
     view.load_captures([capture()])
 
     view._on_remove_class()
-    view.refresh_classes(seed_dataset=True)
+    view.refresh_classes()
 
     assert service.classes() == []
-    assert view._class_names() == [], "modellens klasser fyller inte på ett tomt dataset igen"
-
-
-# --- Kategorierna i datasetet (AC 4) ---
+    assert view._class_names() == []
 
 
 def test_set_classes_keeps_the_category_ids(tmp_path):
@@ -189,13 +326,91 @@ def test_new_category_gets_a_free_id_after_a_removal(tmp_path):
     assert [(c["id"], c["name"]) for c in categories] == [(1, "pistol"), (2, "cigaretter")]
 
 
-# --- Kopplingen från detektionsvyn (AC 1) ---
+# --- Klick på klassnamnet i bilden (AC 5) ---
 
 
-def test_main_window_seeds_the_annotation_view_from_the_model(qapp, tmp_path, monkeypatch):
+def test_clicking_the_class_label_offers_the_dataset_classes(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
+    view, _ = make_view(tmp_path, model("kniv", "pistol"))
+    view.load_captures([capture("kniv", y=20)])
+    canvas = sized_canvas(view)
+    item = canvas.rects[0]
+    offered: list[list[str]] = []
+
+    def get_item(parent, title, label, items, current=0, editable=True, *args, **kwargs):
+        offered.append(list(items))
+        return "pistol", True
+
+    monkeypatch.setattr(QInputDialog, "getItem", staticmethod(get_item))
+
+    click(canvas, canvas._label_rect(item).center())
+
+    assert offered == [["kniv", "pistol"]]
+    assert item.class_name == "pistol"
+    assert canvas.dirty
+    assert view.class_combo.currentText() == "pistol"
+
+
+def test_clicking_the_class_label_selects_the_annotation(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
+    view, _ = make_view(tmp_path, model("kniv", "pistol"))
+    view.load_captures([capture("kniv", y=20)])
+    canvas = sized_canvas(view)
+    item = canvas.rects[0]
+    monkeypatch.setattr(
+        QInputDialog, "getItem", staticmethod(lambda *a, **k: ("pistol", True))
+    )
+
+    click(canvas, canvas._label_rect(item).center())
+
+    assert canvas.selected is item
+
+
+def test_cancelling_the_class_dialog_keeps_the_class(qapp, tmp_path, monkeypatch):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
+    view, _ = make_view(tmp_path, model("kniv", "pistol"))
+    view.load_captures([capture("kniv", y=20)])
+    canvas = sized_canvas(view)
+    item = canvas.rects[0]
+    monkeypatch.setattr(
+        QInputDialog, "getItem", staticmethod(lambda *a, **k: ("pistol", False))
+    )
+
+    click(canvas, canvas._label_rect(item).center())
+
+    assert item.class_name == "kniv"
+    assert not canvas.dirty
+
+
+def test_clicking_the_annotation_body_does_not_open_the_class_dialog(
+    qapp, tmp_path, monkeypatch
+):
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
+    view, _ = make_view(tmp_path, model("kniv", "pistol"))
+    view.load_captures([capture("kniv", y=20)])
+    canvas = sized_canvas(view)
+    item = canvas.rects[0]
+    called: list[tuple] = []
+    monkeypatch.setattr(
+        QInputDialog,
+        "getItem",
+        staticmethod(lambda *a, **k: called.append(a) or ("pistol", True)),
+    )
+
+    click(canvas, canvas._handle_points(item.rect)["_center"])
+
+    assert called == []
+    assert item.class_name == "kniv"
+
+
+# --- Kopplingen från detektionsvyn (AC 2) ---
+
+
+def test_main_window_offers_the_models_classes(qapp, tmp_path, monkeypatch):
     from xray_detector.application import model_registry
     from xray_detector.ui.main_window import MainWindow
 
+    answer(monkeypatch, QMessageBox.StandardButton.Yes)
     monkeypatch.setattr(
         model_registry, "create_detector", lambda spec, threshold: FakeDetector("kniv")
     )

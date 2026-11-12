@@ -111,3 +111,43 @@ def test_result_yields_bgr_numpy(qapp):
     assert result.frame.shape == (48, 64, 3)
     assert result.frame.dtype == np.uint8
     assert result.annotations[0]["bbox"][2] > 0
+
+
+def test_clicking_the_class_label_emits_the_signal(qapp):
+    """Klassnamnet i bilden går att klicka på (TASK-71)."""
+    canvas = make_canvas(qapp)
+    canvas.rects.append(RectItem(20, 20, 60, 50, "klass"))
+    item = canvas.rects[0]
+    clicked = []
+    canvas.class_label_clicked.connect(clicked.append)
+
+    label = canvas._label_rect(item).center()
+    click(canvas, label.x(), label.y())
+
+    assert clicked == [item]
+    assert canvas.selected is item
+
+
+def test_clicking_the_annotation_body_does_not_emit_the_label_signal(qapp):
+    canvas = make_canvas(qapp)
+    canvas.rects.append(RectItem(20, 20, 60, 50, "klass"))
+    item = canvas.rects[0]
+    clicked = []
+    canvas.class_label_clicked.connect(clicked.append)
+
+    center = canvas._handle_points(item.rect)["_center"]
+    click(canvas, center.x(), center.y())
+
+    assert clicked == []
+    assert canvas.selected is item
+
+
+def test_set_item_class_changes_the_class_and_marks_dirty(qapp):
+    canvas = make_canvas(qapp)
+    canvas.rects.append(RectItem(20, 20, 60, 50, "klass"))
+    item = canvas.rects[0]
+
+    canvas.set_item_class(item, "pistol")
+
+    assert item.class_name == "pistol"
+    assert canvas.dirty

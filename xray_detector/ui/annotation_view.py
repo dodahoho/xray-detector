@@ -1,7 +1,15 @@
 import numpy as np
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QMouseEvent, QPainter, QPen
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QMessageBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
@@ -33,6 +41,7 @@ class RectItem:
 class AnnotationCanvas(QWidget):
     selection_changed = Signal(object)
     changed = Signal()
+    class_label_clicked = Signal(object)
 
     def __init__(self, title: str, parent=None) -> None:
         super().__init__(parent)
@@ -188,7 +197,43 @@ class AnnotationCanvas(QWidget):
                 return rect
         return None
 
+    def _label_font(self) -> QFont:
+        font = QFont()
+        font.setPointSize(14)
+        font.setBold(True)
+        return font
+
+    def _label_origin(self, item: RectItem) -> QPoint:
+        """Nedre vänstra hörnet för klassnamnet ovanför annoteringen."""
+        top_left = self._to_widget(QPoint(item.rect.x(), item.rect.y())) + self._image_origin()
+        return QPoint(top_left.x(), max(22, top_left.y() - 8))
+
+    def _label_rect(self, item: RectItem) -> QRect:
+        """Rektangeln som klassnamnet täcker, så texten kan klickas (TASK-71)."""
+        origin = self._label_origin(item)
+        metrics = QFontMetrics(self._label_font())
+        return QRect(
+            origin.x(),
+            origin.y() - metrics.ascent(),
+            metrics.horizontalAdvance(item.class_name),
+            metrics.height(),
+        )
+
+    def _hit_label(self, pos: QPoint) -> RectItem | None:
+        for item in reversed(self.rects):
+            if self._label_rect(item).contains(pos):
+                return item
+        return None
+
+    def set_item_class(self, item: RectItem, class_name: str) -> None:
+        """Byter objektklass på en annotering (TASK-71)."""
+        item.class_name = class_name
+        self._mark_dirty()
+        self.update()
+
     def _hover_cursor(self, pos: QPoint) -> Qt.CursorShape:
+        if self._hit_label(pos) is not None:
+            return Qt.CursorShape.PointingHandCursor
         handle = self._hit_handle(pos)
         if handle in {"top_left", "bottom_right"}:
             return Qt.CursorShape.SizeFDiagCursor
@@ -215,10 +260,7 @@ class AnnotationCanvas(QWidget):
         painter.drawImage(QRect(origin, size), self.image)
         pen = QPen()
         pen.setWidth(4)
-        font = QFont()
-        font.setPointSize(14)
-        font.setBold(True)
-        painter.setFont(font)
+        painter.setFont(self._label_font())
         for item in self.rects:
             pen.setColor(
                 class_color(item.class_name) if item is not self.selected else QColor(255, 120, 0)
@@ -232,7 +274,8 @@ class AnnotationCanvas(QWidget):
                 )
             ) + origin
             painter.drawRect(QRect(top_left, bottom_right))
-            painter.drawText(top_left.x(), max(22, top_left.y() - 8), item.class_name)
+            label = self._label_origin(item)
+            painter.drawText(label.x(), label.y(), item.class_name)
             if item is self.selected:
                 brush_pen = QPen(QColor(255, 120, 0))
                 brush_pen.setWidth(2)
@@ -266,6 +309,14 @@ class AnnotationCanvas(QWidget):
             self._mode = "pan"
             self._pan_start = pos
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return
+        label_item = self._hit_label(pos) if event.button() == Qt.MouseButton.LeftButton else None
+        if label_item is not None:
+            self.selected = label_item
+            self.setFocus(Qt.FocusReason.MouseFocusReason)
+            self.selection_changed.emit(label_item)
+            self.class_label_clicked.emit(label_item)
+            self.update()
             return
         handle = self._hit_handle(pos)
         if handle:
@@ -419,6 +470,9 @@ class AnnotationView(QWidget):
         for canvas in self.canvases:
             canvas.selection_changed.connect(self._on_selection_changed)
             canvas.changed.connect(self._update_save_button)
+            canvas.class_label_clicked.connect(
+                lambda item, canvas=canvas: self._on_class_label_clicked(canvas, item)
+            )
             panels.addWidget(canvas, 1)
         layout.addLayout(panels, 1)
         self.busy = BusyIndicator(self)
@@ -427,18 +481,14 @@ class AnnotationView(QWidget):
         bind_shortcut(self, "Ctrl+-", self._on_remove_class)
         self.refresh_classes()
 
-    def refresh_classes(self, seed_dataset: bool = False) -> None:
-        """Bygger klasslistan ur datasetet; modellens klasser är standardvärden (TASK-61).
+    def refresh_classes(self) -> None:
+        """Bygger klasslistan ur datasetet (TASK-61, TASK-71).
 
-        Datasetet är master: listan är datasetets kategorier. Är datasetet tomt
-        används vald modells klasser, och när vyn öppnas skrivs de in i
-        datasetet så att de blir datasetets egna klasser.
+        Datasetet är master: listan är datasetets kategorier och inget fylls på
+        automatiskt. Modellens klasser erbjuds i en fråga när vyn öppnas, så en
+        nyinstallation börjar med en tom lista.
         """
         names = self.dataset_service.classes()
-        if not names and not self.dataset_service.has_dataset():
-            names = self._default_classes()
-            if seed_dataset and names:
-                self.dataset_service.set_classes(names)
         current = self.class_combo.currentText()
         self.class_combo.blockSignals(True)
         self.class_combo.clear()
@@ -450,10 +500,60 @@ class AnnotationView(QWidget):
         self.class_combo.setCurrentIndex(index)
         self._on_class_changed(self.class_combo.currentText())
 
-    def _default_classes(self) -> list[str]:
-        """Standardklasserna: vald modells klasser, annars config.classes."""
-        names = list(self.model_classes() if self.model_classes else [])
-        return names or list(self.config.classes)
+    def _model_class_names(self) -> list[str]:
+        """Vald modells klassnamn; tomt när ingen modell är laddad."""
+        return list(self.model_classes() if self.model_classes else [])
+
+    def _ask_seed_classes(self) -> None:
+        """Frågar om modellens klasser ska bli datasetets när listan är tom (TASK-71).
+
+        Klasserna namnges inte i dialogen, bara antalet, eftersom en basmodell
+        kan ha många klasser.
+        """
+        if self._class_names():
+            return
+        names = self._model_class_names()
+        if not names:
+            return
+        count = len(names)
+        answer = QMessageBox.question(
+            self,
+            "Inga objektklasser",
+            "Inga objektklasser är definierade. Vill du lägga till modellens "
+            f"{count} {'klass' if count == 1 else 'klasser'} i annoteringslistan?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.dataset_service.set_classes(names)
+            self.refresh_classes()
+
+    @staticmethod
+    def _detected_classes(captures: list) -> list[str]:
+        """Klasserna som bildparet har detekterat, utan dubbletter."""
+        names: list[str] = []
+        for capture in captures:
+            for detection in capture.detections:
+                if detection.class_name and detection.class_name not in names:
+                    names.append(detection.class_name)
+        return names
+
+    def _ask_add_detected_classes(self, captures: list) -> None:
+        """Frågar om klasser som bildparet innehåller men listan saknar (TASK-71)."""
+        if not self._class_names():
+            return
+        for name in self._detected_classes(captures):
+            if name in self._class_names():
+                continue
+            answer = QMessageBox.question(
+                self,
+                "Objektklass saknas",
+                f'Bildparet innehåller klassen "{name}" som inte finns i '
+                "annoteringslistan. Vill du lägga till den?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                self.dataset_service.set_classes([*self._class_names(), name])
+                self.refresh_classes()
 
     def _class_names(self) -> list[str]:
         return [self.class_combo.itemText(i) for i in range(self.class_combo.count())]
@@ -520,7 +620,9 @@ class AnnotationView(QWidget):
     ) -> None:
         """Laddar bilderna i vyn; already_saved kräver en ändring före sparning (TASK-62)."""
         self._save_requires_change = already_saved
-        self.refresh_classes(seed_dataset=True)
+        self.refresh_classes()
+        self._ask_seed_classes()
+        self._ask_add_detected_classes(captures)
         self.pending_group_id = pending_group_id
         for canvas in self.canvases:
             canvas.set_class_name(self.class_combo.currentText())
@@ -544,6 +646,20 @@ class AnnotationView(QWidget):
                 self.class_combo.setCurrentIndex(index)
             else:
                 self.class_combo.setEditText(item.class_name)
+
+    def _on_class_label_clicked(self, canvas: AnnotationCanvas, item) -> None:
+        """Byter objektklass via klassnamnet i bilden (TASK-71)."""
+        names = self._class_names()
+        if not names:
+            return
+        index = names.index(item.class_name) if item.class_name in names else 0
+        name, accepted = QInputDialog.getItem(
+            self, "Byt objektklass", "Objektklass:", names, index, False
+        )
+        if not accepted or not name or name == item.class_name:
+            return
+        canvas.set_item_class(item, name)
+        self._on_selection_changed(item)
 
     def is_dirty(self) -> bool:
         return any(canvas.dirty for canvas in self.canvases)
