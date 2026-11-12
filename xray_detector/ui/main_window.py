@@ -49,6 +49,8 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.settings_view, mnemonic("Inställningar", "L"))
         self.tabs.setTabEnabled(1, False)
         self._tab_guard = False
+        # fliken annoteringen öppnades från, dit Spara och Avbryt återgår (TASK-60)
+        self._annotation_origin = 0
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self.setCentralWidget(self.tabs)
         self.detection_view.restore_settings()
@@ -128,6 +130,7 @@ class MainWindow(QMainWindow):
     def _on_capture(self, captures) -> None:
         # TASK-12: krascsaker skrivning av fangsten direkt vid knapptryck
         pending_group_id = self.dataset_service.save_pending(captures)
+        self._annotation_origin = self.tabs.indexOf(self.detection_view)
         self.annotation_view.load_captures(captures, pending_group_id)
         self.tabs.setTabEnabled(1, True)
         self.tabs.setCurrentIndex(1)
@@ -138,22 +141,24 @@ class MainWindow(QMainWindow):
         # grupp-id sa ingen ny pending-kopia skrivs vid ateroppning.
         frames = payload.frames if hasattr(payload, "frames") else payload
         pending_group_id = getattr(payload, "group_id", None)
+        self._annotation_origin = self.tabs.indexOf(self.dataset_view)
         self.annotation_view.load_captures(frames, pending_group_id)
         self.tabs.setTabEnabled(1, True)
         self.tabs.setCurrentIndex(1)
 
     def _on_annotation_saved(self) -> None:
-        self.tabs.setTabEnabled(1, False)
         # sparningen är asynkron (TASK-40): fliken kan redan ha bytts medan den skrevs
-        if self.tabs.currentIndex() == 1:
-            self.tabs.setCurrentIndex(0)
+        on_annotation_tab = self.tabs.currentIndex() == 1
+        self.tabs.setTabEnabled(1, False)
+        if on_annotation_tab:
+            self.tabs.setCurrentIndex(self._annotation_origin)
         self.training_view.refresh_dataset_info()
         self.dataset_view.refresh()
         self._show_status("Annoteringar sparade till dataset")
 
     def _on_annotation_cancelled(self) -> None:
         self.tabs.setTabEnabled(1, False)
-        self.tabs.setCurrentIndex(0)
+        self.tabs.setCurrentIndex(self._annotation_origin)
 
     def _on_training_started(self) -> None:
         self.detection_view.pause_detection()
