@@ -20,6 +20,16 @@ MANIFEST_NAME = "training_manifest.json"
 YOLO_RUN_DIR = "yolo"
 RFDETR_RUN_DIR = "rfdetr"
 
+#: RF-DETR:s bästa checkpoints i den ordning de föredras. checkpoint_best_total
+#: skrivs först när träningen är klar, så under en pågående eller avbruten
+#: körning är ema/regular det bästa som finns. last_ema.pth är slutvikterna och
+#: står medvetet inte med.
+RFDETR_BEST_CHECKPOINTS = (
+    "checkpoint_best_total.pth",
+    "checkpoint_best_ema.pth",
+    "checkpoint_best_regular.pth",
+)
+
 
 def _read_data_classes(dataset: Path) -> list[str]:
     """Klassnamn ur data.yaml (YOLO) eller _annotations.coco.json (RF-DETR)."""
@@ -84,6 +94,15 @@ class _StopSignal:
     reason: str | None = None
 
 
+def _output_path(value: str) -> Path:
+    """Absolut körningskatalog (TASK-47).
+
+    Ultralytics lägger relativa project-sökvägar under runs/detect/, så en
+    relativ --output skulle ge en annan snapshot-katalog än en absolut.
+    """
+    return Path(value).resolve()
+
+
 def _prepare_run_dir(args) -> Path:
     """Unik körningskatalog; en ny körning skriver aldrig över en tidigare.
 
@@ -106,15 +125,20 @@ def _prepare_run_dir(args) -> Path:
 def _best_checkpoint(run_dir: Path, family: str) -> Path | None:
     """Bästa checkpoints för respektive familj (TASK-47).
 
-    RF-DETR skriver både checkpoint_best_total.pth och last_ema.pth. Den
-    senare är slutvikterna, inte de bästa, så valet är explicit i stället för
-    att ta den senast ändrade filen.
+    RF-DETR skriver checkpoint_best_total.pth först när träningen är klar och
+    last_ema.pth löpande. Den senare är slutvikterna, inte de bästa, så valet
+    är explicit i stället för att ta den senast ändrade filen.
     """
     if family == "rfdetr":
-        candidate = run_dir / RFDETR_RUN_DIR / "checkpoint_best_total.pth"
+        candidates = [
+            run_dir / RFDETR_RUN_DIR / name for name in RFDETR_BEST_CHECKPOINTS
+        ]
     else:
-        candidate = run_dir / YOLO_RUN_DIR / "weights" / "best.pt"
-    return candidate if candidate.exists() else None
+        candidates = [run_dir / YOLO_RUN_DIR / "weights" / "best.pt"]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
@@ -209,8 +233,7 @@ def main() -> None:
     )
     parser.add_argument("--overfitting-patience", type=int, default=DEFAULT_PATIENCE)
     args = parser.parse_args()
-    # absolut sökväg: ultralytics lägger relativa project under runs/detect/ (TASK-47)
-    args.output_path = Path(args.output).resolve()
+    args.output_path = _output_path(args.output)
     args.started = datetime.now(UTC)
 
     from xray_detector.infrastructure.detectors.yolo_detector import resolve_device

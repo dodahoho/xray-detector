@@ -1,16 +1,21 @@
 ---
 id: TASK-47
 title: Träning - Spara bästa modellvikterna som snapshot per träningskörning
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-11T11:51:00Z'
-updated_date: '2026-11-11T20:22:00Z'
+updated_date: '2026-11-12T09:58:00Z'
 labels: []
 dependencies: []
 references:
   - xray_detector/infrastructure/training/train_task.py
   - xray_detector/application/model_registry.py
   - PLAN.md
+modified_files:
+  - README.md
+  - xray_detector/infrastructure/training/train_task.py
+  - tests/test_training_snapshot.py
 priority: high
 type: enhancement
 ordinal: 45000
@@ -52,3 +57,19 @@ Kravet är att varje körning får en unik snapshot av bästa vikterna, till exe
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Körningskatalogen blir unik: _prepare_run_dir lägger på _2, _3 när en tidigare körning redan har manifest, så en ny körning aldrig skriver över föregående snapshot.
+2. --output tolkas absolut, så ultralytics inte lägger relativa project under runs/detect/.
+3. _best_checkpoint väljer explicit bästa checkpoints per familj: yolo/weights/best.pt för YOLO och checkpoint_best_total.pth för RF-DETR, med checkpoint_best_ema/regular som reserv medan träningen pågår. last_ema.pth väljs aldrig.
+4. Manifestet skrivs per körning med familj, basmodell, dataset, hyperparametrar, metrics, status, abort_reason och tidsåtgång, och skrivs om efter varje epok så en avbruten körning behåller bästa hittillsvarande vikter och manifest.
+5. Tester för snapshotnamn, manifestinnehåll, val av bästa checkpoint för båda familjerna och att äldre körningar finns kvar i modellväljaren.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Körningskatalogen blir unik: _prepare_run_dir lägger på _2, _3 när katalogen redan har ett manifest. --output tolkas absolut via _output_path, så ultralytics inte lägger relativa project under runs/detect/. _best_checkpoint väljer explicit bästa checkpoints: yolo/weights/best.pt för YOLO och checkpoint_best_total.pth för RF-DETR, med checkpoint_best_ema/regular som reserv medan träningen pågår; last_ema.pth väljs aldrig. Manifestet skrivs om efter varje epok med familj, basmodell, dataset, hyperparametrar, metrics, epoker, status, abort_reason och tider. Verifierat med två riktiga körningar mot samma --output: den andra hamnade i run8_2 med eget manifest och egen best.pt, och modellväljaren listade båda körningarna.
+<!-- SECTION:NOTES:END -->
