@@ -37,6 +37,11 @@ def train_val_split(coco: dict, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SE
     return train, val
 
 
+def group_count(images: list[dict]) -> int:
+    """Antal fångstgrupper (bildpar) i en lista bilder (TASK-72)."""
+    return len({image.get("group") or image["id"] for image in images})
+
+
 def _fresh_dir(path: Path) -> Path:
     """Tömmer exportkatalogen så bilder från en tidigare export inte ligger kvar."""
     shutil.rmtree(path, ignore_errors=True)
@@ -44,7 +49,7 @@ def _fresh_dir(path: Path) -> Path:
     return path
 
 
-def export_yolo(store: DatasetStore, export_root: Path) -> Path:
+def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
     coco = store.load_coco()
     categories = _category_map(coco)
     class_names = [categories[cid] for cid in sorted(categories)]
@@ -52,7 +57,7 @@ def export_yolo(store: DatasetStore, export_root: Path) -> Path:
 
     out_dir = _fresh_dir(export_root / "yolo")
     source_images = store.images_dir
-    train_images, val_images = train_val_split(coco)
+    train_images, val_images = train_val_split(coco, ratio)
 
     for split, images in (("train", train_images), ("val", val_images)):
         images_dir = out_dir / "images" / split
@@ -136,12 +141,12 @@ def _coco_for_split(coco: dict, images: list[dict]) -> dict:
     }
 
 
-def export_rfdetr(store: DatasetStore, export_root: Path) -> Path:
+def export_rfdetr(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
     """Exporterar i RF-DETR:s forvantalade format: train/valid/test med _annotations.coco.json."""
     coco = store.load_coco()
     out_dir = _fresh_dir(export_root / "rfdetr")
     source_images = store.images_dir
-    train, val = train_val_split(coco)
+    train, val = train_val_split(coco, ratio)
 
     for split, images in (("train", train), ("valid", val), ("test", val)):
         split_dir = out_dir / split

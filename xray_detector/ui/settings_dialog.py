@@ -32,12 +32,24 @@ SORT_NEWEST = "newest"
 SORT_OLDEST = "oldest"
 SORT_ORDERS = {SORT_NEWEST: "Nyast först", SORT_OLDEST: "Äldst först"}
 NO_CLASSES = "Inga klasser valda – ingen detektion körs"
+TRAIN_RATIO_KEY = "training/train_ratio"
+TRAIN_RATIO_DEFAULT = 80
 
 
 def sort_order(settings) -> str:
     """Vald sortering i datasetvyn; nyast först när inget val sparats (TASK-56)."""
     value = settings.value(SORT_KEY, SORT_NEWEST, type=str)
     return value if value in SORT_ORDERS else SORT_NEWEST
+
+
+def train_ratio(settings) -> float:
+    """Andel av bildparen som hamnar i train, som 0-1 (TASK-72).
+
+    Värdet sparas i procent så inställningen går att läsa i settings.ini, och
+    kläms till 1-99 så både train och val får minst en grupp.
+    """
+    percent = settings.value(TRAIN_RATIO_KEY, TRAIN_RATIO_DEFAULT, type=int)
+    return max(1, min(99, int(percent))) / 100.0
 
 
 class ThemeSection(QGroupBox):
@@ -101,6 +113,34 @@ class TrainingScheduleSection(QGroupBox):
         key = "training/night_start" if is_start else "training/night_end"
         self.settings.setValue(f"{key}_hour", hour)
         self.settings.setValue(key, f"{hour:02d}:00")
+
+
+class TrainValSplitSection(QGroupBox):
+    """Andel av datasetet som används till träning respektive validering (TASK-72).
+
+    Delningen sker per fångstgrupp, så andelen räknas i bildpar: ett bildpar
+    hamnar alltid i sin helhet i train eller i val.
+    """
+
+    ratio_changed = Signal()
+
+    def __init__(self, settings, parent=None) -> None:
+        super().__init__("Train/val-delning", parent)
+        self.settings = settings
+        form = QFormLayout(self)
+        self.ratio = QSpinBox()
+        self.ratio.setRange(1, 99)
+        self.ratio.setSuffix(" %")
+        self.ratio.setValue(round(train_ratio(settings) * 100))
+        self.ratio.valueChanged.connect(self._on_ratio_changed)
+        form.addRow(QLabel("Andel till train:"), self.ratio)
+        hint = QLabel("Resten används till validering. Delningen sker per bildpar.")
+        hint.setStyleSheet("color: #888;")
+        form.addRow(hint)
+
+    def _on_ratio_changed(self, percent: int) -> None:
+        self.settings.setValue(TRAIN_RATIO_KEY, percent)
+        self.ratio_changed.emit()
 
 
 class DatasetSortSection(QGroupBox):

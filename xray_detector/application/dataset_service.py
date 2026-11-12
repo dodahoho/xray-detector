@@ -7,6 +7,7 @@ from xray_detector.infrastructure.dataset_store.export import (
     export_coco,
     export_rfdetr,
     export_yolo,
+    group_count,
     train_val_split,
 )
 from xray_detector.infrastructure.dataset_store.pending import (
@@ -59,19 +60,19 @@ class DatasetService:
     def metadata(self) -> dict:
         return self.store.metadata()
 
-    def export_yolo(self, export_root: Path) -> Path:
-        return export_yolo(self.store, export_root)
+    def export_yolo(self, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
+        return export_yolo(self.store, export_root, ratio)
 
     def export_coco(self, export_root: Path) -> Path:
         return export_coco(self.store, export_root)
 
-    def export_rfdetr(self, export_root: Path) -> Path:
-        return export_rfdetr(self.store, export_root)
+    def export_rfdetr(self, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
+        return export_rfdetr(self.store, export_root, ratio)
 
     def train_val_counts(self, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
-        """Antal bilder i train respektive val för den seedade grupp-delningen."""
+        """Antal bildpar i train respektive val för den seedade grupp-delningen (TASK-72)."""
         train, val = train_val_split(self.load_coco(), ratio, seed)
-        return len(train), len(val)
+        return group_count(train), group_count(val)
 
 
     # --- Pending-kn (TASK-12) ---

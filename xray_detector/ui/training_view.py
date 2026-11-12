@@ -24,7 +24,12 @@ from xray_detector.application.training_history import run_epochs
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.training import TrainConfig
-from xray_detector.ui.settings_dialog import TrainingScheduleSection, settings_button
+from xray_detector.ui.settings_dialog import (
+    TrainValSplitSection,
+    TrainingScheduleSection,
+    settings_button,
+    train_ratio,
+)
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.style import button
 from xray_detector.ui.training_chart import TrainingChart
@@ -94,12 +99,17 @@ class TrainingView(QWidget):
         header = QHBoxLayout()
         header.addStretch(1)
         self.settings_button = settings_button(
-            self,
-            "Inställningar – Träning",
-            lambda: [TrainingScheduleSection(self.settings)],
+            self, "Inställningar – Träning", self._settings_sections
         )
         header.addWidget(self.settings_button)
         return header
+
+    def _settings_sections(self) -> list:
+        """Träningsschemat och train/val-delningen (TASK-7, TASK-72)."""
+        split = TrainValSplitSection(self.settings)
+        # redovisningen i vyn följer andelen medan dialogen är öppen
+        split.ratio_changed.connect(self.refresh_dataset_info)
+        return [TrainingScheduleSection(self.settings), split]
 
     def _build_settings(self) -> QFormLayout:
         form = QFormLayout()
@@ -180,12 +190,17 @@ class TrainingView(QWidget):
         )
 
     def refresh_dataset_info(self) -> None:
-        """Visar sammanställningen för datasetet som träningen utgår från."""
+        """Visar sammanställningen för datasetet som träningen utgår från.
+
+        Train/val räknas i bildpar, eftersom delningen sker per fångstgrupp (TASK-72).
+        """
         info = self.dataset_service.metadata()
-        num_train, num_val = self.dataset_service.train_val_counts()
+        num_train, num_val = self.dataset_service.train_val_counts(
+            train_ratio(self.settings)
+        )
         self.dataset_info.setText(
             f"Bilder: {info['num_images']}  Objekt: {info['num_objects']}  "
-            f"Train/val: {num_train}/{num_val}  "
+            f"Train/val: {num_train}/{num_val} par  "
             f"Uppdaterad: {info['updated'][:10]}"
         )
 
@@ -201,15 +216,18 @@ class TrainingView(QWidget):
             return
         weights = spec.weights
         family = spec.family
+        ratio = train_ratio(self.settings)
         if family == "rfdetr":
             if importlib.util.find_spec("rfdetr") is None:
                 self.status_changed.emit(
                     "RF-DETR kraver rfdetr-paketet (uv sync --extra rfdetr)"
                 )
                 return
-            dataset_path = self.dataset_service.export_rfdetr(self.config.export_dir)
+            dataset_path = self.dataset_service.export_rfdetr(
+                self.config.export_dir, ratio
+            )
         else:
-            self.dataset_service.export_yolo(self.config.export_dir)
+            self.dataset_service.export_yolo(self.config.export_dir, ratio)
             dataset_path = self.config.export_dir / "yolo" / "data.yaml"
         config = TrainConfig(
             dataset_yaml=Path(dataset_path),

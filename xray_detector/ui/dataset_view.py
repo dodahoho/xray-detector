@@ -30,6 +30,7 @@ from xray_detector.ui.settings_dialog import (
     DatasetSortSection,
     settings_button,
     sort_order,
+    train_ratio,
 )
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
@@ -466,7 +467,12 @@ class DatasetView(QWidget):
         self._start_export("COCO", self.dataset_service.export_coco)
 
     def _on_export_yolo(self) -> None:
-        self._start_export("YOLO", self.dataset_service.export_yolo)
+        """YOLO-exporten delar train/val med träningsvyns andel (TASK-72)."""
+        ratio = train_ratio(self.settings)
+        self._start_export(
+            "YOLO",
+            lambda export_root: self.dataset_service.export_yolo(export_root, ratio),
+        )
 
     def _start_export(self, label: str, export) -> None:
         """Exporterar i en arbetstråd medan indikatorn visas (TASK-40)."""

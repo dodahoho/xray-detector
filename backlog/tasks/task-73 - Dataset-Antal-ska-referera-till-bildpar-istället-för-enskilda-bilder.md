@@ -1,7 +1,7 @@
 ---
 id: TASK-73
 title: Dataset - Antal ska referera till bildpar istället för enskilda bilder
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-12T19:57:00Z'
@@ -36,7 +36,7 @@ Nu när man markerar bildpar i dataset och t ex klickar ta bort så räknas anta
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan

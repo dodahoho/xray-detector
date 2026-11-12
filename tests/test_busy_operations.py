@@ -279,7 +279,7 @@ def test_export_failure_is_reported(qapp, config, settings, dataset_service, mon
     messages: list = []
     view.status_changed.connect(messages.append)
 
-    def broken(export_root):
+    def broken(export_root, ratio):
         raise OSError("disken är full")
 
     monkeypatch.setattr(dataset_service, "export_yolo", broken)

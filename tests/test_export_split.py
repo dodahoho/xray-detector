@@ -6,7 +6,10 @@ import numpy as np
 
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
-from xray_detector.infrastructure.dataset_store.export import train_val_split
+from xray_detector.infrastructure.dataset_store.export import (
+    group_count,
+    train_val_split,
+)
 
 
 def make_service(tmp_path) -> DatasetService:
@@ -117,7 +120,39 @@ def test_export_replaces_images_from_an_earlier_export(tmp_path):
     assert len(list((out / "labels" / "train").glob("*.txt"))) == 2
 
 
-def test_service_train_val_counts(tmp_path):
+def test_split_ratio_controls_the_group_counts():
+    """Andelen räknas i bildpar, så 50 % av tio par ger fem par per del (TASK-72)."""
+    coco = {"images": [{"id": i, "group": i} for i in range(1, 11)]}
+
+    train, val = train_val_split(coco, 0.5)
+
+    assert (group_count(train), group_count(val)) == (5, 5)
+
+
+def test_export_yolo_uses_the_ratio(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    assert svc.train_val_counts() == (10, 2)
+
+    out = svc.export_yolo(tmp_path / "exports", 0.5)
+
+    assert len(list((out / "images" / "train").glob("*.png"))) == 6
+    assert len(list((out / "images" / "val").glob("*.png"))) == 6
+
+
+def test_export_rfdetr_uses_the_ratio(tmp_path):
+    svc = make_service(tmp_path)
+    add_groups(svc, 6)
+
+    out = svc.export_rfdetr(tmp_path / "exports", 0.5)
+
+    train = json.loads((out / "train" / "_annotations.coco.json").read_text(encoding="utf-8"))
+    valid = json.loads((out / "valid" / "_annotations.coco.json").read_text(encoding="utf-8"))
+    assert (len(train["images"]), len(valid["images"])) == (6, 6)
+
+
+def test_service_train_val_counts(tmp_path):
+    """Träningsvyns redovisning räknar bildpar, inte enskilda bilder (TASK-72)."""
+    svc = make_service(tmp_path)
+    add_groups(svc, 6)
+    assert svc.train_val_counts() == (5, 1)
+    assert svc.train_val_counts(0.5) == (3, 3)

@@ -1,22 +1,29 @@
 """Globala inställningar i fliken och egna inställningar per vy (TASK-43)."""
 
+import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import (
     SORT_KEY,
     SORT_NEWEST,
     SORT_OLDEST,
+    TRAIN_RATIO_KEY,
     ClassFilterSection,
     DatasetSortSection,
     SettingsDialog,
     ThemeSection,
     TrainingScheduleSection,
+    TrainValSplitSection,
     settings_button,
+    train_ratio,
 )
 from xray_detector.ui.theme import apply_theme, current_theme
+from xray_detector.ui.training_view import TrainingView
 
 VIEWS = ("detection_view", "annotation_view", "dataset_view", "training_view")
 
@@ -129,6 +136,78 @@ def test_training_settings_open_the_schedule(qapp, window, monkeypatch):
     assert dialog.windowTitle() == "Inställningar – Träning"
     assert dialog.findChild(TrainingScheduleSection) is not None
     assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
+
+
+def test_training_settings_open_the_train_val_split(qapp, window, monkeypatch):
+    """Andelen train/val ställs in i träningsvyns inställningar (TASK-72)."""
+    dialog = _opened_dialog(monkeypatch, window.training_view.settings_button)
+
+    assert dialog.findChild(TrainValSplitSection) is not None
+
+
+def test_train_ratio_is_read_and_written(qapp, settings):
+    assert train_ratio(settings) == 0.8
+    section = TrainValSplitSection(settings)
+    assert section.ratio.value() == 80
+
+    section.ratio.setValue(50)
+
+    assert settings.value(TRAIN_RATIO_KEY, type=int) == 50
+    assert train_ratio(settings) == 0.5
+    assert TrainValSplitSection(settings).ratio.value() == 50
+
+
+def test_train_ratio_keeps_a_group_on_each_side(qapp, settings):
+    """Både train och val får minst en grupp, även om värdet ligger utanför 1-99."""
+    settings.setValue(TRAIN_RATIO_KEY, 0)
+    assert train_ratio(settings) == 0.01
+
+    settings.setValue(TRAIN_RATIO_KEY, 100)
+    assert train_ratio(settings) == 0.99
+
+
+def test_training_view_shows_train_val_in_pairs(qapp, config, settings):
+    """Redovisningen räknar bildpar och följer den valda andelen (TASK-72)."""
+    service = DatasetService(config.dataset_dir)
+    service.set_classes(["kniv"])
+    for group in range(6):
+        service.add_samples([
+            AnnotatedImage(
+                np.full((30, 40, 3), 40 + group * 20, np.uint8),
+                [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+            )
+            for _ in range(2)
+        ])
+    view = TrainingView(config, service, settings)
+
+    assert "Train/val: 5/1 par" in view.dataset_info.text()
+
+    settings.setValue(TRAIN_RATIO_KEY, 50)
+    view.refresh_dataset_info()
+
+    assert "Train/val: 3/3 par" in view.dataset_info.text()
+
+
+def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, monkeypatch):
+    """Starten skickar den valda andelen vidare till exporten (TASK-72)."""
+    service = DatasetService(config.dataset_dir)
+    service.set_classes(["kniv"])
+    service.add_samples([
+        AnnotatedImage(
+            np.full((30, 40, 3), 60, np.uint8),
+            [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+        )
+        for _ in range(2)
+    ])
+    settings.setValue(TRAIN_RATIO_KEY, 50)
+    view = TrainingView(config, service, settings)
+    ratios: list = []
+    monkeypatch.setattr(service, "export_yolo", lambda root, ratio: ratios.append(ratio))
+    monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
+
+    view._on_start()
+
+    assert ratios == [0.5]
 
 
 def test_training_schedule_is_read_and_written(qapp, settings):
