@@ -2,8 +2,8 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -21,6 +21,7 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.colors import class_color
 from xray_detector.ui.settings_dialog import (
     SORT_NEWEST,
     DatasetSortSection,
@@ -176,6 +177,37 @@ def _capture_header(text: str, color: str, parent: QWidget) -> QLabel:
     header.setMinimumWidth(header.sizeHint().width())
     header.setText(text)
     return header
+
+
+def _thumbnail_pixmap(
+    image: QImage,
+    annotations: list[dict],
+    category_names: dict[int, str],
+    known_classes: list[str],
+) -> QPixmap:
+    """Thumbnail med bildens detektioner inritade (TASK-64).
+
+    Ritas efter nedskalningen, så ramen blir lika tunn på alla bilder. Skalan
+    är thumbnailens höjd delad med originalbildens, vilket gäller båda axlarna
+    eftersom scaledToHeight behåller bildförhållandet.
+    """
+    pixmap = QPixmap.fromImage(image).scaledToHeight(
+        THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
+    )
+    if not annotations or image.height() == 0:
+        return pixmap
+    scale = pixmap.height() / image.height()
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen()
+    pen.setWidth(2)
+    for annotation in annotations:
+        x, y, width, height = annotation["bbox"]
+        pen.setColor(class_color(category_names[annotation["category_id"]], known_classes))
+        painter.setPen(pen)
+        painter.drawRect(QRectF(x * scale, y * scale, width * scale, height * scale))
+    painter.end()
+    return pixmap
 
 
 class Thumbnail(QWidget):
@@ -399,6 +431,7 @@ class DatasetView(QWidget):
         for annotation in coco["annotations"]:
             annotations_by_image.setdefault(annotation["image_id"], []).append(annotation)
         category_names = {c["id"]: c["name"] for c in coco["categories"]}
+        known_classes = [c["name"] for c in coco["categories"]]
 
         groups: dict[int, list[dict]] = {}
         for image in coco["images"]:
@@ -423,6 +456,7 @@ class DatasetView(QWidget):
                     stamp,
                     annotations_by_image,
                     category_names,
+                    known_classes,
                     data["images"],
                 )
         self.content_layout.addStretch(1)
@@ -457,6 +491,7 @@ class DatasetView(QWidget):
         stamp: str,
         annotations_by_image: dict[int, list[dict]],
         category_names: dict[int, str],
+        known_classes: list[str],
         decoded: dict,
     ) -> None:
         """Ett kort per fångst: tid, antal bilder och objekt samt bildparet (TASK-42)."""
@@ -476,9 +511,10 @@ class DatasetView(QWidget):
         row = QHBoxLayout()
         row.setSpacing(4)
         for image in images:
-            pixmap = QPixmap.fromImage(decoded[image["id"]])
-            pixmap = pixmap.scaledToHeight(THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation)
             annotations = annotations_by_image.get(image["id"], [])
+            pixmap = _thumbnail_pixmap(
+                decoded[image["id"]], annotations, category_names, known_classes
+            )
             classes = sorted({category_names[ann["category_id"]] for ann in annotations})
             caption = "Inga objekt" if not classes else ", ".join(classes) + f" ({len(annotations)})"
             thumb = Thumbnail(image["id"], key, pixmap, caption)
