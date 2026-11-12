@@ -86,7 +86,7 @@ def test_annotation_list_is_empty_by_default(qapp, tmp_path):
 def test_config_classes_do_not_fill_the_annotation_list(qapp, tmp_path):
     view, _ = make_view(tmp_path)
 
-    assert AppConfig().classes, "config.classes finns kvar för overlayfärgerna"
+    assert AppConfig().classes, "config.classes finns kvar i konfigurationen"
     assert view._class_names() == []
 
 

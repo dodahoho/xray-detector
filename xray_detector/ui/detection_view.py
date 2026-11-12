@@ -123,7 +123,6 @@ class StreamPanel(QFrame):
         self.source_id = source_id
         self.devices = list(devices or [])
         self.settings = settings
-        self.known_classes: list[str] = []
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
         self._lost_attempts = 0
@@ -384,7 +383,7 @@ class StreamPanel(QFrame):
         font = QFont()
         font.setPointSize(10)
         for detection in stream_frame.detections:
-            color = class_color(detection.class_name, self.known_classes)
+            color = class_color(detection.class_name)
             pen.setColor(color)
             painter.setPen(pen)
             painter.drawRect(
@@ -486,8 +485,6 @@ class DetectionView(QWidget):
         devices = self.video_service.list_devices()
         self.left = StreamPanel("left", devices, self.settings, retry_letter="G")
         self.right = StreamPanel("right", devices, self.settings, retry_letter="N")
-        for panel in (self.left, self.right):
-            panel.known_classes = list(config.classes)
         for panel in (self.left, self.right):
             panel.source_requested.connect(self._on_source_requested)
             panels.addWidget(panel, 1)

@@ -52,7 +52,7 @@ def test_thumbnail_draws_the_annotations(qapp, config, service, settings):
 
     view = _built(config, service, settings)
 
-    expected = class_color("pistol", ["pistol"]).name()
+    expected = class_color("pistol").name()
     assert expected in _colors(view._thumbs[0].picture.pixmap())
 
 
@@ -65,7 +65,7 @@ def test_thumbnail_draws_the_box_where_the_annotation_is(qapp, config, service, 
 
     view = _built(config, service, settings)
     pixmap = view._thumbs[0].picture.pixmap()
-    expected = class_color("pistol", ["pistol"]).name()
+    expected = class_color("pistol").name()
 
     assert expected in _colors(pixmap, 0, 0, pixmap.width() // 2, pixmap.height() // 2)
     assert expected not in _colors(
@@ -78,5 +78,5 @@ def test_thumbnail_without_annotations_is_left_undrawn(qapp, config, service, se
 
     view = _built(config, service, settings)
 
-    expected = class_color("pistol", ["pistol"]).name()
+    expected = class_color("pistol").name()
     assert expected not in _colors(view._thumbs[0].picture.pixmap())

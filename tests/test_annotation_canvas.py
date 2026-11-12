@@ -7,6 +7,7 @@ from PySide6.QtGui import QKeyEvent, QMouseEvent
 from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.ui.annotation_view import AnnotationCanvas, RectItem
+from xray_detector.ui.colors import class_color
 
 # Bild 64x48 i en 160x120-canvas -> skala 2.5, origo (0,0): enkla koordinater.
 CANVAS_W, CANVAS_H = 160, 120
@@ -151,3 +152,19 @@ def test_set_item_class_changes_the_class_and_marks_dirty(qapp):
 
     assert item.class_name == "pistol"
     assert canvas.dirty
+
+
+def test_annotation_is_drawn_with_the_shared_class_color(qapp):
+    """Samma klass har samma färg som i dataset- och detektionsvyn (TASK-76)."""
+    canvas = make_canvas(qapp)
+    canvas.rects.append(RectItem(10, 10, 20, 20, "pistol"))
+    canvas.selected = None
+
+    image = canvas.grab().toImage()
+    drawn = {
+        image.pixelColor(x, y).name()
+        for x in range(image.width())
+        for y in range(image.height())
+    }
+
+    assert class_color("pistol").name() in drawn

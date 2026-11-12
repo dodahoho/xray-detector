@@ -186,9 +186,9 @@ def _card_style(color: str, dashed: bool = False) -> str:
     return f"CaptureCard {{ border: 1px {line} {color}; border-radius: 8px; }}"
 
 
-def _badge(name: str, known_classes: list[str], parent: QWidget) -> QLabel:
+def _badge(name: str, parent: QWidget) -> QLabel:
     """Klassmärke i rubrikraden, färgat med klassens färg (TASK-66)."""
-    color = class_color(name, known_classes)
+    color = class_color(name)
     text_color = "#111" if color.lightness() > 140 else "#fff"
     badge = QLabel(name, parent)
     badge.setStyleSheet(
@@ -203,7 +203,6 @@ def _capture_header(
     color: str,
     parent: QWidget,
     classes: tuple[str, ...] = (),
-    known_classes: list[str] | None = None,
 ) -> tuple[QWidget, QLabel]:
     """Rubrikrad med tid och klassmärken (TASK-66, TASK-68).
 
@@ -226,7 +225,7 @@ def _capture_header(
     if classes:
         layout.addSpacing(TIME_BADGE_GAP)
     for name in classes:
-        layout.addWidget(_badge(name, list(known_classes or []), row))
+        layout.addWidget(_badge(name, row))
     layout.addStretch(1)
     return row, label
 
@@ -235,7 +234,6 @@ def _thumbnail_pixmap(
     image: QImage,
     annotations: list[dict],
     category_names: dict[int, str],
-    known_classes: list[str],
 ) -> QPixmap:
     """Thumbnail med bildens detektioner inritade (TASK-64).
 
@@ -255,7 +253,7 @@ def _thumbnail_pixmap(
     pen.setWidth(2)
     for annotation in annotations:
         x, y, width, height = annotation["bbox"]
-        pen.setColor(class_color(category_names[annotation["category_id"]], known_classes))
+        pen.setColor(class_color(category_names[annotation["category_id"]]))
         painter.setPen(pen)
         painter.drawRect(QRectF(x * scale, y * scale, width * scale, height * scale))
     painter.end()
@@ -525,7 +523,6 @@ class DatasetView(QWidget):
         newest_first = sort_order(self.settings) == SORT_NEWEST
         coco = data["coco"]
         self._coco = coco
-        known_classes = [c["name"] for c in coco["categories"]]
         annotations_by_image: dict[int, list[dict]] = {}
         for annotation in coco["annotations"]:
             annotations_by_image.setdefault(annotation["image_id"], []).append(annotation)
@@ -548,7 +545,7 @@ class DatasetView(QWidget):
             self._filter_classes(coco, data["pending"]),
             self._capture_days(data, by_date),
         )
-        self._add_pending_section(data["pending"], newest_first, known_classes)
+        self._add_pending_section(data["pending"], newest_first)
         if not coco["images"]:
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
@@ -579,7 +576,6 @@ class DatasetView(QWidget):
                     stamp,
                     annotations_by_image,
                     category_names,
-                    known_classes,
                     data["images"],
                 )
         if not self._thumbs:
@@ -696,7 +692,6 @@ class DatasetView(QWidget):
         stamp: str,
         annotations_by_image: dict[int, list[dict]],
         category_names: dict[int, str],
-        known_classes: list[str],
         decoded: dict,
     ) -> None:
         """Ett kort per fångst: tid, klassmärken och bildparet (TASK-42, TASK-66)."""
@@ -714,9 +709,7 @@ class DatasetView(QWidget):
         card.setFrameShape(QFrame.Shape.Box)
         card.setStyleSheet(_card_style("#666"))
         card.clicked.connect(self._on_card_clicked)
-        header, header_label = _capture_header(
-            time_label, "#888", card, classes, known_classes
-        )
+        header, header_label = _capture_header(time_label, "#888", card, classes)
         self._group_headers[key] = (header_label, card)
         inner = QVBoxLayout(card)
         inner.setContentsMargins(8, 8, 8, 8)
@@ -727,7 +720,7 @@ class DatasetView(QWidget):
         for image in images:
             annotations = annotations_by_image.get(image["id"], [])
             pixmap = _thumbnail_pixmap(
-                decoded[image["id"]], annotations, category_names, known_classes
+                decoded[image["id"]], annotations, category_names
             )
             thumb = Thumbnail(image["id"], key, pixmap)
             thumb.clicked.connect(self._on_thumb_clicked)
@@ -738,9 +731,7 @@ class DatasetView(QWidget):
         inner.addLayout(row)
         cards.addWidget(card)
 
-    def _add_pending_section(
-        self, captures, newest_first: bool = True, known_classes: list[str] | None = None
-    ) -> None:
+    def _add_pending_section(self, captures, newest_first: bool = True) -> None:
         """Osparade fångster i en egen sektion överst (TASK-12, TASK-42)."""
         if not captures:
             return
@@ -779,9 +770,7 @@ class DatasetView(QWidget):
             card.setFrameShape(QFrame.Shape.Box)
             card.setStyleSheet(_card_style("#e5a52a", dashed=True))
             card.clicked.connect(self._on_card_clicked)
-            header, header_label = _capture_header(
-                title, "#e5a52a", card, classes, known_classes
-            )
+            header, header_label = _capture_header(title, "#e5a52a", card, classes)
             self._group_headers[capture.group_id] = (header_label, card)
             inner = QVBoxLayout(card)
             inner.setContentsMargins(8, 8, 8, 8)
