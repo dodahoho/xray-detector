@@ -1,25 +1,11 @@
 """StreamWorker-tester: videofil + FakeDetector i QThread, helt utan kamera."""
 
-import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import QTimer
 
-from tests.conftest import synthetic_frame
 from xray_detector.infrastructure.video.camera_service import FPS_WINDOW_FRAMES, StreamWorker
 from xray_detector.infrastructure.video.source import FileSource
-
-
-@pytest.fixture
-def video_file(tmp_path):
-    path = tmp_path / "stream.mp4"
-    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 60, (64, 48))
-    assert writer.isOpened(), "mp4v-codec saknas i denna OpenCV-byggnad"
-    for i in range(12):
-        frame = synthetic_frame(fill=100 + i)
-        writer.write(frame)
-    writer.release()
-    return path
 
 
 def wait_for(qapp, predicate, timeout_ms=8000, step_ms=25):

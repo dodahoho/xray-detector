@@ -117,17 +117,20 @@ class MainWindow(QMainWindow):
     def _on_tab_changed(self, index: int) -> None:
         if self._tab_guard or index == 1:
             return
-        if not (self.tabs.isTabEnabled(1) and self.annotation_view.is_dirty()):
-            return
-        choice = self._confirm_unsaved()
-        if choice == "save":
-            self.annotation_view._on_save()
-        elif choice == "discard":
-            self.annotation_view.mark_clean()
-        else:
-            self._tab_guard = True
-            self.tabs.setCurrentIndex(1)
-            self._tab_guard = False
+        if self.tabs.isTabEnabled(1) and self.annotation_view.is_dirty():
+            choice = self._confirm_unsaved()
+            if choice == "save":
+                self.annotation_view._on_save()
+            elif choice == "discard":
+                self.annotation_view.mark_clean()
+            else:
+                self._tab_guard = True
+                self.tabs.setCurrentIndex(1)
+                self._tab_guard = False
+                return
+        if index == self.tabs.indexOf(self.detection_view):
+            # träningen stängde av strömmarna; fliken tänder dem igen (TASK-74)
+            self.detection_view.resume_streams()
 
     def _show_status(self, message: str) -> None:
         self.status_label.setText(message)
@@ -172,12 +175,15 @@ class MainWindow(QMainWindow):
 
     def _on_training_started(self) -> None:
         self.detection_view.pause_detection()
-        self._show_status("Träning pågår – detektion pausad")
+        self._show_status("Träning pågår – videoströmmar och detektion avstängda")
 
     def _on_training_finished(self) -> None:
         self.detection_view.resume_detection()
         self.detection_view.refresh_models()
-        self._show_status("Träning avslutad – detektion återupptagen; modellväljaren uppdaterad")
+        self._show_status(
+            "Träning avslutad – videoströmmar och detektion återupptagna; "
+            "modellväljaren uppdaterad"
+        )
 
     def closeEvent(self, event) -> None:
         worker = self.training_view.active_worker()

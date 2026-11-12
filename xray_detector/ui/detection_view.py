@@ -47,6 +47,7 @@ S_LOST = "Källa tappad"
 S_CONNECTING = "Ansluter  (försök {0}/{1})"
 S_LOST_AFTER = "Källan tappad efter {0} försök"
 S_RETRY = "Försök igen"
+S_PAUSED = "Avstängt under träning"
 DETECTION_TURN_OFF = mnemonic("Detektion av", "O")
 DETECTION_TURN_ON = mnemonic("Detektion på", "O")
 AUTO_MODE = "Auto"
@@ -317,13 +318,29 @@ class StreamPanel(QFrame):
         else:
             self.source_combo.setCurrentIndex(0)
 
-    def _show_no_source(self) -> None:
-        self.display.setText(NO_SOURCE)
+    def _show_message(self, text: str) -> None:
+        """Visar en text i stället för bilden och släpper senaste ramen."""
+        self.display.setText(text)
         self.display.setStyleSheet("color: #888; font-size: 24px; background: #222;")
         self.display.show()
         self.lost_widget.hide()
         self.fps_label.clear()
         self.latest = None
+
+    def _show_no_source(self) -> None:
+        self._show_message(NO_SOURCE)
+
+    def show_paused(self) -> None:
+        """Visar att strömmen är avstängd medan träningen körs (TASK-74)."""
+        self._show_message(S_PAUSED)
+
+    def restart_source(self) -> None:
+        """Startar om strömmen med samma källa som senast (TASK-74)."""
+        kind, value = self._active
+        if kind == "none":
+            return
+        self.reset_connection_state()
+        self.source_requested.emit(self.source_id, kind, value, self.current_mode())
 
     def show_source_lost(self) -> None:
         """Kallan tappad: rakna upp, automatiska forsok och sedan knapp (TASK-19)."""
@@ -766,12 +783,18 @@ class DetectionView(QWidget):
         self.capture_requested.emit(captures)
 
     def pause_detection(self) -> None:
-        """Pausar detekteringen och slapper detektorns GPU-minne (TASK-6)."""
+        """Stänger av strömmarna och detektionen och släpper detektorns GPU-minne.
+
+        Träningen får hela maskinen: både videofångsten (UVC), uppspelningen av
+        videofil och detektionen i strömmen stängs av (TASK-6, TASK-74).
+        """
         self._paused = True
         self.video_service.set_detector(None)
+        self.video_service.stop_all()
         self.detector = None
         for panel in (self.left, self.right):
             panel.clear_overlay()
+            panel.show_paused()
         try:
             import torch
 
@@ -780,8 +803,17 @@ class DetectionView(QWidget):
         except ImportError:
             pass
 
-    def resume_detection(self) -> None:
+    def resume_streams(self) -> None:
+        """Startar strömmarna och detektionen igen efter träningspausen (TASK-74).
+
+        Anropas när träningen avslutas och när användaren går till fliken
+        Detektion, så strömmarna tänds igen utan att träningen behöver vara klar.
+        """
+        if not self._paused:
+            return
         self._paused = False
+        for panel in (self.left, self.right):
+            panel.restart_source()
         if not self.detection_enabled:
             # anvandaren har slagit av detektionen: lat den vara av efter traningen
             return
@@ -790,6 +822,10 @@ class DetectionView(QWidget):
             self._on_model_changed()
         else:
             self.video_service.set_detector(self._active_detector())
+
+    def resume_detection(self) -> None:
+        """Återupptar strömmarna och detektionen när träningen är klar (TASK-6)."""
+        self.resume_streams()
 
     def stop(self) -> None:
         self.video_service.stop_all()
