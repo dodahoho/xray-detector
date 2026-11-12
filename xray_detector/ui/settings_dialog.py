@@ -14,9 +14,11 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -34,6 +36,8 @@ SORT_ORDERS = {SORT_NEWEST: "Nyast först", SORT_OLDEST: "Äldst först"}
 NO_CLASSES = "Inga klasser valda – ingen detektion körs"
 TRAIN_RATIO_KEY = "training/train_ratio"
 TRAIN_RATIO_DEFAULT = 80
+CLASS_COLUMNS = 5
+CLASS_LIST_MAX_HEIGHT = 420
 
 
 def sort_order(settings) -> str:
@@ -170,7 +174,9 @@ class ClassFilterSection(QGroupBox):
     """Klasserna som vald modell ska detektera (TASK-53).
 
     Klasslistan följer modellen, så sektionen byggs om varje gång dialogen
-    öppnas. Bortvalda klasser sparas av vyn, inte här.
+    öppnas. Bortvalda klasser sparas av vyn, inte här. En modell kan ha
+    hundratals klasser (COCO-80), så rutorna ligger i ett rutnät i en
+    rullista i stället för en enda lång kolumn (TASK-75).
     """
 
     def __init__(self, class_names, disabled, on_changed, parent=None) -> None:
@@ -181,12 +187,26 @@ class ClassFilterSection(QGroupBox):
         if not class_names:
             layout.addWidget(QLabel("Klasserna läses när modellen har laddats."))
             return
-        for name in class_names:
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setMaximumHeight(CLASS_LIST_MAX_HEIGHT)
+        content = QWidget()
+        grid = QGridLayout(content)
+        grid.setContentsMargins(0, 0, 0, 0)
+        for index, name in enumerate(class_names):
             box = QCheckBox(name)
             box.setChecked(name not in disabled)
             box.toggled.connect(self._on_toggled)
-            layout.addWidget(box)
+            grid.addWidget(box, index // CLASS_COLUMNS, index % CLASS_COLUMNS)
             self.checkboxes[name] = box
+        self.scroll.setWidget(content)
+        # rullistan är så bred att alla kolumner syns även när höjden rullar
+        self.scroll.setMinimumWidth(
+            content.sizeHint().width()
+            + self.scroll.verticalScrollBar().sizeHint().width()
+            + 2 * self.scroll.frameWidth()
+        )
+        layout.addWidget(self.scroll)
         self.warning = QLabel(NO_CLASSES)
         self.warning.setStyleSheet("color: #c33;")
         layout.addWidget(self.warning)

@@ -12,7 +12,13 @@ from xray_detector.application import model_registry
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.detection_view import DetectionView
-from xray_detector.ui.settings_dialog import NO_CLASSES, ClassFilterSection
+from xray_detector.ui.settings_dialog import (
+    CLASS_COLUMNS,
+    CLASS_LIST_MAX_HEIGHT,
+    NO_CLASSES,
+    ClassFilterSection,
+    SettingsDialog,
+)
 
 
 @pytest.fixture
@@ -93,6 +99,58 @@ def test_section_without_a_loaded_model_says_so(qapp):
 
     assert section.checkboxes == {}
     assert section.selected() == []
+
+
+# --- Många klasser (TASK-75) ---
+
+
+def _grid(section):
+    return section.scroll.widget().layout()
+
+
+def _positions(section) -> dict[str, tuple[int, int]]:
+    grid = _grid(section)
+    return {
+        name: grid.getItemPosition(grid.indexOf(box))[:2]
+        for name, box in section.checkboxes.items()
+    }
+
+
+def test_section_lays_the_classes_out_in_columns(qapp):
+    """Klasserna listas i flera kolumner i stället för en enda lång rad."""
+    names = [f"klass-{index}" for index in range(CLASS_COLUMNS * 2 + 1)]
+    section = ClassFilterSection(names, set(), lambda selected: None)
+
+    positions = _positions(section)
+
+    assert positions[names[0]] == (0, 0)
+    assert positions[names[CLASS_COLUMNS - 1]] == (0, CLASS_COLUMNS - 1)
+    assert positions[names[CLASS_COLUMNS]] == (1, 0)
+    assert positions[names[-1]] == (2, 0)
+
+
+def test_section_scrolls_when_the_classes_do_not_fit(qapp):
+    """COCO-80 ryms inte i dialogrutan: listan rullar i stället för att växa."""
+    names = [f"klass-{index}" for index in range(80)]
+    section = ClassFilterSection(names, set(), lambda selected: None)
+    dialog = SettingsDialog("Inställningar – Detektion", [section])
+    dialog.show()
+    qapp.processEvents()
+
+    assert section.scroll.verticalScrollBar().isVisible()
+    assert not section.scroll.horizontalScrollBar().isVisible()
+    assert dialog.height() < CLASS_LIST_MAX_HEIGHT + 200
+    dialog.close()
+
+
+def test_section_with_few_classes_does_not_scroll(qapp):
+    section = ClassFilterSection(["kniv", "pistol"], set(), lambda selected: None)
+    dialog = SettingsDialog("Inställningar – Detektion", [section])
+    dialog.show()
+    qapp.processEvents()
+
+    assert not section.scroll.verticalScrollBar().isVisible()
+    dialog.close()
 
 
 # --- Detektionsvyn (AC 1, 2, 4) ---
