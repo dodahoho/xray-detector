@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-12T19:52:00Z'
-updated_date: '2026-11-12T20:06:00Z'
+updated_date: '2026-11-12T20:49:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -29,6 +29,7 @@ ordinal: 69000
 - [x] #3 När bildparet detekterat en klass som saknas i annoteringslistan frågar appen om just den klassen, med klassnamnet i dialogen.
 - [x] #4 Annoteringslistans klasser är datasetets objektklasser; tillägg och borttagningar skrivs till datasetet.
 - [x] #5 Ett klick på klassnamnet för en annotering i bilden öppnar en dialog med dropdown där objektklassen kan bytas.
+- [x] #6 Klassdialogerna vid växling till annoteringsvyn visas först när annoteringsvyn är öppen, aldrig i vyn användaren kom ifrån.
 <!-- AC:END -->
 
 ## Definition of Done
@@ -49,6 +50,9 @@ ordinal: 69000
 4. Klassnamnet i bilden blir klickbart: canvasen träffar etiketten och skickar en signal; vyn öppnar en dialog med dropdown där klassen kan bytas (AC 5).
 5. Uppdatera tests/test_annotation_classes.py till det nya beteendet och lägg till tester för de nya flödena; kör hela sviten.
 6. Uppdatera README (annotationsavsnittet och config.classes).
+7. _on_capture och _on_open_from_dataset aktiverar och växlar till annoteringsfliken innan load_captures anropas, så klassdialogerna får annoteringsvyn som synlig förälder i stället för vyn användaren kom ifrån (AC 6).
+8. Nya tester som registrerar tabs.currentIndex() när QMessageBox.question anropas, för både fångstvägen och datasetvägen (AC 6).
+9. Kör hela sviten.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -63,16 +67,18 @@ Verifiering:
 - Hela sviten: 484 passed, 1 skipped (tests/test_shortcuts.py::test_alt_letter_switches_tab var flaky i en körning och passerar både enskilt och i omkörning av hela sviten).
 - Nya tester: tests/test_annotation_classes.py (26 st) och tests/test_annotation_canvas.py (10 st).
 - Renderad canvas bekräftar att _label_rect (50,21,43,26 vid skala 2.5) täcker den ritade texten och att ytan ovanför är bild utan text.
+
+Uppföljning (AC 6): klassdialogerna visades i detektionsvyn eftersom _on_capture och _on_open_from_dataset anropade load_captures före setCurrentIndex(1). Dialogen är parentad till annoteringsvyn, som då ännu inte var synlig, så Qt centrerade den över den flik som var öppen. Båda vägarna växlar nu fliken först och laddar bilderna efteråt; _on_tab_changed returnerar tidigt för index 1, så växlingen går inte via osparad-vakten.
+
+Verifiering (AC 6): två nya tester i tests/test_annotation_classes.py registrerar tabs.currentIndex() och tabs.isTabEnabled(1) när QMessageBox.question anropas, en för fångstvägen och en för datasetvägen. Båda fallerar på den gamla ordningen ([(0, False)]) och passerar med fixen ([(1, True)]). Hela sviten: 505 passed, 1 skipped.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Annoteringsvyns klasslista börjar nu tom och fylls bara på efter en fråga. refresh_classes() läser datasetets kategorier och _default_classes togs bort, så varken modellens klasser eller config.classes skrivs in automatiskt. När vyn öppnas frågar load_captures() först om modellens klasser när listan är tom (antalet nämns, inte namnen) och sedan per detekterad klass som listan saknar (klassnamnet nämns); ja skriver klasserna till datasetet med set_classes().
+Annoteringsvyns klassdialoger visas nu först när annoteringsvyn är öppen. _on_capture och _on_open_from_dataset aktiverar och växlar till annoteringsfliken innan load_captures anropas, så QMessageBox-frågorna får en synlig förälder i annoteringsvyn i stället för att centreras över detektions- eller datasetvyn. _on_tab_changed returnerar tidigt för index 1, så den nya ordningen går inte via osparad-vakten.
 
-Klassnamnet ovanför en annotering är klickbart. Canvasen räknar ut textens träffyta med QFontMetrics från samma font och baslinje som drawText använder, skickar class_label_clicked och vyn öppnar QInputDialog.getItem med en dropdown över datasetets klasser. Bytet går via set_item_class(), som markerar canvasen som ändrad så Spara-knappen aktiveras.
+Verifiering: två nya tester i tests/test_annotation_classes.py registrerar tabs.currentIndex() och tabs.isTabEnabled(1) när QMessageBox.question anropas, en för fångstvägen och en för datasetvägen. Båda fallerar på den gamla ordningen ([(0, False)]) och passerar med fixen ([(1, True)]). Hela sviten: 505 passed, 1 skipped. README:s annotationsavsnitt säger nu att frågorna kommer först när annoteringsvyn är öppen.
 
-Verifiering: hela sviten 484 passed, 1 skipped. Nya tester i tests/test_annotation_classes.py (26) och tests/test_annotation_canvas.py (10) täcker alla fem AC. En renderad canvas bekräftar att träffytan (50,21,43,26 vid skala 2.5) täcker den ritade texten. README är uppdaterad för det nya flödet och för att config.classes nu bara styr overlayfärgerna.
-
-Risker: klassnamnet kläms fast på y=22 när annoteringen ligger högst upp i bilden, så etiketten kan då överlappa rektangeln och ta klicket före flytthanteraren. En detekterad klass som användaren väljer att inte lägga till behåller sitt namn på rektangeln och blir en datasetkategori först vid sparning.
+Risker: bilderna laddas fortfarande efter frågorna, så medan dialogen är uppe kan canvasen visa föregående fångst om den avbröts utan sparning; efter svaret ritas rätt bildpar. Ingen ändring i load_captures ordning, så standardklassen för detektioner utan klassnamn fungerar som förut.
 <!-- SECTION:FINAL_SUMMARY:END -->

@@ -140,9 +140,10 @@ class MainWindow(QMainWindow):
         # TASK-12: krascsaker skrivning av fangsten direkt vid knapptryck
         pending_group_id = self.dataset_service.save_pending(captures)
         self._annotation_origin = self.tabs.indexOf(self.detection_view)
-        self.annotation_view.load_captures(captures, pending_group_id)
+        # vyn växlas före laddningen, så klassdialogerna hamnar i annoteringsvyn (TASK-71)
         self.tabs.setTabEnabled(1, True)
         self.tabs.setCurrentIndex(1)
+        self.annotation_view.load_captures(captures, pending_group_id)
 
     def _on_open_from_dataset(self, payload) -> None:
         # Fran datasetvyn: antingen en ramlisa (sparade bilder) eller en
@@ -152,12 +153,13 @@ class MainWindow(QMainWindow):
         frames = payload.frames if from_pending else payload
         pending_group_id = getattr(payload, "group_id", None)
         self._annotation_origin = self.tabs.indexOf(self.dataset_view)
+        # vyn växlas före laddningen, så klassdialogerna hamnar i annoteringsvyn (TASK-71)
+        self.tabs.setTabEnabled(1, True)
+        self.tabs.setCurrentIndex(1)
         # sparade bilder blir dubbletter om de sparas utan ändring (TASK-62)
         self.annotation_view.load_captures(
             frames, pending_group_id, already_saved=not from_pending
         )
-        self.tabs.setTabEnabled(1, True)
-        self.tabs.setCurrentIndex(1)
 
     def _on_annotation_saved(self) -> None:
         # sparningen är asynkron (TASK-40): fliken kan redan ha bytts medan den skrevs

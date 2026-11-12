@@ -425,3 +425,62 @@ def test_main_window_offers_the_models_classes(qapp, tmp_path, monkeypatch):
 
     assert window.annotation_view._class_names() == ["kniv"]
     assert window.dataset_service.classes() == ["kniv"]
+
+
+def window_with_model(tmp_path, monkeypatch):
+    """Ett huvudfönster med en laddad modell som har klassen kniv."""
+    from xray_detector.application import model_registry
+    from xray_detector.ui.main_window import MainWindow
+
+    monkeypatch.setattr(
+        model_registry, "create_detector", lambda spec, threshold: FakeDetector("kniv")
+    )
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    window = MainWindow(config)
+    window.detection_view._on_model_changed()
+    window.detection_view.wait_for_background()
+    return window
+
+
+def record_tab(monkeypatch, window, seen: list[tuple[int, bool]]) -> None:
+    """Svarar ja på frågorna och noterar vilken flik som var öppen då."""
+
+    def question(parent, title, text, *args, **kwargs):
+        seen.append((window.tabs.currentIndex(), window.tabs.isTabEnabled(1)))
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(question))
+
+
+def test_the_class_dialog_opens_after_the_switch_to_the_annotation_view(
+    qapp, tmp_path, monkeypatch
+):
+    """Frågan ska komma i annoteringsvyn, inte i detektionsvyn före växlingen."""
+    seen: list[tuple[int, bool]] = []
+    window = window_with_model(tmp_path, monkeypatch)
+    record_tab(monkeypatch, window, seen)
+
+    window._on_capture([capture()])
+
+    assert seen == [(1, True)]
+    assert window.annotation_view._class_names() == ["kniv"]
+
+
+def test_the_class_dialog_opens_after_the_switch_from_the_dataset_view(
+    qapp, tmp_path, monkeypatch
+):
+    seen: list[tuple[int, bool]] = []
+    window = window_with_model(tmp_path, monkeypatch)
+    window.dataset_service.add_samples(
+        [AnnotatedImage(np.full((40, 50, 3), 100, dtype=np.uint8), [])]
+    )
+    window.dataset_view.refresh()
+    window.dataset_view.wait_for_refresh()
+    record_tab(monkeypatch, window, seen)
+
+    window.dataset_view._on_thumb_double_clicked(window.dataset_view._thumbs[0])
+
+    assert seen == [(1, True)]
+    assert window.annotation_view._class_names() == ["kniv"]
