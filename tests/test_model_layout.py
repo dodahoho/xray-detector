@@ -140,25 +140,29 @@ def test_manifest_records_family(tmp_path):
     """Manifestet anger familj så väljaren kan välja rätt detektor (AC 1)."""
     from types import SimpleNamespace
 
-    from xray_detector.infrastructure.training.train_task import _write_manifest
+    from xray_detector.infrastructure.training.train_task import (
+        _RunState,
+        _write_manifest,
+    )
 
-    run_dir = tmp_path / "rfdetr"
-    weights = run_dir / "checkpoint_best_total.pth"
+    run_dir = tmp_path / "korning"
+    weights = run_dir / "rfdetr" / "checkpoint_best_total.pth"
     weights.parent.mkdir(parents=True)
     weights.write_bytes(b"vikter")
     args = SimpleNamespace(
         family="rfdetr",
         weights="rfdetr-small",
-        output_path=tmp_path,
+        output_path=run_dir,
         dataset=str(tmp_path / "dataset"),
         epochs=1,
         imgsz=640,
         batch=1,
+        device="cpu",
     )
 
-    _write_manifest(args, run_dir)
+    _write_manifest(args, run_dir, _RunState())
 
-    manifest = json.loads((tmp_path / "training_manifest.json").read_text(encoding="utf-8"))
+    manifest = json.loads((run_dir / "training_manifest.json").read_text(encoding="utf-8"))
     assert manifest["family"] == "rfdetr"
     assert manifest["weights_relative"] == "rfdetr/checkpoint_best_total.pth"
 

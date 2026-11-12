@@ -1,16 +1,27 @@
 ---
 id: TASK-44
 title: Träning - Strömma epokvisa träningsvärden från träningsprocessen till GUI:t
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-11T11:51:00Z'
-updated_date: '2026-11-11T20:22:00Z'
+updated_date: '2026-11-12T09:39:00Z'
 labels: []
 dependencies: []
 references:
   - xray_detector/infrastructure/training/train_task.py
   - xray_detector/infrastructure/training/trainer.py
   - xray_detector/ui/training_view.py
+modified_files:
+  - README.md
+  - xray_detector/domain/training.py
+  - xray_detector/infrastructure/training/epoch_metrics.py
+  - xray_detector/infrastructure/training/train_task.py
+  - xray_detector/infrastructure/training/trainer.py
+  - xray_detector/ui/training_view.py
+  - tests/test_epoch_metrics.py
+  - tests/test_log_layout.py
+  - tests/test_model_layout.py
 priority: high
 type: feature
 ordinal: 42000
@@ -51,3 +62,20 @@ Kravet är att träningsprocessen rapporterar ett strukturerat event per epok f�
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. EpochMetrics i domain/training.py: epok, totalt antal epoker, train-loss, val-loss, mAP50, mAP50-95, precision, recall.
+2. infrastructure/training/epoch_metrics.py: MetricsTail läser tillkommande rader ur results.csv (YOLO) och metrics.csv (RF-DETR), EpochAccumulator slår ihop RF-DETR:s train- och valrader per epok, EpochReporter pollar i en tråd och skriver EPOCH {json} på stdout.
+3. train_task.py startar rapportören före träningen och stänger den i finally.
+4. TrainingWorker buffrar partiella rader, parsar EPOCH-rader till signalen epoch_metrics och loggar en läsbar sammanfattning; övriga rader loggas råa.
+5. Träningsvyn visar progressbar med epok X/Y och de aktuella värdena.
+6. Tester för YOLO- och RF-DETR-parsning, buffring och signalen.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Epokeventen går från träningsprocessen till GUI:t som EPOCH {json}-rader på stdout. Rapportören i träningsprocessen läser results.csv (YOLO) respektive metrics.csv (RF-DETR) och slår ihop RF-DETR:s train- och valrader per epok. TrainingWorker buffrar partiella rader och exponerar signalen epoch_metrics; träningsvyn visar progressbar med epok X/Y och värdena. Verifierat med en riktig 2-epokskörning på CPU: två EPOCH-rader med epok 1/2 och 2/2, och manifestet uppdaterat per epok.
+<!-- SECTION:NOTES:END -->

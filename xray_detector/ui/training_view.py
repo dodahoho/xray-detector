@@ -4,12 +4,14 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, QObject, Signal
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
+    QProgressBar,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -23,6 +25,7 @@ from xray_detector.domain.training import TrainConfig
 from xray_detector.ui.settings_dialog import TrainingScheduleSection, settings_button
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.style import button
+from xray_detector.ui.training_chart import TrainingChart
 
 
 class TrainingView(QWidget):
@@ -45,6 +48,14 @@ class TrainingView(QWidget):
         layout = QVBoxLayout(self)
         layout.addLayout(self._build_header())
         layout.addLayout(self._build_settings())
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFormat("Epok %v/%m")
+        self.progress_bar.setValue(0)
+        layout.addWidget(self.progress_bar)
+        self.epoch_label = QLabel("Ingen träning pågår")
+        layout.addWidget(self.epoch_label)
+        self.chart = TrainingChart()
+        layout.addWidget(self.chart, 2)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         layout.addWidget(self.log, 1)
@@ -109,6 +120,12 @@ class TrainingView(QWidget):
         self.run_combo.addItem("Nattetid (schema)", "night")
         self.run_combo.addItem("Efter inaktivitet", "inactivity")
         form.addRow("Kör:", self.run_combo)
+        self.overfitting_check = QCheckBox("Avbryt vid överträning")
+        self.overfitting_check.setChecked(True)
+        self.overfitting_check.setToolTip(
+            "Avbryter träningen när train-loss fortsätter sjunka medan val-mAP vänder ner"
+        )
+        form.addRow("Överträning:", self.overfitting_check)
         self.start_button = button(mnemonic("Starta träning", "R"), primary=True)
         self.start_button.clicked.connect(self._on_start)
         self.abort_button = button(with_hint("Avbryt", "Esc"))
@@ -138,12 +155,18 @@ class TrainingView(QWidget):
             value = self.settings.value(f"training/{key}", default, type=int)
             if value:
                 spin.setValue(value)
+        self.overfitting_check.setChecked(
+            self.settings.value("training/overfitting_guard", True, type=bool)
+        )
 
     def save_settings(self) -> None:
         self.settings.setValue("training/base_model", self.model_combo.currentData())
         self.settings.setValue("training/epochs", self.epochs_spin.value())
         self.settings.setValue("training/imgsz", self.imgsz_spin.value())
         self.settings.setValue("training/batch", self.batch_spin.value())
+        self.settings.setValue(
+            "training/overfitting_guard", self.overfitting_check.isChecked()
+        )
 
     def refresh_dataset_info(self) -> None:
         """Visar sammanställningen för datasetet som träningen utgår från."""
@@ -185,6 +208,7 @@ class TrainingView(QWidget):
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),
             family=family,
+            overfitting_guard=self.overfitting_check.isChecked(),
         )
         run_mode = self.run_combo.currentData()
         if run_mode == "direct":
@@ -206,9 +230,16 @@ class TrainingView(QWidget):
             "xray.training", log_path(self.config.logs_dir, "training")
         )
         worker.progress.connect(self._on_progress)
+        worker.epoch_metrics.connect(self._on_epoch_metrics)
+        worker.abort_reason.connect(self._on_abort_reason)
         worker.finished_training.connect(self._on_finished)
         self.start_button.setEnabled(False)
         self.abort_button.setEnabled(True)
+        self.overfitting_check.setEnabled(False)
+        self.progress_bar.setRange(0, worker.config.epochs)
+        self.progress_bar.setValue(0)
+        self.epoch_label.setText("Väntar på första epoken")
+        self.chart.clear()
         header = (
             f"Startar träning: {worker.config.weights} på {worker.config.dataset_yaml} "
             f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, batch {worker.config.batch}) "
@@ -225,6 +256,18 @@ class TrainingView(QWidget):
         if self.training_log is not None:
             self.training_log.info(line)
 
+    def _on_epoch_metrics(self, metrics) -> None:
+        """Uppdaterar progressbaren och grafen med epokens värden (TASK-44, TASK-45)."""
+        self.progress_bar.setMaximum(metrics.total_epochs)
+        self.progress_bar.setValue(metrics.epoch)
+        self.epoch_label.setText(metrics.summary())
+        self.chart.add_epoch(metrics)
+
+    def _on_abort_reason(self, reason: str) -> None:
+        """Visar varför träningen avbröts, både i vyn och i statusraden (TASK-46)."""
+        self.epoch_label.setText(f"Avbruten: {reason}")
+        self.status_changed.emit(f"Träningen avbröts: {reason}")
+
     def _on_abort(self) -> None:
         if self.worker is not None and self.worker.is_running():
             self.training_service.cancel()
@@ -240,6 +283,7 @@ class TrainingView(QWidget):
             self.training_log.info(message)
         self.start_button.setEnabled(True)
         self.abort_button.setEnabled(False)
+        self.overfitting_check.setEnabled(True)
         self.training_finished.emit()
         self.refresh_dataset_info()
 

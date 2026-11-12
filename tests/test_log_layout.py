@@ -131,6 +131,8 @@ class _FakeWorker(QObject):
     """Träningsworker utan process: signalerna räcker för loggtestet."""
 
     progress = Signal(str)
+    epoch_metrics = Signal(object)
+    abort_reason = Signal(str)
     finished_training = Signal(bool, str)
 
     def __init__(self, config: TrainConfig) -> None:

@@ -1,15 +1,21 @@
 ---
 id: TASK-45
 title: Träning - Graf över loss och mAP per epok i träningsvyn
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-11T11:51:00Z'
-updated_date: '2026-11-11T20:22:00Z'
+updated_date: '2026-11-12T09:42:00Z'
 labels: []
 dependencies:
   - TASK-44
 references:
   - xray_detector/ui/training_view.py
+modified_files:
+  - README.md
+  - xray_detector/ui/training_chart.py
+  - xray_detector/ui/training_view.py
+  - tests/test_training_chart.py
 priority: medium
 type: feature
 ordinal: 43000
@@ -43,3 +49,18 @@ PySide6 6.12 med QtCharts finns redan i projektets venv, så grafen kan byggas u
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. ui/training_chart.py: TrainingChart med två QtCharts-grafer, en för train/val-loss och en för mAP50/mAP50-95, med epok på x-axeln och markörer så en enstaka epok syns.
+2. Träningsvyn lägger grafen ovanför loggen, rensar den vid start och fyller på den från epoch_metrics-signalen.
+3. Axlarna anpassas efter punkterna med ett minsta intervall, så en körning med en epok blir läsbar.
+4. Tester läser seriernas punkter och axelintervallen.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+TrainingChart ritar två QtCharts-grafer: train/val-loss och mAP50/mAP50-95, med epok på x-axeln, axeltitlar och legend under grafen. Träningsvyn rensar grafen vid start och fyller på den från epoch_metrics. Axlarna anpassas efter punkterna med ett minsta intervall, så en enstaka epok syns som en markör. Verifierat med en renderad skärmbild av träningsvyn med åtta epoker: båda graferna visar rätt serier, axlar och legend.
+<!-- SECTION:NOTES:END -->
