@@ -87,7 +87,7 @@ def test_each_capture_is_one_card_with_its_pair(qapp, config, service, settings)
     cards = _cards(view, "2026-11-10")
     assert len(cards) == 1
     assert len(cards[0].findChildren(Thumbnail)) == 2
-    header, _frame, _base = view._group_headers[1]
+    header, _frame = view._group_headers[1]
     assert header.text().startswith("09:56:38")
 
 

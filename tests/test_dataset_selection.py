@@ -87,20 +87,22 @@ def test_no_markerad_row_on_thumbnails(view):
 
 
 def test_header_is_filled_and_marked(view):
-    header, frame, base_text = view._group_headers[1]
+    """Rubriken behåller sin text; bara färgerna visar markeringen (TASK-68)."""
+    header, frame = view._group_headers[1]
     row = header.parentWidget()
-    assert header.text() == base_text
-    assert "Markerad" not in header.text()
+    text = header.text()
+    assert text
+    assert "Markerad" not in text
 
     view._on_thumb_clicked(view._thumbs[0])
 
-    assert header.text() == f"{base_text} · Markerad"
+    assert header.text() == text
     assert SELECTED_BORDER in row.styleSheet()
     assert SELECTED_BORDER in frame.styleSheet()
 
     view._on_thumb_clicked(view._thumbs[0])
 
-    assert header.text() == base_text
+    assert header.text() == text
     assert SELECTED_BORDER not in row.styleSheet()
     assert SELECTED_BORDER not in frame.styleSheet()
 

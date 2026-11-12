@@ -72,7 +72,7 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     pending_thumb = next(t for t in view._thumbs if t.pending)
     # bildtexten är borta; källan ligger i tooltipen och "Osparad" i titelraden (TASK-66)
     assert "kamera-vanster" in pending_thumb.toolTip()
-    header, _frame, _base = view._group_headers[pending_thumb.group_id]
+    header, _frame = view._group_headers[pending_thumb.group_id]
     assert header.text().startswith("Osparad")
 
     # dubbelklick ateroppnar i annotering och sparning tar bort pending

@@ -38,7 +38,7 @@ def settings(tmp_path) -> QSettings:
 
 
 def _header_text(view, group_id) -> str:
-    header, _frame, _base = view._group_headers[group_id]
+    header, _frame = view._group_headers[group_id]
     return header.text()
 
 
@@ -82,9 +82,39 @@ def test_header_lists_the_classes_as_badges(qapp, config, service, settings):
     view.refresh()
     view.wait_for_refresh()
 
-    header, _frame, _base = view._group_headers[1]
+    header, _frame = view._group_headers[1]
     texts = [label.text() for label in header.parentWidget().findChildren(QLabel)]
     assert texts == ["09:56:38", "kniv", "pistol"]
+
+
+def test_badges_follow_directly_after_the_time(qapp, config, service, settings):
+    """Ingen plats reserveras för 'Markerad', så märkena ligger tätt efter tiden (TASK-68)."""
+    service.add_samples(
+        [
+            AnnotatedImage(
+                np.full((30, 40, 3), 60, np.uint8),
+                [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+            ),
+            AnnotatedImage(
+                np.full((30, 40, 3), 120, np.uint8),
+                [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+            ),
+        ],
+        captured="2026-11-10T09:56:38",
+    )
+    view = DatasetView(config, service, settings)
+    view.refresh()
+    view.wait_for_refresh()
+
+    header, _frame = view._group_headers[1]
+    row = header.parentWidget()
+    row.resize(400, 24)
+    layout = row.layout()
+    layout.activate()
+    badge = layout.itemAt(1).widget()
+
+    assert header.width() == header.sizeHint().width()
+    assert badge.x() == header.x() + header.width() + layout.spacing()
 
 
 def test_card_has_only_a_title_row_and_thumbnails(qapp, config, service, settings):

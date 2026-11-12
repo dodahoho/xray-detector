@@ -45,7 +45,6 @@ ALL_CLASSES = "Alla klasser"
 NO_MATCHES = "Inga bilder matchar filtret."
 DATE_FORMAT = "yyyy-MM-dd"
 HEADER_OBJECT_NAME = "captureHeader"
-MARKED_SUFFIX = " · Markerad"
 HEADER_MARGINS = (6, 2, 6, 2)
 
 
@@ -204,13 +203,11 @@ def _capture_header(
     classes: tuple[str, ...] = (),
     known_classes: list[str] | None = None,
 ) -> tuple[QWidget, QLabel]:
-    """Rubrikrad med tid och klassmärken, med plats för ' · Markerad' (TASK-63, TASK-66).
+    """Rubrikrad med tid och klassmärken (TASK-66, TASK-68).
 
     Raden bär färgen och bakgrunden, så markeringen täcker både tiden och
-    märkena. Tidsetiketten skapas med det markerade läget, mäter upp sin bredd
-    och behåller den som minimum. Då byter kortet inte storlek och korten intill
-    inte flyttas när fångsten markeras. Raden behöver kortet som förälder redan
-    här, annars har stilmallen inte lagt på sin ram när bredden mäts.
+    märkena. Texten är densamma i alla lägen, så märkena hamnar direkt efter
+    tidsangivelsen och kortet behåller sin storlek när fångsten markeras.
     """
     row = QFrame(parent)
     row.setObjectName(HEADER_OBJECT_NAME)
@@ -220,11 +217,8 @@ def _capture_header(
     layout = QHBoxLayout(row)
     layout.setContentsMargins(*HEADER_MARGINS)
     layout.setSpacing(4)
-    label = QLabel(text + MARKED_SUFFIX, row)
+    label = QLabel(text, row)
     label.setStyleSheet(_header_text_style(color))
-    label.ensurePolished()
-    label.setMinimumWidth(label.sizeHint().width())
-    label.setText(text)
     layout.addWidget(label)
     for name in classes:
         layout.addWidget(_badge(name, list(known_classes or []), row))
@@ -713,7 +707,7 @@ class DatasetView(QWidget):
         header, header_label = _capture_header(
             time_label, "#888", card, classes, known_classes
         )
-        self._group_headers[key] = (header_label, card, header_label.text())
+        self._group_headers[key] = (header_label, card)
         inner = QVBoxLayout(card)
         inner.setContentsMargins(8, 8, 8, 8)
         inner.setSpacing(4)
@@ -778,11 +772,7 @@ class DatasetView(QWidget):
             header, header_label = _capture_header(
                 title, "#e5a52a", card, classes, known_classes
             )
-            self._group_headers[capture.group_id] = (
-                header_label,
-                card,
-                header_label.text(),
-            )
+            self._group_headers[capture.group_id] = (header_label, card)
             inner = QVBoxLayout(card)
             inner.setContentsMargins(8, 8, 8, 8)
             inner.setSpacing(4)
@@ -832,20 +822,19 @@ class DatasetView(QWidget):
         return [thumb for thumb in self._thumbs if thumb.group_id == group_id]
 
     def _update_group_header(self, group_id) -> None:
-        """Fyller fångstens rubrikrad och avslutar den med 'Markerad' (TASK-29).
+        """Färgar fångstens rubrikrad efter markeringen (TASK-29, TASK-68).
 
-        Bara text och färger växlar; ramens bredd och rubrikens mått är fasta så
-        att kortet behåller sin storlek och vyn inte hoppar (TASK-63).
+        Bara färgerna växlar; texten står still och ramens bredd är fast, så
+        kortet behåller sin storlek och vyn inte hoppar (TASK-63).
         """
         entry = self._group_headers.get(group_id)
         if entry is None:
             return
-        header, frame, base_text = entry
+        header, frame = entry
         row = header.parentWidget()
         members = self._thumbs_for_group(group_id)
         selected = any(thumb.selected for thumb in members)
         pending = any(thumb.pending for thumb in members)
-        header.setText(f"{base_text}{MARKED_SUFFIX}" if selected else base_text)
         if selected:
             row.setStyleSheet(_header_style("#10202e", SELECTED_BORDER))
             header.setStyleSheet(_header_text_style("#10202e"))
