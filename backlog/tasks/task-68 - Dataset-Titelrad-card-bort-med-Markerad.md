@@ -1,11 +1,11 @@
 ---
 id: TASK-68
 title: Dataset - Titelrad card, bort med Markerad
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-12T16:40:00Z'
-updated_date: '2026-11-12T16:45:00Z'
+updated_date: '2026-11-12T16:46:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -32,7 +32,7 @@ I vy dataset behövs inte texten "Markerad" i titelraden för ett card eftersom 
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -66,3 +66,23 @@ Verifiering:
 - ruff check på ändrade filer: inga anmärkningar.
 - Renderad rubrikrad före/under/efter markering: radens bakgrund #f3f3f3 -> #4da3ff -> #f3f3f3, texten '09:56:38' hela tiden, kortet 500x226 i alla tre lägena.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Titelraden i datasetvyn visar inte längre någon text om markering; markeringen syns bara som färg och klassmärkena ligger direkt efter tidsangivelsen.
+
+Vad som ändrades i xray_detector/ui/dataset_view.py:
+- MARKED_SUFFIX (' · Markerad') är borttagen.
+- _capture_header skapar tidsetiketten med sin text direkt. Mätningen som reserverade plats för suffixet (ensurePolished + setMinimumWidth) är borttagen, eftersom texten är konstant; därför hamnar klassmärkena direkt efter tiden.
+- _update_group_header växlar bara färger. Den sparade bastexten i _group_headers behövdes bara för suffixet och är borta, så posten är nu (etikett, kort).
+
+Verifiering:
+- tests/test_dataset_selection.py::test_header_is_filled_and_marked: texten är oförändrad före, under och efter markering; bara radens och kortets färger växlar.
+- Ny tests/test_dataset_header.py::test_badges_follow_directly_after_the_time: etiketten har sin naturliga bredd och första badgen ligger exakt ett layoutavstånd efter den. Testet faller om breddreservationen återinförs.
+- TASK-63-testerna för oförändrad kortstorlek (test_dataset_layout.py, test_dataset_card_click.py) passerar oförändrade.
+- Hela sviten: 453 passed, 1 skipped. ruff check: inga anmärkningar.
+- Renderad rubrikrad före/under/efter markering: bakgrund #f3f3f3 -> #4da3ff -> #f3f3f3, texten '09:56:38' hela tiden, kortet 500x226 i alla tre lägena.
+
+Risker: ingen känd. _group_headers är intern och bara testad i projektet; alla anrop är uppdaterade.
+<!-- SECTION:FINAL_SUMMARY:END -->
