@@ -14,7 +14,7 @@ groma:
 description: Bygger flikarna och dirigerar flödet mellan vyerna.
 ---
 
-QMainWindow med flikarna Detektion, Annotation, Dataset, Träning och Inställningar. Wiring: fångade bilder till annotering, sparade annoteringar uppdaterar datasetvyn, träning pausar/återupptar detektion, F11 växlar fullskärm, inställningar persistas vid stängning (fönstergeometri, modell, källor, träningsparametrar, tema). Annoteringsvyn öppnas från Detektion (Fånga bilder) eller Dataset (dubbelklick på en fångst); fönstret minns fliken den öppnades från, och Spara till dataset och Avbryt för tillbaka dit. Inställningsfliken håller applikationens globala inställningar; varje vy har dessutom en egen inställningsknapp, som äger Alt+I, så fliken nås med Alt+L.
+QMainWindow med flikarna Detektion, Annotation, Dataset, Träning och Inställningar. Wiring: fångade bilder till annotering, sparade annoteringar uppdaterar datasetvyn, träning pausar/återupptar detektion, F11 växlar fullskärm, inställningar persistas vid stängning (fönstergeometri, modell, källor, träningsparametrar, tema). Annoteringsvyn öppnas från Detektion (Fånga bilder) eller Dataset (dubbelklick på en fångst); fönstret minns fliken den öppnades från, och Spara till dataset och Avbryt för tillbaka dit. Bilder som öppnas från Dataset ligger redan i datasetet, så Spara till dataset är avstängt tills en ändring är gjord. Inställningsfliken håller applikationens globala inställningar; varje vy har dessutom en egen inställningsknapp, som äger Alt+I, så fliken nås med Alt+L.
 
 ## Relationships
 

@@ -145,10 +145,14 @@ class MainWindow(QMainWindow):
         # Fran datasetvyn: antingen en ramlisa (sparade bilder) eller en
         # PendingCapture (osparad fangst, TASK-12). Osp rad fangst behaller sitt
         # grupp-id sa ingen ny pending-kopia skrivs vid ateroppning.
-        frames = payload.frames if hasattr(payload, "frames") else payload
+        from_pending = hasattr(payload, "frames")
+        frames = payload.frames if from_pending else payload
         pending_group_id = getattr(payload, "group_id", None)
         self._annotation_origin = self.tabs.indexOf(self.dataset_view)
-        self.annotation_view.load_captures(frames, pending_group_id)
+        # sparade bilder blir dubbletter om de sparas utan ändring (TASK-62)
+        self.annotation_view.load_captures(
+            frames, pending_group_id, already_saved=not from_pending
+        )
         self.tabs.setTabEnabled(1, True)
         self.tabs.setCurrentIndex(1)
 

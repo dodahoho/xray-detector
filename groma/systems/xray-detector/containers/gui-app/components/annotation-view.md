@@ -12,7 +12,7 @@ groma:
 description: Ritar och redigerar rektanglar med klass på frusna bilder.
 ---
 
-Två AnnotationCanvas med handritad markering: ritning genom drag, flytt/storleksändring med riktade markörer, Delete-tangent, klasshantering (+/−) och sparning till dataset. Rektangeln får klass från komboboxen; rader utan klass får "objekt".
+Två AnnotationCanvas med handritad markering: ritning genom drag, flytt/storleksändring med riktade markörer, Delete-tangent, klasshantering (+/−) och sparning till dataset. Rektangeln får klass från komboboxen; rader utan klass får "objekt". Spara till dataset är avstängt när bilderna redan ligger i datasetet, tills en ändring är gjord, så ett klick utan ändring inte skapar dubbletter; en ny fångst kan sparas direkt.
 
 ## Relationships
 

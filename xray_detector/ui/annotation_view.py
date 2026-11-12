@@ -386,6 +386,8 @@ class AnnotationView(QWidget):
         # anropbar som ger vald modells klassnamn; de är bara standardvärden (TASK-61)
         self.model_classes = model_classes
         self.pending_group_id: str | None = None
+        # bilder som redan ligger i datasetet kräver en ändring före sparning (TASK-62)
+        self._save_requires_change = False
         self._save_task: BackgroundTask | None = None
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
@@ -419,6 +421,7 @@ class AnnotationView(QWidget):
         self.canvases: list[AnnotationCanvas] = [AnnotationCanvas("Bild 1"), AnnotationCanvas("Bild 2")]
         for canvas in self.canvases:
             canvas.selection_changed.connect(self._on_selection_changed)
+            canvas.changed.connect(self._update_save_button)
             panels.addWidget(canvas, 1)
         layout.addLayout(panels, 1)
         self.busy = BusyIndicator(self)
@@ -512,7 +515,14 @@ class AnnotationView(QWidget):
             self.class_combo.setCurrentIndex(0)
         self.dataset_service.set_classes(self._class_names())
 
-    def load_captures(self, captures: list, pending_group_id: str | None = None) -> None:
+    def load_captures(
+        self,
+        captures: list,
+        pending_group_id: str | None = None,
+        already_saved: bool = False,
+    ) -> None:
+        """Laddar bilderna i vyn; already_saved kräver en ändring före sparning (TASK-62)."""
+        self._save_requires_change = already_saved
         self.refresh_classes(seed_dataset=True)
         self.pending_group_id = pending_group_id
         for canvas in self.canvases:
@@ -524,6 +534,7 @@ class AnnotationView(QWidget):
             canvas.rects = []
             canvas.selected = None
             canvas.update()
+        self.mark_clean()
 
     def _on_class_changed(self, class_name: str) -> None:
         for canvas in self.canvases:
@@ -543,6 +554,16 @@ class AnnotationView(QWidget):
     def mark_clean(self) -> None:
         for canvas in self.canvases:
             canvas.dirty = False
+        self._update_save_button()
+
+    def _update_save_button(self) -> None:
+        """Spara-knappen är bara aktiv när det finns något att spara (TASK-62).
+
+        Bilder som redan ligger i datasetet blir dubbletter om de sparas utan
+        ändring, så där krävs en ändring först. En ny fångst finns inte i
+        datasetet än och kan sparas direkt.
+        """
+        self.save_button.setEnabled(not self._save_requires_change or self.is_dirty())
 
     def _on_delete(self) -> None:
         for canvas in self.canvases:
@@ -590,6 +611,7 @@ class AnnotationView(QWidget):
 
     def _on_saved(self) -> None:
         self.pending_group_id = None
+        self._save_requires_change = False
         self.mark_clean()
         for canvas in self.canvases:
             canvas.image = None
@@ -606,7 +628,7 @@ class AnnotationView(QWidget):
     def _on_save_finished(self) -> None:
         self._save_task = None
         self.busy.stop()
-        self.save_button.setEnabled(True)
+        self._update_save_button()
 
     def wait_for_save(self, timeout_ms: int = 10000) -> None:
         """Väntar in en pågående sparning (tester och stängning)."""
