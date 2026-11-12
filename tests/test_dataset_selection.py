@@ -88,19 +88,20 @@ def test_no_markerad_row_on_thumbnails(view):
 
 def test_header_is_filled_and_marked(view):
     header, frame, base_text = view._group_headers[1]
+    row = header.parentWidget()
     assert header.text() == base_text
     assert "Markerad" not in header.text()
 
     view._on_thumb_clicked(view._thumbs[0])
 
     assert header.text() == f"{base_text} · Markerad"
-    assert SELECTED_BORDER in header.styleSheet()
+    assert SELECTED_BORDER in row.styleSheet()
     assert SELECTED_BORDER in frame.styleSheet()
 
     view._on_thumb_clicked(view._thumbs[0])
 
     assert header.text() == base_text
-    assert SELECTED_BORDER not in header.styleSheet()
+    assert SELECTED_BORDER not in row.styleSheet()
     assert SELECTED_BORDER not in frame.styleSheet()
 
 

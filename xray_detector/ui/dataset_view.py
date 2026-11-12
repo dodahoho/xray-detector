@@ -162,22 +162,49 @@ def _card_style(color: str, dashed: bool = False) -> str:
     return f"QFrame {{ border: 1px {line} {color}; border-radius: 8px; }}"
 
 
-def _capture_header(text: str, color: str, parent: QWidget) -> QLabel:
-    """Rubrikrad för en fångst med plats för ' · Markerad' redan omarkerad (TASK-63).
+def _badge(name: str, known_classes: list[str], parent: QWidget) -> QLabel:
+    """Klassmärke i rubrikraden, färgat med klassens färg (TASK-66)."""
+    color = class_color(name, known_classes)
+    text_color = "#111" if color.lightness() > 140 else "#fff"
+    badge = QLabel(name, parent)
+    badge.setStyleSheet(
+        f"QLabel {{ background: {color.name()}; color: {text_color}; "
+        "border-radius: 6px; padding: 1px 6px; font-weight: bold; }"
+    )
+    return badge
 
-    Rubriken skapas med det markerade läget, mäter upp sin bredd och behåller den
-    som minimum. Då byter kortet inte storlek och korten intill inte flyttas när
-    fångsten markeras. Rubriken behöver kortet som förälder redan här, annars har
-    stilmallen inte lagt på sin ram när bredden mäts.
+
+def _capture_header(
+    text: str,
+    color: str,
+    parent: QWidget,
+    classes: tuple[str, ...] = (),
+    known_classes: list[str] | None = None,
+) -> tuple[QWidget, QLabel]:
+    """Rubrikrad med tid och klassmärken, med plats för ' · Markerad' (TASK-63, TASK-66).
+
+    Raden bär färgen och bakgrunden, så markeringen täcker både tiden och
+    märkena. Tidsetiketten skapas med det markerade läget, mäter upp sin bredd
+    och behåller den som minimum. Då byter kortet inte storlek och korten intill
+    inte flyttas när fångsten markeras. Raden behöver kortet som förälder redan
+    här, annars har stilmallen inte lagt på sin ram när bredden mäts.
     """
-    header = QLabel(text + MARKED_SUFFIX, parent)
-    header.setContentsMargins(*HEADER_MARGINS)
-    header.setStyleSheet(_header_style(color))
-    header.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-    header.ensurePolished()
-    header.setMinimumWidth(header.sizeHint().width())
-    header.setText(text)
-    return header
+    row = QFrame(parent)
+    row.setStyleSheet(_header_style(color))
+    row.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    row.ensurePolished()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(*HEADER_MARGINS)
+    layout.setSpacing(4)
+    label = QLabel(text + MARKED_SUFFIX, row)
+    label.ensurePolished()
+    label.setMinimumWidth(label.sizeHint().width())
+    label.setText(text)
+    layout.addWidget(label)
+    for name in classes:
+        layout.addWidget(_badge(name, list(known_classes or []), row))
+    layout.addStretch(1)
+    return row, label
 
 
 def _thumbnail_pixmap(
@@ -233,25 +260,29 @@ class Thumbnail(QWidget):
     clicked = Signal(object)
     double_clicked = Signal(object)
 
-    def __init__(self, image_id, group_id, pixmap: QPixmap, caption: str, pending: bool = False, parent=None) -> None:
+    def __init__(
+        self,
+        image_id,
+        group_id,
+        pixmap: QPixmap,
+        pending: bool = False,
+        tooltip: str = "",
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self.image_id = image_id
         self.group_id = group_id
         self.pending = pending
         self.selected = False
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        if tooltip:
+            self.setToolTip(tooltip)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 4)
+        layout.setContentsMargins(6, 6, 6, 6)
         self.picture = QLabel()
         self.picture.setPixmap(pixmap)
         self.picture.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.caption = QLabel("OSPÅRAD · " + caption if pending else caption)
-        if pending:
-            self.caption.setStyleSheet("color: #e5a52a; font-weight: bold;")
-        self.caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.caption.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         layout.addWidget(self.picture)
-        layout.addWidget(self.caption)
         self._apply_style()
 
     def _apply_style(self) -> None:
@@ -437,9 +468,10 @@ class DatasetView(QWidget):
         self._pending_by_group = {}
 
         newest_first = sort_order(self.settings) == SORT_NEWEST
-        self._add_pending_section(data["pending"], newest_first)
         coco = data["coco"]
         self._coco = coco
+        known_classes = [c["name"] for c in coco["categories"]]
+        self._add_pending_section(data["pending"], newest_first, known_classes)
         if not coco["images"]:
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
@@ -450,7 +482,6 @@ class DatasetView(QWidget):
         for annotation in coco["annotations"]:
             annotations_by_image.setdefault(annotation["image_id"], []).append(annotation)
         category_names = {c["id"]: c["name"] for c in coco["categories"]}
-        known_classes = [c["name"] for c in coco["categories"]]
 
         groups: dict[int, list[dict]] = {}
         for image in coco["images"]:
@@ -513,17 +544,25 @@ class DatasetView(QWidget):
         known_classes: list[str],
         decoded: dict,
     ) -> None:
-        """Ett kort per fångst: tid, antal bilder och objekt samt bildparet (TASK-42)."""
-        object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
+        """Ett kort per fångst: tid, klassmärken och bildparet (TASK-42, TASK-66)."""
+        classes = tuple(
+            sorted(
+                {
+                    category_names[ann["category_id"]]
+                    for img in images
+                    for ann in annotations_by_image.get(img["id"], [])
+                }
+            )
+        )
         time_label = stamp[11:] if stamp else f"Fångst {key}"
         card = CaptureCard(key)
         card.setFrameShape(QFrame.Shape.Box)
         card.setStyleSheet(_card_style("#666"))
         card.clicked.connect(self._on_card_clicked)
-        header = _capture_header(
-            f"{time_label} · {len(images)} bilder · {object_count} objekt", "#888", card
+        header, header_label = _capture_header(
+            time_label, "#888", card, classes, known_classes
         )
-        self._group_headers[key] = (header, card, header.text())
+        self._group_headers[key] = (header_label, card, header_label.text())
         inner = QVBoxLayout(card)
         inner.setContentsMargins(8, 8, 8, 8)
         inner.setSpacing(4)
@@ -535,9 +574,7 @@ class DatasetView(QWidget):
             pixmap = _thumbnail_pixmap(
                 decoded[image["id"]], annotations, category_names, known_classes
             )
-            classes = sorted({category_names[ann["category_id"]] for ann in annotations})
-            caption = "Inga objekt" if not classes else ", ".join(classes) + f" ({len(annotations)})"
-            thumb = Thumbnail(image["id"], key, pixmap, caption)
+            thumb = Thumbnail(image["id"], key, pixmap)
             thumb.clicked.connect(self._on_thumb_clicked)
             thumb.double_clicked.connect(self._on_thumb_double_clicked)
             row.addWidget(thumb)
@@ -546,7 +583,9 @@ class DatasetView(QWidget):
         inner.addLayout(row)
         cards.addWidget(card)
 
-    def _add_pending_section(self, captures, newest_first: bool = True) -> None:
+    def _add_pending_section(
+        self, captures, newest_first: bool = True, known_classes: list[str] | None = None
+    ) -> None:
         """Osparade fångster i en egen sektion överst (TASK-12, TASK-42)."""
         if not captures:
             return
@@ -556,14 +595,27 @@ class DatasetView(QWidget):
             self._pending_by_group[capture.group_id] = capture
             stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
             title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"
+            classes = tuple(
+                sorted(
+                    {
+                        detection.class_name
+                        for stream_frame in capture.frames
+                        for detection in stream_frame.detections
+                    }
+                )
+            )
             card = CaptureCard(capture.group_id)
             card.setFrameShape(QFrame.Shape.Box)
             card.setStyleSheet(_card_style("#e5a52a", dashed=True))
             card.clicked.connect(self._on_card_clicked)
-            header = _capture_header(
-                f"{title} · {len(capture.frames)} bild(er)", "#e5a52a", card
+            header, header_label = _capture_header(
+                title, "#e5a52a", card, classes, known_classes
             )
-            self._group_headers[capture.group_id] = (header, card, header.text())
+            self._group_headers[capture.group_id] = (
+                header_label,
+                card,
+                header_label.text(),
+            )
             inner = QVBoxLayout(card)
             inner.setContentsMargins(8, 8, 8, 8)
             inner.setSpacing(4)
@@ -578,8 +630,13 @@ class DatasetView(QWidget):
                     THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
                 )
                 count = len(stream_frame.detections)
-                caption = f"{stream_frame.source_label} · {count} detektion(er)"
-                thumb = Thumbnail(capture.group_id, capture.group_id, pixmap, caption, pending=True)
+                thumb = Thumbnail(
+                    capture.group_id,
+                    capture.group_id,
+                    pixmap,
+                    pending=True,
+                    tooltip=f"{stream_frame.source_label} · {count} detektion(er)",
+                )
                 thumb.clicked.connect(self._on_thumb_clicked)
                 thumb.double_clicked.connect(self._on_thumb_double_clicked)
                 row.addWidget(thumb)
@@ -617,18 +674,19 @@ class DatasetView(QWidget):
         if entry is None:
             return
         header, frame, base_text = entry
+        row = header.parentWidget()
         members = self._thumbs_for_group(group_id)
         selected = any(thumb.selected for thumb in members)
         pending = any(thumb.pending for thumb in members)
         header.setText(f"{base_text}{MARKED_SUFFIX}" if selected else base_text)
         if selected:
-            header.setStyleSheet(_header_style("#10202e", SELECTED_BORDER))
+            row.setStyleSheet(_header_style("#10202e", SELECTED_BORDER))
             frame.setStyleSheet(_card_style(SELECTED_BORDER))
         elif pending:
-            header.setStyleSheet(_header_style("#e5a52a"))
+            row.setStyleSheet(_header_style("#e5a52a"))
             frame.setStyleSheet(_card_style("#e5a52a", dashed=True))
         else:
-            header.setStyleSheet(_header_style("#888"))
+            row.setStyleSheet(_header_style("#888"))
             frame.setStyleSheet(_card_style("#666"))
 
     def _update_delete_button(self) -> None:
