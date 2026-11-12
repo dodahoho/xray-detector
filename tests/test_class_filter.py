@@ -101,6 +101,64 @@ def test_section_without_a_loaded_model_says_so(qapp):
     assert section.selected() == []
 
 
+# --- Markera alla / avmarkera alla (TASK-77) ---
+
+
+def test_toggle_marks_every_class_when_some_are_unchecked(qapp):
+    section = ClassFilterSection(["kniv", "pistol"], {"pistol"}, lambda selected: None)
+
+    section.toggle_button.click()
+
+    assert section.selected() == ["kniv", "pistol"]
+
+
+def test_toggle_unchecks_every_class_when_all_are_checked(qapp):
+    section = ClassFilterSection(["kniv", "pistol"], set(), lambda selected: None)
+
+    section.toggle_button.click()
+
+    assert section.selected() == []
+
+
+def test_toggle_reports_one_change_for_the_whole_list(qapp):
+    """Vyn ska få ett besked, inte ett per kryssruta."""
+    changes = []
+    section = ClassFilterSection(["kniv", "pistol"], set(), changes.append)
+
+    section.toggle_button.click()
+
+    assert changes == [[]]
+
+
+def test_toggle_label_shows_what_the_next_click_does(qapp):
+    section = ClassFilterSection(["kniv", "pistol"], set(), lambda selected: None)
+    assert section.toggle_button.text() == "Av&markera alla"
+
+    section.toggle_button.click()
+
+    assert section.toggle_button.text() == "&Markera alla"
+
+
+def test_toggle_label_follows_a_single_checkbox(qapp):
+    section = ClassFilterSection(["kniv", "pistol"], set(), lambda selected: None)
+
+    section.checkboxes["pistol"].setChecked(False)
+
+    assert section.toggle_button.text() == "&Markera alla"
+
+
+def test_toggle_updates_the_warning(qapp):
+    section = ClassFilterSection(["kniv"], set(), lambda selected: None)
+
+    section.toggle_button.click()
+
+    assert not section.warning.isHidden()
+
+    section.toggle_button.click()
+
+    assert section.warning.isHidden()
+
+
 # --- Många klasser (TASK-75) ---
 
 
@@ -315,3 +373,28 @@ def test_turning_a_class_back_on_restarts_the_detection(view):
 
     assert view._detector_calls == [view.detector]
     assert view._active_detector() is view.detector
+
+
+# --- Markera alla / avmarkera alla i vyn (TASK-77) ---
+
+
+def test_toggle_in_the_view_saves_the_choice_and_stops_the_detection(view):
+    section = _section(view)
+    view._detector_calls.clear()
+
+    section.toggle_button.click()
+
+    assert view.settings.value("detection/classes_off/yolo26m", type=str) == '["kniv", "pistol"]'
+    assert view.detector.enabled_classes == set()
+    assert view._detector_calls == [None]
+
+
+def test_toggle_back_on_restarts_the_detection_once(view):
+    section = _section(view)
+    section.toggle_button.click()
+    view._detector_calls.clear()
+
+    section.toggle_button.click()
+
+    assert view.detector.enabled_classes == {"kniv", "pistol"}
+    assert view._detector_calls == [view.detector]

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -176,7 +177,8 @@ class ClassFilterSection(QGroupBox):
     Klasslistan följer modellen, så sektionen byggs om varje gång dialogen
     öppnas. Bortvalda klasser sparas av vyn, inte här. En modell kan ha
     hundratals klasser (COCO-80), så rutorna ligger i ett rutnät i en
-    rullista i stället för en enda lång kolumn (TASK-75).
+    rullista i stället för en enda lång kolumn (TASK-75). Knappen ovanför
+    listan växlar mellan alla och inga klasser (TASK-77).
     """
 
     def __init__(self, class_names, disabled, on_changed, parent=None) -> None:
@@ -187,6 +189,12 @@ class ClassFilterSection(QGroupBox):
         if not class_names:
             layout.addWidget(QLabel("Klasserna läses när modellen har laddats."))
             return
+        self.toggle_button = button(mnemonic("Markera alla", "M"))
+        self.toggle_button.clicked.connect(self._toggle_all)
+        row = QHBoxLayout()
+        row.addWidget(self.toggle_button)
+        row.addStretch(1)
+        layout.addLayout(row)
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
         self.scroll.setMaximumHeight(CLASS_LIST_MAX_HEIGHT)
@@ -210,14 +218,37 @@ class ClassFilterSection(QGroupBox):
         self.warning = QLabel(NO_CLASSES)
         self.warning.setStyleSheet("color: #c33;")
         layout.addWidget(self.warning)
+        self._update_toggle_text()
         self._update_warning()
 
     def selected(self) -> list[str]:
         return [name for name, box in self.checkboxes.items() if box.isChecked()]
 
-    def _on_toggled(self, *_args) -> None:
+    def _toggle_all(self) -> None:
+        """Markerar alla klasser, eller avmarkerar alla när alla redan är valda.
+
+        Kryssrutornas signaler blockeras under omslaget, så vyn får ett enda
+        besked och detektionen startas om en gång i stället för en gång per
+        klass (TASK-77).
+        """
+        target = len(self.selected()) < len(self.checkboxes)
+        for box in self.checkboxes.values():
+            box.blockSignals(True)
+            box.setChecked(target)
+            box.blockSignals(False)
+        self._update_toggle_text()
         self._update_warning()
         self.on_changed(self.selected())
+
+    def _on_toggled(self, *_args) -> None:
+        self._update_toggle_text()
+        self._update_warning()
+        self.on_changed(self.selected())
+
+    def _update_toggle_text(self) -> None:
+        """Etiketten visar vad nästa klick gör."""
+        label = "Avmarkera alla" if len(self.selected()) == len(self.checkboxes) else "Markera alla"
+        self.toggle_button.setText(mnemonic(label, "M"))
 
     def _update_warning(self) -> None:
         self.warning.setVisible(not self.selected())
