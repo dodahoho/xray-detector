@@ -173,6 +173,7 @@ def _capture_header(text: str, color: str, parent: QWidget) -> QLabel:
     header = QLabel(text + MARKED_SUFFIX, parent)
     header.setContentsMargins(*HEADER_MARGINS)
     header.setStyleSheet(_header_style(color))
+    header.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
     header.ensurePolished()
     header.setMinimumWidth(header.sizeHint().width())
     header.setText(text)
@@ -208,6 +209,24 @@ def _thumbnail_pixmap(
         painter.drawRect(QRectF(x * scale, y * scale, width * scale, height * scale))
     painter.end()
     return pixmap
+
+
+class CaptureCard(QFrame):
+    """Kort för en fångst; hela ytan markerar fångsten (TASK-65).
+
+    Thumbnails hanterar sina egna klick, så ett klick på en bild växlar en gång.
+    Klick på rubrik, klassmärken och kortets marginal når hit i stället.
+    """
+
+    clicked = Signal(object)
+
+    def __init__(self, group_id, parent=None) -> None:
+        super().__init__(parent)
+        self.group_id = group_id
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event) -> None:
+        self.clicked.emit(self)
 
 
 class Thumbnail(QWidget):
@@ -497,9 +516,10 @@ class DatasetView(QWidget):
         """Ett kort per fångst: tid, antal bilder och objekt samt bildparet (TASK-42)."""
         object_count = sum(len(annotations_by_image.get(img["id"], [])) for img in images)
         time_label = stamp[11:] if stamp else f"Fångst {key}"
-        card = QFrame()
+        card = CaptureCard(key)
         card.setFrameShape(QFrame.Shape.Box)
         card.setStyleSheet(_card_style("#666"))
+        card.clicked.connect(self._on_card_clicked)
         header = _capture_header(
             f"{time_label} · {len(images)} bilder · {object_count} objekt", "#888", card
         )
@@ -536,9 +556,10 @@ class DatasetView(QWidget):
             self._pending_by_group[capture.group_id] = capture
             stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
             title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"
-            card = QFrame()
+            card = CaptureCard(capture.group_id)
             card.setFrameShape(QFrame.Shape.Box)
             card.setStyleSheet(_card_style("#e5a52a", dashed=True))
+            card.clicked.connect(self._on_card_clicked)
             header = _capture_header(
                 f"{title} · {len(capture.frames)} bild(er)", "#e5a52a", card
             )
@@ -568,10 +589,18 @@ class DatasetView(QWidget):
 
     def _on_thumb_clicked(self, thumb: Thumbnail) -> None:
         """Markerar hela fångsten - bilderna hanteras alltid som ett par (TASK-25)."""
-        selected = not thumb.selected
-        for member in self._thumbs_for_group(thumb.group_id):
+        self._toggle_group(thumb.group_id)
+
+    def _on_card_clicked(self, card: CaptureCard) -> None:
+        """Samma växling när klicket hamnar utanför bilderna (TASK-65)."""
+        self._toggle_group(card.group_id)
+
+    def _toggle_group(self, group_id) -> None:
+        """Växlar markeringen för fångstens alla bilder."""
+        selected = not any(thumb.selected for thumb in self._thumbs_for_group(group_id))
+        for member in self._thumbs_for_group(group_id):
             member.set_selected(selected)
-        self._update_group_header(thumb.group_id)
+        self._update_group_header(group_id)
         self._update_delete_button()
 
     def _thumbs_for_group(self, group_id) -> list[Thumbnail]:
