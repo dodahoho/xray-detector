@@ -9,7 +9,7 @@ from xray_detector.domain.dataset import AnnotatedImage
 
 
 def make_service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets", ["kniv", "pistol"])
+    return DatasetService(tmp_path / "datasets")
 
 
 def sample(fill: int = 100, class_name: str = "kniv") -> AnnotatedImage:
@@ -59,7 +59,7 @@ def test_newest_version_dir_is_migrated_to_the_root(tmp_path):
         encoding="utf-8",
     )
 
-    svc = DatasetService(root, ["kniv"])
+    svc = DatasetService(root)
 
     assert (root / "dataset.json").exists()
     assert (svc.images_dir / "img_000001.png").exists()

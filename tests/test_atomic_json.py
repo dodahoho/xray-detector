@@ -39,7 +39,7 @@ def test_store_and_export_still_work(tmp_path):
     from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.dataset import AnnotatedImage
 
-    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    service = DatasetService(tmp_path / "datasets")
     service.add_samples([AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                                         [{"class_name": "kniv", "bbox": [1, 2, 3, 4]}])])
     assert json.loads((service.store.root / "dataset.json").read_text(encoding="utf-8"))["images"]

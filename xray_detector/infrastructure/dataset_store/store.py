@@ -38,11 +38,10 @@ def _migrate_versions(root: Path) -> None:
 class DatasetStore:
     """COCO-dataset på en katalog: dataset.json och images/."""
 
-    def __init__(self, root: Path, classes: list[str]) -> None:
+    def __init__(self, root: Path) -> None:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
         _migrate_versions(self.root)
-        self.classes = list(classes)
 
     @property
     def images_dir(self) -> Path:
@@ -61,9 +60,7 @@ class DatasetStore:
                 "num_images": 0,
                 "num_objects": 0,
             },
-            "categories": [
-                {"id": i, "name": name} for i, name in enumerate(self.classes)
-            ],
+            "categories": [],
             "images": [],
             "annotations": [],
         }
@@ -78,10 +75,41 @@ class DatasetStore:
         for category in coco["categories"]:
             if category["name"] == class_name:
                 return category["id"]
-        new_id = len(coco["categories"])
+        new_id = max((category["id"] for category in coco["categories"]), default=-1) + 1
         coco["categories"].append({"id": new_id, "name": class_name})
-        self.classes.append(class_name)
         return new_id
+
+    def classes(self) -> list[str]:
+        """Datasetets klasser (kategorierna); tomt innan datasetet har sparats."""
+        return [category["name"] for category in self._load_coco()["categories"]]
+
+    def has_dataset(self) -> bool:
+        """Om dataset.json finns, det vill säga om datasetet har skrivits."""
+        return (self.root / "dataset.json").exists()
+
+    def set_classes(self, names: list[str]) -> None:
+        """Sätter datasetets klasslista; id:t behålls för namn som finns kvar."""
+        coco = self._load_coco()
+        ids = {category["name"]: category["id"] for category in coco["categories"]}
+        next_id = max(ids.values(), default=-1) + 1
+        categories = []
+        for name in names:
+            if name not in ids:
+                ids[name] = next_id
+                next_id += 1
+            categories.append({"id": ids[name], "name": name})
+        coco["categories"] = categories
+        self._save_coco(coco)
+
+    def class_in_use(self, name: str) -> bool:
+        """Om sparade annoteringar refererar klassen."""
+        coco = self._load_coco()
+        ids = {
+            category["id"] for category in coco["categories"] if category["name"] == name
+        }
+        return any(
+            annotation["category_id"] in ids for annotation in coco["annotations"]
+        )
 
     def add_samples(
         self,

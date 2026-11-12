@@ -12,7 +12,8 @@ from xray_detector.domain.training import TrainConfig
 
 @pytest.fixture
 def service(tmp_path) -> DatasetService:
-    svc = DatasetService(tmp_path / "datasets", ["kniv", "pistol"])
+    svc = DatasetService(tmp_path / "datasets")
+    svc.set_classes(["kniv", "pistol"])
     for group in range(4):
         svc.add_samples([
             AnnotatedImage(np.full((30, 40, 3), 50 + group * 40, np.uint8),
@@ -76,7 +77,7 @@ def test_training_view_disables_rfdetr_without_package(qapp, tmp_path, monkeypat
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir, config.classes), settings)
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
 
     import importlib.util
 
@@ -334,7 +335,7 @@ def test_training_view_lists_all_rfdetr_sizes(qapp, tmp_path, monkeypatch):
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir, config.classes), settings)
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
 
     weights = [view.model_combo.itemData(i) for i in range(view.model_combo.count())]
     for key in RFDETR_SIZES:

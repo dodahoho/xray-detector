@@ -29,7 +29,7 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 @pytest.fixture
 def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets", ["kniv"])
+    return DatasetService(tmp_path / "datasets")
 
 
 @pytest.fixture
@@ -113,7 +113,7 @@ def test_wide_images_still_fit_four_per_row(qapp, config, service, settings):
 
 
 def test_pending_captures_get_their_own_section(qapp, config, tmp_path, settings):
-    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    service = DatasetService(tmp_path / "datasets")
     service.add_samples([_sample()], captured="2026-11-10T09:00:00")
     save_pending(tmp_path, [StreamFrame("left", synthetic_frame(), [], "kamera-vanster")])
 

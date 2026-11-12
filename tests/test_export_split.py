@@ -10,7 +10,9 @@ from xray_detector.infrastructure.dataset_store.export import train_val_split
 
 
 def make_service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets", ["kniv", "pistol"])
+    service = DatasetService(tmp_path / "datasets")
+    service.set_classes(["kniv", "pistol"])
+    return service
 
 
 def add_groups(svc: DatasetService, groups: int, per_group: int = 2) -> None:

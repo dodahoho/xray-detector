@@ -19,7 +19,7 @@ class MainWindow(QMainWindow):
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
         self.setWindowTitle("X-ray detector")
-        self.dataset_service = DatasetService(config.dataset_dir, config.classes)
+        self.dataset_service = DatasetService(config.dataset_dir)
         self.settings = QSettings(
             str(config.data_dir / "settings.ini"), QSettings.Format.IniFormat
         )
@@ -36,7 +36,13 @@ class MainWindow(QMainWindow):
         )
 
         self.detection_view = DetectionView(config, self.settings)
-        self.annotation_view = AnnotationView(config, self.dataset_service, self.settings)
+        # annoteringsvyns standardklasser är vald modells klasser (TASK-61)
+        self.annotation_view = AnnotationView(
+            config,
+            self.dataset_service,
+            self.settings,
+            model_classes=self.detection_view.model_class_names,
+        )
         self.dataset_view = DatasetView(config, self.dataset_service, self.settings)
         self.training_view = TrainingView(config, self.dataset_service, self.settings)
         self.settings_view = SettingsView(self.settings)

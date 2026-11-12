@@ -577,14 +577,14 @@ class DetectionView(QWidget):
         """Detektionsvyns egna inställningar: klassfiltret för vald modell (TASK-53)."""
         return [
             ClassFilterSection(
-                self._model_class_names(),
+                self.model_class_names(),
                 self._disabled_classes(self.model_combo.currentData()),
                 self._on_class_filter_changed,
             )
         ]
 
-    def _model_class_names(self) -> list[str]:
-        """Klasserna som vald modell kan detektera (TASK-52, TASK-53)."""
+    def model_class_names(self) -> list[str]:
+        """Klasserna som vald modell kan detektera (TASK-52, TASK-53, TASK-61)."""
         return list(self._model_classes.get(self.model_combo.currentData(), []))
 
     def _classes_key(self, model_key: str) -> str:
@@ -615,7 +615,7 @@ class DetectionView(QWidget):
 
     def _on_class_filter_changed(self, selected: list[str]) -> None:
         """Sparar valet för modellen och filtrerar detektionerna direkt (TASK-53)."""
-        names = self._model_class_names()
+        names = self.model_class_names()
         self._save_disabled_classes(
             self.model_combo.currentData(),
             {name for name in names if name not in selected},

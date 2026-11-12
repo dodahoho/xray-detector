@@ -376,11 +376,15 @@ class AnnotationView(QWidget):
     saved = Signal()
     cancelled = Signal()
 
-    def __init__(self, config, dataset: DatasetService, settings, parent=None) -> None:
+    def __init__(
+        self, config, dataset: DatasetService, settings, model_classes=None, parent=None
+    ) -> None:
         super().__init__(parent)
         self.config = config
         self.dataset_service = dataset
         self.settings = settings
+        # anropbar som ger vald modells klassnamn; de är bara standardvärden (TASK-61)
+        self.model_classes = model_classes
         self.pending_group_id: str | None = None
         self._save_task: BackgroundTask | None = None
         layout = QVBoxLayout(self)
@@ -388,11 +392,6 @@ class AnnotationView(QWidget):
         bar.addWidget(QLabel("Klass:"))
         self.class_combo = QComboBox()
         self.class_combo.setEditable(True)
-        stored_classes = self.settings.value("annotation/classes")
-        if isinstance(stored_classes, (list, tuple)) and stored_classes:
-            self.class_combo.addItems([str(name) for name in stored_classes])
-        else:
-            self.class_combo.addItems(config.classes)
         self.class_combo.currentTextChanged.connect(self._on_class_changed)
         bar.addWidget(self.class_combo)
         self.add_class_button = button("+", width=ICON_BUTTON_WIDTH)
@@ -426,6 +425,38 @@ class AnnotationView(QWidget):
         bind_shortcut(self, "Esc", self.cancelled.emit)
         bind_shortcut(self, "Ctrl++", self._on_add_class)
         bind_shortcut(self, "Ctrl+-", self._on_remove_class)
+        self.refresh_classes()
+
+    def refresh_classes(self, seed_dataset: bool = False) -> None:
+        """Bygger klasslistan ur datasetet; modellens klasser är standardvärden (TASK-61).
+
+        Datasetet är master: listan är datasetets kategorier. Är datasetet tomt
+        används vald modells klasser, och när vyn öppnas skrivs de in i
+        datasetet så att de blir datasetets egna klasser.
+        """
+        names = self.dataset_service.classes()
+        if not names and not self.dataset_service.has_dataset():
+            names = self._default_classes()
+            if seed_dataset and names:
+                self.dataset_service.set_classes(names)
+        current = self.class_combo.currentText()
+        self.class_combo.blockSignals(True)
+        self.class_combo.clear()
+        self.class_combo.addItems(names)
+        self.class_combo.blockSignals(False)
+        index = self.class_combo.findText(current)
+        if index < 0 and self.class_combo.count():
+            index = 0
+        self.class_combo.setCurrentIndex(index)
+        self._on_class_changed(self.class_combo.currentText())
+
+    def _default_classes(self) -> list[str]:
+        """Standardklasserna: vald modells klasser, annars config.classes."""
+        names = list(self.model_classes() if self.model_classes else [])
+        return names or list(self.config.classes)
+
+    def _class_names(self) -> list[str]:
+        return [self.class_combo.itemText(i) for i in range(self.class_combo.count())]
 
     def restore_settings(self) -> None:
         class_name = self.settings.value("annotation/class", type=str)
@@ -439,10 +470,6 @@ class AnnotationView(QWidget):
 
     def save_settings(self) -> None:
         self.settings.setValue("annotation/class", self.class_combo.currentText())
-        self.settings.setValue(
-            "annotation/classes",
-            [self.class_combo.itemText(i) for i in range(self.class_combo.count())],
-        )
 
     def _on_add_class(self) -> None:
         name = self.class_combo.currentText().strip()
@@ -454,16 +481,23 @@ class AnnotationView(QWidget):
             self.class_combo.addItem(name)
             index = self.class_combo.findText(name)
         self.class_combo.setCurrentIndex(index)
-        self.save_settings()
+        self.dataset_service.set_classes(self._class_names())
 
     def _on_remove_class(self) -> None:
         name = self.class_combo.currentText().strip()
         if not name:
             return
+        if self.dataset_service.class_in_use(name):
+            QMessageBox.information(
+                self,
+                "Ta bort klass",
+                f'Klassen "{name}" används av sparade annoteringar och kan inte tas bort.',
+            )
+            return
         answer = QMessageBox.question(
             self,
             "Ta bort klass",
-            f"Ta bort klassen \"{name}\" ur listan? Sparade annoteringar påverkas inte.",
+            f'Ta bort klassen "{name}" ur datasetets klasslista?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if answer != QMessageBox.StandardButton.Yes:
@@ -476,9 +510,10 @@ class AnnotationView(QWidget):
             self._on_class_changed("")
         else:
             self.class_combo.setCurrentIndex(0)
-        self.save_settings()
+        self.dataset_service.set_classes(self._class_names())
 
     def load_captures(self, captures: list, pending_group_id: str | None = None) -> None:
+        self.refresh_classes(seed_dataset=True)
         self.pending_group_id = pending_group_id
         for canvas in self.canvases:
             canvas.set_class_name(self.class_combo.currentText())

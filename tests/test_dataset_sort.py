@@ -24,7 +24,7 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 @pytest.fixture
 def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets", ["kniv"])
+    return DatasetService(tmp_path / "datasets")
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def test_changing_the_setting_rebuilds_the_list(qapp, config, service, settings)
 
 
 def test_pending_captures_follow_the_same_order(qapp, config, tmp_path, monkeypatch, settings):
-    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    service = DatasetService(tmp_path / "datasets")
     older = _save_pending_at(tmp_path, monkeypatch, 1_700_000_000.0)
     newer = _save_pending_at(tmp_path, monkeypatch, 1_700_000_100.0)
 

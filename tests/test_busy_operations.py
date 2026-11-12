@@ -37,7 +37,7 @@ def settings(tmp_path) -> QSettings:
 
 @pytest.fixture
 def dataset_service(tmp_path) -> DatasetService:
-    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    service = DatasetService(tmp_path / "datasets")
     service.add_samples([
         AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
                        [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),

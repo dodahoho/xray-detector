@@ -12,7 +12,7 @@ from xray_detector.ui.dataset_view import SELECTED_BORDER, DatasetView
 
 @pytest.fixture
 def service(tmp_path) -> DatasetService:
-    svc = DatasetService(tmp_path / "datasets", ["kniv"])
+    svc = DatasetService(tmp_path / "datasets")
     svc.add_samples([
         AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
                        [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),
@@ -133,7 +133,7 @@ def test_click_selects_whole_pending_capture(qapp, config, tmp_path, settings, m
     from xray_detector.domain.capture import StreamFrame
     from xray_detector.infrastructure.dataset_store.pending import save_pending
 
-    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    service = DatasetService(tmp_path / "datasets")
     save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),

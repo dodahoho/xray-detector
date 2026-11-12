@@ -20,15 +20,28 @@ from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
 class DatasetService:
-    """Fasad över datasetlagringen: sparade bilder och exporter."""
+    """Fasad över datasetlagringen: sparade bilder, klasser och exporter."""
 
-    def __init__(self, root: Path, classes: list[str]) -> None:
-        self.store = DatasetStore(root, classes)
+    def __init__(self, root: Path) -> None:
+        self.store = DatasetStore(root)
         self.data_dir = Path(root).parent
 
     @property
     def images_dir(self) -> Path:
         return self.store.images_dir
+
+    def classes(self) -> list[str]:
+        """Datasetets klasser; datasetet är master för klasslistan (TASK-61)."""
+        return self.store.classes()
+
+    def has_dataset(self) -> bool:
+        return self.store.has_dataset()
+
+    def set_classes(self, names: list[str]) -> None:
+        self.store.set_classes(names)
+
+    def class_in_use(self, name: str) -> bool:
+        return self.store.class_in_use(name)
 
     def add_samples(
         self,

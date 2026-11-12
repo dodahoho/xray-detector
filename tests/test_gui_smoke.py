@@ -30,7 +30,7 @@ def app_config(tmp_path) -> AppConfig:
 
 
 def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
-    service = DatasetService(app_config.dataset_dir, app_config.classes)
+    service = DatasetService(app_config.dataset_dir)
     service.add_samples([AnnotatedImage(synthetic_frame(), [
         {"class_name": "kniv", "bbox": [8, 8, 20, 24]}
     ])])

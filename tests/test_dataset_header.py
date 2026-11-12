@@ -29,7 +29,7 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 @pytest.fixture
 def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets", ["kniv"])
+    return DatasetService(tmp_path / "datasets")
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
 
 
 def test_pending_header_shows_saved_at(qapp, config, tmp_path, settings):
-    service = DatasetService(tmp_path / "datasets", ["kniv"])
+    service = DatasetService(tmp_path / "datasets")
     group_id = save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),

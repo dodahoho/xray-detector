@@ -271,7 +271,7 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
     from xray_detector.ui.training_view import TrainingView
 
     config = _config(tmp_path)
-    dataset = DatasetService(config.dataset_dir, config.classes)
+    dataset = DatasetService(config.dataset_dir)
     dataset.add_samples(
         [AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                         [{"class_name": "kniv", "bbox": [1, 1, 4, 4]}])],

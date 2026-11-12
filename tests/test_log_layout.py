@@ -148,7 +148,7 @@ class _FakeWorker(QObject):
 def _training_view(qapp, config: AppConfig):
     from xray_detector.ui.training_view import TrainingView
 
-    dataset = DatasetService(config.dataset_dir, config.classes)
+    dataset = DatasetService(config.dataset_dir)
     settings = QSettings(str(config.data_dir / "s.ini"), QSettings.Format.IniFormat)
     return TrainingView(config, dataset, settings)
 

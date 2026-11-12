@@ -99,7 +99,7 @@ def _make_view(qapp, tmp_path):
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
-    service = DatasetService(config.dataset_dir, config.classes)
+    service = DatasetService(config.dataset_dir)
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     view = AnnotationView(config, service, settings)
     return view, service
