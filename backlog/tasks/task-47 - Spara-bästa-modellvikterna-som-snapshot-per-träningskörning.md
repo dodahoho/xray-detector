@@ -1,7 +1,7 @@
 ---
 id: TASK-47
 title: Träning - Spara bästa modellvikterna som snapshot per träningskörning
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:51:00Z'
@@ -37,25 +37,25 @@ Kravet är att varje körning får en unik snapshot av bästa vikterna, till exe
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Varje träningskörning får en unik snapshot av bästa vikterna
-- [ ] #2 En ny körning med samma basmodell och datasetversion skriver inte över föregående snapshot
-- [ ] #3 YOLO-snapshoten är best.pt från körningen
-- [ ] #4 RF-DETR-snapshoten är checkpoint_best_total.pth, inte last_ema.pth
-- [ ] #5 Manifestet skrivs per körning och pekar på snapshoten
-- [ ] #6 Manifestet innehåller familj, basmodell, dataset, hyperparametrar och metrics
-- [ ] #7 En avbruten träning sparar bästa hittillsvarande vikter och manifest
-- [ ] #8 Relativ --output ger samma snapshot-katalog som en absolut sökväg
-- [ ] #9 Modellväljaren listar snapshots utan att äldre försvinner
-- [ ] #10 Tester täcker snapshotnamn, manifestinnehåll och val av bästa checkpoint för båda familjerna
+- [x] #1 Varje träningskörning får en unik snapshot av bästa vikterna
+- [x] #2 En ny körning med samma basmodell och datasetversion skriver inte över föregående snapshot
+- [x] #3 YOLO-snapshoten är best.pt från körningen
+- [x] #4 RF-DETR-snapshoten är checkpoint_best_total.pth, inte last_ema.pth
+- [x] #5 Manifestet skrivs per körning och pekar på snapshoten
+- [x] #6 Manifestet innehåller familj, basmodell, dataset, hyperparametrar och metrics
+- [x] #7 En avbruten träning sparar bästa hittillsvarande vikter och manifest
+- [x] #8 Relativ --output ger samma snapshot-katalog som en absolut sökväg
+- [x] #9 Modellväljaren listar snapshots utan att äldre försvinner
+- [x] #10 Tester täcker snapshotnamn, manifestinnehåll och val av bästa checkpoint för båda familjerna
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -73,3 +73,13 @@ Kravet är att varje körning får en unik snapshot av bästa vikterna, till exe
 <!-- SECTION:NOTES:BEGIN -->
 Körningskatalogen blir unik: _prepare_run_dir lägger på _2, _3 när katalogen redan har ett manifest. --output tolkas absolut via _output_path, så ultralytics inte lägger relativa project under runs/detect/. _best_checkpoint väljer explicit bästa checkpoints: yolo/weights/best.pt för YOLO och checkpoint_best_total.pth för RF-DETR, med checkpoint_best_ema/regular som reserv medan träningen pågår; last_ema.pth väljs aldrig. Manifestet skrivs om efter varje epok med familj, basmodell, dataset, hyperparametrar, metrics, epoker, status, abort_reason och tider. Verifierat med två riktiga körningar mot samma --output: den andra hamnade i run8_2 med eget manifest och egen best.pt, och modellväljaren listade båda körningarna.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Varje träningskörning får en unik katalog och därmed en unik snapshot av bästa vikterna. GUI:t skickar en tidsstämplad katalog; pekar CLI:t på en katalog som redan har ett manifest flyttas körningen till <namn>_2, _3 och så vidare, så en tidigare snapshot aldrig skrivs över. --output tolkas absolut, eftersom ultralytics annars lägger relativa project-sökvägar under runs/detect/.
+
+Bästa checkpoint väljs explicit per familj: yolo/weights/best.pt för YOLO och rfdetr/checkpoint_best_total.pth för RF-DETR. Medan en RF-DETR-körning pågår eller avbryts finns ingen checkpoint_best_total.pth, och då används checkpoint_best_ema.pth eller checkpoint_best_regular.pth; last_ema.pth väljs aldrig. Manifestet skrivs om efter varje epok med familj, basmodell, dataset, hyperparametrar, metrics, antal körda epoker, status, abort_reason och tider, så en avbruten körning behåller både bästa hittillsvarande vikter och sitt manifest.
+
+Verifierat med två riktiga körningar mot samma --output: den andra hamnade i run8_2 med eget manifest och egen best.pt, och modellväljaren listade båda körningarna utan att den äldre försvann. Enhetstester täcker snapshotnamn, manifestinnehåll, val av bästa checkpoint för båda familjerna och att last_ema.pth aldrig väljs.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -1,11 +1,11 @@
 ---
 id: TASK-44
 title: Träning - Strömma epokvisa träningsvärden från träningsprocessen till GUI:t
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:51:00Z'
-updated_date: '2026-11-12T09:39:00Z'
+updated_date: '2026-11-12T09:53:00Z'
 labels: []
 dependencies: []
 references:
@@ -44,23 +44,23 @@ Kravet är att träningsprocessen rapporterar ett strukturerat event per epok f�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Träningsprocessen skickar ett strukturerat epokevent för YOLO
-- [ ] #2 Träningsprocessen skickar ett strukturerat epokevent för RF-DETR
-- [ ] #3 Eventet innehåller epok, totalt antal epoker, train-loss, val-loss, mAP50, mAP50-95, precision och recall
-- [ ] #4 TrainingWorker exponerar en strukturerad signal som GUI:t kan koppla till, inte bara strängar
-- [ ] #5 Träningsvyn visar en progressbar med epok X/Y och de aktuella värdena
-- [ ] #6 Loggen visar fortfarande processens råa utmatning
-- [ ] #7 Partiella rader från processen buffras och loggas som en rad
-- [ ] #8 Tester täcker parsning för både YOLO- och RF-DETR-format
+- [x] #1 Träningsprocessen skickar ett strukturerat epokevent för YOLO
+- [x] #2 Träningsprocessen skickar ett strukturerat epokevent för RF-DETR
+- [x] #3 Eventet innehåller epok, totalt antal epoker, train-loss, val-loss, mAP50, mAP50-95, precision och recall
+- [x] #4 TrainingWorker exponerar en strukturerad signal som GUI:t kan koppla till, inte bara strängar
+- [x] #5 Träningsvyn visar en progressbar med epok X/Y och de aktuella värdena
+- [x] #6 Loggen visar fortfarande processens råa utmatning
+- [x] #7 Partiella rader från processen buffras och loggas som en rad
+- [x] #8 Tester täcker parsning för både YOLO- och RF-DETR-format
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -79,3 +79,11 @@ Kravet är att träningsprocessen rapporterar ett strukturerat event per epok f�
 <!-- SECTION:NOTES:BEGIN -->
 Epokeventen går från träningsprocessen till GUI:t som EPOCH {json}-rader på stdout. Rapportören i träningsprocessen läser results.csv (YOLO) respektive metrics.csv (RF-DETR) och slår ihop RF-DETR:s train- och valrader per epok. TrainingWorker buffrar partiella rader och exponerar signalen epoch_metrics; träningsvyn visar progressbar med epok X/Y och värdena. Verifierat med en riktig 2-epokskörning på CPU: två EPOCH-rader med epok 1/2 och 2/2, och manifestet uppdaterat per epok.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Träningsprocessen skickar ett strukturerat epokevent per epok i stället för att GUI:t parsar fri text. En rapportörstråd i träningsprocessen läser ultralytics results.csv respektive RF-DETR:s metrics.csv, slår ihop RF-DETR:s train- och valrader per epok och skriver EPOCH {json} på stdout. TrainingWorker buffrar partiella rader, söker markören även mitt i en tqdm-rad, exponerar signalen epoch_metrics och loggar en läsbar sammanfattning medan övrig utmatning går rå till loggen. Träningsvyn visar progressbar med epok X/Y och värdena.
+
+Verifierat med en riktig 3-epokskörning på CPU via TrainingWorker: tre epokevent med rätt epoknummer och värden, 75 råa loggrader kvar och avslutskod 0. Enhetstester täcker parsning av både YOLO- och RF-DETR-format, buffring av partiella rader och signalen. RF-DETR-grenen är bara täckt av enhetstester: pytorch_lightning saknas i miljön, så rfdetr.train() kan inte köras här.
+<!-- SECTION:FINAL_SUMMARY:END -->

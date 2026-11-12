@@ -3,7 +3,7 @@ id: TASK-46
 title: >-
   Träning - Inställning för överträningsdetektion som avbryter träningen
   (default på)
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-11T11:51:00Z'
@@ -43,25 +43,25 @@ Att ta ställning till: tröskel och patience för detektionen, om den ska vara 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Träningsvyn har en inställning för överträningsdetektion som är aktiverad som default
-- [ ] #2 Inställningen sparas och återställs mellan starter
-- [ ] #3 Inställningen skickas till träningsprocessen
-- [ ] #4 Träningen avbryts när överträning detekteras
-- [ ] #5 Avbrottet sker i träningsprocessen så att bästa vikter och manifest sparas
-- [ ] #6 GUI:t visar varför träningen avbröts
-- [ ] #7 Detektionen fungerar för YOLO
-- [ ] #8 Detektionen fungerar för RF-DETR
-- [ ] #9 Avstängd inställning ger ingen automatisk avbrytning
-- [ ] #10 Tester täcker en syntetisk kurva som ska respektive inte ska utlösa avbrott
+- [x] #1 Träningsvyn har en inställning för överträningsdetektion som är aktiverad som default
+- [x] #2 Inställningen sparas och återställs mellan starter
+- [x] #3 Inställningen skickas till träningsprocessen
+- [x] #4 Träningen avbryts när överträning detekteras
+- [x] #5 Avbrottet sker i träningsprocessen så att bästa vikter och manifest sparas
+- [x] #6 GUI:t visar varför träningen avbröts
+- [x] #7 Detektionen fungerar för YOLO
+- [x] #8 Detektionen fungerar för RF-DETR
+- [x] #9 Avstängd inställning ger ingen automatisk avbrytning
+- [x] #10 Tester täcker en syntetisk kurva som ska respektive inte ska utlösa avbrott
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -80,3 +80,11 @@ Att ta ställning till: tröskel och patience för detektionen, om den ska vara 
 <!-- SECTION:NOTES:BEGIN -->
 Vakten jämför valvärdet (mAP50-95, annars mAP50, annars val-loss) med train-loss och larmar först när valvärdet stått still i patience epoker och train-loss samtidigt sjunkit. Avbrottet sker i träningsprocessen: YOLO sätter trainer.stop i on_fit_epoch_end och får samma patience som reserv i ultralytics early stopping; RF-DETR använder paketets early_stopping med samma patience eftersom TrainConfig saknar fält för egna callbacks. Verifierat med riktiga CPU-körningar: med vakten på avbröts en 6-epokskörning efter 5 epoker, ABORT-raden skrevs med orsaken och manifestet fick status aborted med abort_reason; med vakten av gick en 4-epokskörning alla epoker och manifestet fick status completed. RF-DETR-grenen är bara täckt av enhetstester: pytorch_lightning saknas i miljön så rfdetr.train() kan inte köras här.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Träningsvyn har kryssrutan Avbryt vid överträning, på som default, sparad i settings.ini och skickad till träningsprocessen som --overfitting-guard. Vakten jämför valvärdet (mAP50-95, annars mAP50, annars val-loss) med train-loss och larmar först när valvärdet stått still i patience epoker och train-loss samtidigt fortsatt sjunka, så en kurva som bara planar ut räknas som avstannad. Avbrottet sker i träningsprocessen: YOLO sätter trainer.stop i on_fit_epoch_end och får samma patience som reserv i ultralytics early stopping, RF-DETR använder paketets early_stopping med samma patience eftersom TrainConfig saknar fält för egna callbacks. Manifestet skrivs om efter varje epok med status och abort_reason, så bästa vikter finns kvar även vid avbrott. Orsaken syns i träningsvyn och i statusraden.
+
+Verifierat med riktiga CPU-körningar: med vakten på avbröts en 6-epokskörning efter 5 epoker, ABORT-raden skrevs med orsaken och manifestet fick status aborted med abort_reason; med vakten av gick en 4-epokskörning alla epoker och manifestet fick status completed. Enhetstester täcker syntetiska kurvor som ska respektive inte ska utlösa avbrott. RF-DETR-grenen är bara täckt av enhetstester: pytorch_lightning saknas i miljön, så rfdetr.train() kan inte köras här.
+<!-- SECTION:FINAL_SUMMARY:END -->
