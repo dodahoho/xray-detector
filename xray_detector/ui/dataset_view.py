@@ -2,9 +2,12 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QDate, QPoint, QRect, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDateEdit,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -38,6 +41,10 @@ SELECTED_BACKGROUND = "#1d3b57"
 IDLE_BORDER = "#555"
 IDLE_BACKGROUND = "#2b2b2b"
 UNKNOWN_DATE = "Okänt datum"
+ALL_CLASSES = "Alla klasser"
+NO_MATCHES = "Inga bilder matchar filtret."
+DATE_FORMAT = "yyyy-MM-dd"
+HEADER_OBJECT_NAME = "captureHeader"
 MARKED_SUFFIX = " · Markerad"
 HEADER_MARGINS = (6, 2, 6, 2)
 
@@ -150,16 +157,32 @@ def _mtime_timestamp(path: Path) -> str:
         return ""
 
 
+def _header_text_style(color: str) -> str:
+    """Tidsetiketten: bara färgen, så raden äger ram och bakgrund (TASK-66)."""
+    return f"color: {color}; background: transparent; border: none;"
+
+
 def _header_style(color: str, background: str | None = None) -> str:
-    """Rubrikens stil; bara färgerna skiljer så rubriken behåller sin storlek (TASK-63)."""
+    """Rubrikens stil; bara färgerna skiljer så rubriken behåller sin storlek (TASK-63).
+
+    Selektorn pekar på rubrikradens objectName, inte på QFrame: QLabel ärver
+    QFrame och skulle annars också få ram och bakgrund.
+    """
     fill = f"background: {background}; " if background else ""
-    return f"font-weight: bold; color: {color}; {fill}border-radius: 3px;"
+    return (
+        f"#{HEADER_OBJECT_NAME} {{ font-weight: bold; color: {color}; "
+        f"{fill}border-radius: 3px; }}"
+    )
 
 
 def _card_style(color: str, dashed: bool = False) -> str:
-    """Kortets ram; samma bredd i alla lägen så kortet inte byter storlek (TASK-63)."""
+    """Kortets ram; samma bredd i alla lägen så kortet inte byter storlek (TASK-63).
+
+    Selektorn pekar på CaptureCard, inte på QFrame: rubrikraden och tidsetiketten
+    ärver annars kortets ram, eftersom QLabel ärver QFrame.
+    """
     line = "dashed" if dashed else "solid"
-    return f"QFrame {{ border: 1px {line} {color}; border-radius: 8px; }}"
+    return f"CaptureCard {{ border: 1px {line} {color}; border-radius: 8px; }}"
 
 
 def _badge(name: str, known_classes: list[str], parent: QWidget) -> QLabel:
@@ -190,6 +213,7 @@ def _capture_header(
     här, annars har stilmallen inte lagt på sin ram när bredden mäts.
     """
     row = QFrame(parent)
+    row.setObjectName(HEADER_OBJECT_NAME)
     row.setStyleSheet(_header_style(color))
     row.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
     row.ensurePolished()
@@ -197,6 +221,7 @@ def _capture_header(
     layout.setContentsMargins(*HEADER_MARGINS)
     layout.setSpacing(4)
     label = QLabel(text + MARKED_SUFFIX, row)
+    label.setStyleSheet(_header_text_style(color))
     label.ensurePolished()
     label.setMinimumWidth(label.sizeHint().width())
     label.setText(text)
@@ -325,6 +350,8 @@ class DatasetView(QWidget):
         self._refresh_pending = False
         self._export_task: BackgroundTask | None = None
         self._export_label = ""
+        self._data: dict | None = None
+        self._date_bounds_ready = False
 
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
@@ -343,6 +370,29 @@ class DatasetView(QWidget):
         )
         bar.addWidget(self.settings_button)
         layout.addLayout(bar)
+
+        filters = QHBoxLayout()
+        filters.addWidget(QLabel("Klass:"))
+        self.class_combo = QComboBox()
+        self.class_combo.addItem(ALL_CLASSES, None)
+        self.class_combo.currentIndexChanged.connect(self._on_filter_changed)
+        filters.addWidget(self.class_combo)
+        filters.addSpacing(12)
+        self.date_filter = QCheckBox("Datumintervall")
+        self.date_filter.toggled.connect(self._on_date_filter_toggled)
+        filters.addWidget(self.date_filter)
+        self.date_from = QDateEdit()
+        self.date_to = QDateEdit()
+        for widget in (self.date_from, self.date_to):
+            widget.setCalendarPopup(True)
+            widget.setDisplayFormat(DATE_FORMAT)
+            widget.setEnabled(False)
+            widget.dateChanged.connect(self._on_filter_changed)
+            filters.addWidget(widget)
+            if widget is self.date_from:
+                filters.addWidget(QLabel("till"))
+        filters.addStretch(1)
+        layout.addLayout(filters)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -456,6 +506,7 @@ class DatasetView(QWidget):
 
     def _build(self, data: dict) -> None:
         """Ritar listan i GUI-tråden från det arbetstråden läste (TASK-40)."""
+        self._data = data
         while self.content_layout.count():
             item = self.content_layout.takeAt(0)
             if item.widget() is not None:
@@ -471,13 +522,6 @@ class DatasetView(QWidget):
         coco = data["coco"]
         self._coco = coco
         known_classes = [c["name"] for c in coco["categories"]]
-        self._add_pending_section(data["pending"], newest_first, known_classes)
-        if not coco["images"]:
-            if not self._thumbs:
-                self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
-            self.content_layout.addStretch(1)
-            self._update_delete_button()
-            return
         annotations_by_image: dict[int, list[dict]] = {}
         for annotation in coco["annotations"]:
             annotations_by_image.setdefault(annotation["image_id"], []).append(annotation)
@@ -496,9 +540,34 @@ class DatasetView(QWidget):
             )
             by_date.setdefault(stamp[:10], []).append((key, images, stamp))
 
+        self._sync_filters(
+            self._filter_classes(coco, data["pending"]),
+            self._capture_days(data, by_date),
+        )
+        self._add_pending_section(data["pending"], newest_first, known_classes)
+        if not coco["images"]:
+            if not self._thumbs:
+                self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
+            self.content_layout.addStretch(1)
+            self._update_delete_button()
+            return
+
+        selected_class = self.class_combo.currentData()
+        date_range = self._selected_date_range()
+        visible: dict[str, list] = {}
         for date in _ordered_dates(by_date, newest_first):
-            cards = self._add_section(date or UNKNOWN_DATE)
             for key, images, stamp in by_date[date]:
+                classes = {
+                    category_names[ann["category_id"]]
+                    for image in images
+                    for ann in annotations_by_image.get(image["id"], [])
+                }
+                if self._matches(classes, stamp, selected_class, date_range):
+                    visible.setdefault(date, []).append((key, images, stamp))
+
+        for date, entries in visible.items():
+            cards = self._add_section(date or UNKNOWN_DATE)
+            for key, images, stamp in entries:
                 self._add_capture_card(
                     cards,
                     key,
@@ -509,8 +578,90 @@ class DatasetView(QWidget):
                     known_classes,
                     data["images"],
                 )
+        if not self._thumbs:
+            self.content_layout.addWidget(QLabel(NO_MATCHES))
         self.content_layout.addStretch(1)
         self._update_delete_button()
+
+    def _capture_days(self, data: dict, by_date: dict[str, list]) -> list[str]:
+        """Alla datum som finns i listan, för datumfiltrets gränser (TASK-67)."""
+        days = [date for date in by_date if date]
+        for capture in data["pending"]:
+            stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(
+                capture.directory
+            )
+            if stamp:
+                days.append(stamp[:10])
+        return days
+
+    def _filter_classes(self, coco: dict, pending) -> list[str]:
+        """Klasserna som går att filtrera på: datasetets och de osparades (TASK-67)."""
+        names = [category["name"] for category in coco["categories"]]
+        detected = {
+            detection.class_name
+            for capture in pending
+            for stream_frame in capture.frames
+            for detection in stream_frame.detections
+        }
+        return names + sorted(detected - set(names))
+
+    def _sync_filters(self, class_names: list[str], days: list[str]) -> None:
+        """Fyller klasslistan och datumgränserna från datasetet (TASK-67).
+
+        Användarens val behålls: klassvalet matchas på namn och datumgränserna
+        sätts bara första gången det finns datum att sätta dem från.
+        """
+        current = self.class_combo.currentData()
+        self.class_combo.blockSignals(True)
+        self.class_combo.clear()
+        self.class_combo.addItem(ALL_CLASSES, None)
+        for name in class_names:
+            self.class_combo.addItem(name, name)
+        self.class_combo.setCurrentIndex(max(self.class_combo.findData(current), 0))
+        self.class_combo.blockSignals(False)
+        if self._date_bounds_ready or not days:
+            return
+        for widget, value in ((self.date_from, min(days)), (self.date_to, max(days))):
+            widget.blockSignals(True)
+            widget.setDate(QDate.fromString(value, DATE_FORMAT))
+            widget.blockSignals(False)
+        self._date_bounds_ready = True
+
+    def _selected_date_range(self) -> tuple[str, str] | None:
+        """Valt datumintervall som ISO-datum, eller None när filtret är av."""
+        if not self.date_filter.isChecked():
+            return None
+        return (
+            self.date_from.date().toString(DATE_FORMAT),
+            self.date_to.date().toString(DATE_FORMAT),
+        )
+
+    def _matches(
+        self,
+        classes: set[str],
+        stamp: str,
+        selected_class: str | None,
+        date_range: tuple[str, str] | None,
+    ) -> bool:
+        """Om en fångst passerar klass- och datumfiltret (TASK-67)."""
+        if selected_class is not None and selected_class not in classes:
+            return False
+        if date_range is not None:
+            day = stamp[:10]
+            if not day or not date_range[0] <= day <= date_range[1]:
+                return False
+        return True
+
+    def _on_filter_changed(self, *_args) -> None:
+        """Bygger om listan med de nya filtren; datan läses inte om (TASK-67)."""
+        if self._data is not None:
+            self._build(self._data)
+
+    def _on_date_filter_toggled(self, checked: bool) -> None:
+        """Slår på eller av datumintervallet och bygger om listan (TASK-67)."""
+        self.date_from.setEnabled(checked)
+        self.date_to.setEnabled(checked)
+        self._on_filter_changed()
 
     def _add_section(self, title: str, *, pending: bool = False) -> FlowLayout:
         """Sektion med rubrik och en rad kort som radbryts (TASK-42)."""
@@ -589,11 +740,27 @@ class DatasetView(QWidget):
         """Osparade fångster i en egen sektion överst (TASK-12, TASK-42)."""
         if not captures:
             return
+        selected_class = self.class_combo.currentData()
+        date_range = self._selected_date_range()
+        visible = []
+        for capture in captures:
+            stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(
+                capture.directory
+            )
+            classes = {
+                detection.class_name
+                for stream_frame in capture.frames
+                for detection in stream_frame.detections
+            }
+            if self._matches(classes, stamp, selected_class, date_range):
+                visible.append((capture, stamp))
+        if not visible:
+            return
+        if not newest_first:
+            visible.reverse()
         cards = self._add_section("Osparade fångster", pending=True)
-        ordered = captures if newest_first else reversed(captures)
-        for capture in ordered:
+        for capture, stamp in visible:
             self._pending_by_group[capture.group_id] = capture
-            stamp = _format_timestamp(capture.saved_at) or _mtime_timestamp(capture.directory)
             title = f"Osparad · {stamp}" if stamp else f"Osparad fångst {capture.group_id}"
             classes = tuple(
                 sorted(
@@ -681,12 +848,15 @@ class DatasetView(QWidget):
         header.setText(f"{base_text}{MARKED_SUFFIX}" if selected else base_text)
         if selected:
             row.setStyleSheet(_header_style("#10202e", SELECTED_BORDER))
+            header.setStyleSheet(_header_text_style("#10202e"))
             frame.setStyleSheet(_card_style(SELECTED_BORDER))
         elif pending:
             row.setStyleSheet(_header_style("#e5a52a"))
+            header.setStyleSheet(_header_text_style("#e5a52a"))
             frame.setStyleSheet(_card_style("#e5a52a", dashed=True))
         else:
             row.setStyleSheet(_header_style("#888"))
+            header.setStyleSheet(_header_text_style("#888"))
             frame.setStyleSheet(_card_style("#666"))
 
     def _update_delete_button(self) -> None:
