@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-12T16:40:00Z'
-updated_date: '2026-11-12T16:46:00Z'
+updated_date: '2026-11-12T17:19:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -65,6 +65,10 @@ Verifiering:
 - Hela sviten: 453 passed, 1 skipped.
 - ruff check på ändrade filer: inga anmärkningar.
 - Renderad rubrikrad före/under/efter markering: radens bakgrund #f3f3f3 -> #4da3ff -> #f3f3f3, texten '09:56:38' hela tiden, kortet 500x226 i alla tre lägena.
+
+Uppföljning efter avslutet: rubrikraden fick lite mer luft mellan tidsangivelsen och klassmärkena. TIME_BADGE_GAP (6 px) läggs till som ett mellanrum efter tidsetiketten, så avståndet tid->märke blir 10 px medan märkena sitter kvar 4 px isär. Gäller både sparade och osparade kort eftersom de delar _capture_header.
+
+Verifiering: test_dataset_header.py::test_badges_follow_the_time_with_extra_air mäter avstånden i en utlagd rad (tid->märke 10 px, märke->märke 4 px) och kräver att det första är större än det andra. Hela sviten: 453 passed, 1 skipped. ruff check: inga anmärkningar.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

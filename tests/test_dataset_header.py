@@ -87,17 +87,20 @@ def test_header_lists_the_classes_as_badges(qapp, config, service, settings):
     assert texts == ["09:56:38", "kniv", "pistol"]
 
 
-def test_badges_follow_directly_after_the_time(qapp, config, service, settings):
-    """Ingen plats reserveras för 'Markerad', så märkena ligger tätt efter tiden (TASK-68)."""
+def test_badges_follow_the_time_with_extra_air(qapp, config, service, settings):
+    """Ingen plats reserveras för 'Markerad'; märkena får luft mot tiden men sitter tätt (TASK-68)."""
     service.add_samples(
         [
             AnnotatedImage(
                 np.full((30, 40, 3), 60, np.uint8),
-                [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+                [
+                    {"class_name": "pistol", "bbox": [2, 2, 8, 8]},
+                    {"class_name": "kniv", "bbox": [4, 4, 8, 8]},
+                ],
             ),
             AnnotatedImage(
                 np.full((30, 40, 3), 120, np.uint8),
-                [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+                [{"class_name": "pistol", "bbox": [2, 2, 8, 8]}],
             ),
         ],
         captured="2026-11-10T09:56:38",
@@ -109,12 +112,13 @@ def test_badges_follow_directly_after_the_time(qapp, config, service, settings):
     header, _frame = view._group_headers[1]
     row = header.parentWidget()
     row.resize(400, 24)
-    layout = row.layout()
-    layout.activate()
-    badge = layout.itemAt(1).widget()
+    row.layout().activate()
+    kniv, pistol = [label for label in row.findChildren(QLabel) if label is not header]
 
     assert header.width() == header.sizeHint().width()
-    assert badge.x() == header.x() + header.width() + layout.spacing()
+    time_to_badge = kniv.x() - (header.x() + header.width())
+    badge_to_badge = pistol.x() - (kniv.x() + kniv.width())
+    assert time_to_badge > badge_to_badge
 
 
 def test_card_has_only_a_title_row_and_thumbnails(qapp, config, service, settings):

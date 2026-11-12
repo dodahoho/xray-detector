@@ -46,6 +46,7 @@ NO_MATCHES = "Inga bilder matchar filtret."
 DATE_FORMAT = "yyyy-MM-dd"
 HEADER_OBJECT_NAME = "captureHeader"
 HEADER_MARGINS = (6, 2, 6, 2)
+TIME_BADGE_GAP = 6
 
 
 class FlowLayout(QLayout):
@@ -206,8 +207,9 @@ def _capture_header(
     """Rubrikrad med tid och klassmärken (TASK-66, TASK-68).
 
     Raden bär färgen och bakgrunden, så markeringen täcker både tiden och
-    märkena. Texten är densamma i alla lägen, så märkena hamnar direkt efter
+    märkena. Texten är densamma i alla lägen, så märkena hamnar strax efter
     tidsangivelsen och kortet behåller sin storlek när fångsten markeras.
+    Märkena får extra luft mot tiden men sitter tätt ihop inbördes.
     """
     row = QFrame(parent)
     row.setObjectName(HEADER_OBJECT_NAME)
@@ -220,6 +222,8 @@ def _capture_header(
     label = QLabel(text, row)
     label.setStyleSheet(_header_text_style(color))
     layout.addWidget(label)
+    if classes:
+        layout.addSpacing(TIME_BADGE_GAP)
     for name in classes:
         layout.addWidget(_badge(name, list(known_classes or []), row))
     layout.addStretch(1)
