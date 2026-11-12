@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
@@ -36,10 +37,14 @@ class TrainingHistoryView(QWidget):
     användaren väljer.
     """
 
+    #: Vald körning, eller None när inget är valt (TASK-70).
+    run_selected = Signal(object)
+
     def __init__(self, trained_dir: Path, parent=None) -> None:
         super().__init__(parent)
         self.trained_dir = Path(trained_dir)
         self.runs: list[TrainingRun] = []
+        self._emitted_run_id: str | None = None
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.table = QTableWidget(0, len(COLUMNS))
@@ -112,6 +117,12 @@ class TrainingHistoryView(QWidget):
         run = self.selected_run()
         self.export_button.setEnabled(run is not None)
         self.details.setText(run.details if run is not None else NO_SELECTION)
+        # Bara ett nytt val sänds vidare; en refresh som behåller valet ska inte
+        # släcka grafen som redan visar körningen (TASK-70).
+        run_id = run.run_id if run is not None else None
+        if run_id != self._emitted_run_id:
+            self._emitted_run_id = run_id
+            self.run_selected.emit(run)
 
     def _on_export(self) -> None:
         run = self.selected_run()

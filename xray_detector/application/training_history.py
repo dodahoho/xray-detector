@@ -11,7 +11,15 @@ from datetime import datetime
 from json import load as json_load
 from pathlib import Path
 
+from xray_detector.domain.training import EpochMetrics
+from xray_detector.infrastructure.training.epoch_metrics import read_epoch_history
+
 MANIFEST_NAME = "training_manifest.json"
+#: Metrics-filen träningsprocessen skriver per familj (TASK-70).
+METRICS_FILES = {
+    "yolo": ("yolo", "results.csv"),
+    "rfdetr": ("rfdetr", "metrics.csv"),
+}
 STATUS_LABELS = {
     "completed": "Klar",
     "aborted": "Avbruten",
@@ -146,6 +154,16 @@ def _duration(manifest: dict, started, finished) -> float | None:
 def _sort_key(run: TrainingRun) -> tuple[str, str]:
     """Nyast först; manifest utan tidsstämpel sorteras på körningsnamnet."""
     return (run.started or "", run.run_id)
+
+
+def run_epochs(run: TrainingRun) -> list[EpochMetrics]:
+    """Körningens sparade epokvärden ur metrics-filen (TASK-70).
+
+    Manifestet sparar bara sista epokens värden, så grafen läses ur filen som
+    träningsprocessen skrev. Saknas filen blir listan tom.
+    """
+    folder, name = METRICS_FILES.get(run.family, METRICS_FILES["yolo"])
+    return read_epoch_history(run.run_dir / folder / name, run.family, run.epochs)
 
 
 def export_run(run: TrainingRun, target_dir: Path) -> Path:

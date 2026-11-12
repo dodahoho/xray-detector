@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from xray_detector.application.app_config import file_logger, log_path
 from xray_detector.application.dataset_service import DatasetService
+from xray_detector.application.training_history import run_epochs
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.training import TrainConfig
@@ -58,10 +59,13 @@ class TrainingView(QWidget):
         self.epoch_label = QLabel("Ingen träning pågår")
         layout.addWidget(self.epoch_label)
         self.chart = TrainingChart()
+        # diagramytorna syns bara när det finns något att visa (TASK-70)
+        self.chart.setVisible(False)
         layout.addWidget(self.chart, 2)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.history = TrainingHistoryView(self.config.trained_dir)
+        self.history.run_selected.connect(self._on_history_selected)
         self.bottom_tabs = QTabWidget()
         self.bottom_tabs.addTab(self.log, "Logg")
         self.bottom_tabs.addTab(self.history, "Tidigare träningar")
@@ -247,7 +251,10 @@ class TrainingView(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Epok %v/%m")
         self.epoch_label.setText("Väntar på första epoken")
+        # en ny träning tar över grafen, så ett gammalt val i listan släpps
+        self.history.table.clearSelection()
         self.chart.clear()
+        self.chart.setVisible(True)
         header = (
             f"Startar träning: {worker.config.weights} på {worker.config.dataset_yaml} "
             f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, batch {worker.config.batch}) "
@@ -271,6 +278,26 @@ class TrainingView(QWidget):
         self.progress_bar.setValue(metrics.epoch)
         self.epoch_label.setText(metrics.summary())
         self.chart.add_epoch(metrics)
+
+    def _training_active(self) -> bool:
+        return self.worker is not None and self.worker.is_running()
+
+    def _on_history_selected(self, run) -> None:
+        """Visar en vald tidigare träning i grafen (TASK-70).
+
+        Under pågående träning visar grafen livedata, så ett val i listan rör
+        den inte då. Utan val och utan pågående träning finns inget att visa,
+        och då döljs diagramytorna.
+        """
+        if self._training_active():
+            return
+        self.chart.clear()
+        if run is None:
+            self.chart.setVisible(False)
+            return
+        for metrics in run_epochs(run):
+            self.chart.add_epoch(metrics)
+        self.chart.setVisible(self.chart.has_data())
 
     def _on_abort_reason(self, reason: str) -> None:
         """Visar varför träningen avbröts, både i vyn och i statusraden (TASK-46)."""

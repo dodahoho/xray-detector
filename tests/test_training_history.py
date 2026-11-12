@@ -6,6 +6,7 @@ from pathlib import Path
 from xray_detector.application.training_history import (
     TrainingRun,
     export_run,
+    run_epochs,
     training_runs,
 )
 
@@ -186,6 +187,49 @@ def test_export_flattens_nested_run_ids(tmp_path):
     exported = export_run(run, tmp_path / "export")
 
     assert exported.name == "2026-11-12_korning"
+
+
+# --- Sparad epokhistorik (TASK-70) ---
+
+
+def test_run_epochs_reads_the_saved_metrics(tmp_path):
+    run_dir = _write_run(tmp_path, "korning")
+    (run_dir / "yolo" / "results.csv").write_text(
+        "epoch,train/box_loss,metrics/mAP50-95(B)\n1,2.0,0.2\n2,1.5,0.35\n",
+        encoding="utf-8",
+    )
+
+    epochs = run_epochs(training_runs(tmp_path)[0])
+
+    assert [metrics.epoch for metrics in epochs] == [1, 2]
+    assert epochs[-1].train_loss == 1.5
+    assert epochs[-1].map50_95 == 0.35
+
+
+def test_run_epochs_reads_the_rfdetr_metrics(tmp_path):
+    run_dir = _write_run(
+        tmp_path,
+        "korning",
+        family="rfdetr",
+        base_weights="rfdetr-small",
+        weights_relative="rfdetr/checkpoint_best_total.pth",
+    )
+    (run_dir / "rfdetr" / "metrics.csv").write_text(
+        "epoch,train/loss,val/loss,val/mAP_50_95\n0,2.0,,,\n0,,1.8,0.3\n",
+        encoding="utf-8",
+    )
+
+    epochs = run_epochs(training_runs(tmp_path)[0])
+
+    assert len(epochs) == 1
+    assert epochs[0].train_loss == 2.0
+    assert epochs[0].map50_95 == 0.3
+
+
+def test_run_epochs_without_metrics_file_is_empty(tmp_path):
+    _write_run(tmp_path, "korning")
+
+    assert run_epochs(training_runs(tmp_path)[0]) == []
 
 
 # --- Träningsvyn (AC 1, 3, 6, 7) ---

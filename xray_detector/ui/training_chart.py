@@ -69,6 +69,13 @@ class TrainingChart(QWidget):
             series.clear()
         self._fit_axes()
 
+    def has_data(self) -> bool:
+        """Sant när någon serie har punkter, alltså när grafen har något att visa."""
+        return any(
+            series.count()
+            for series in (self.train_loss, self.val_loss, self.map50, self.map50_95)
+        )
+
     def _fit_axes(self) -> None:
         _fit(self.loss_chart, self.loss_axis_x, self.loss_axis_y,
              [self.train_loss, self.val_loss], MIN_LOSS_SPAN)

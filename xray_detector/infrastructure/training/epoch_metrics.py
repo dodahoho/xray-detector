@@ -233,6 +233,23 @@ class MetricsTail:
         return rows
 
 
+def read_epoch_history(path: Path, family: str, total_epochs: int) -> list[EpochMetrics]:
+    """Alla epoker i en metrics-fil, i epokordning (TASK-70).
+
+    Läser filen från början, till skillnad från :class:`MetricsTail` som följer
+    en fil som växer under träningen. En fil som saknas ger en tom lista.
+    """
+    tail = MetricsTail(Path(path))
+    accumulator = EpochAccumulator(family, total_epochs)
+    epochs: list[EpochMetrics] = []
+    for row in tail.read_new_rows():
+        metrics = accumulator.feed(row)
+        if metrics is not None:
+            epochs.append(metrics)
+    epochs.extend(accumulator.flush())
+    return epochs
+
+
 class EpochReporter(threading.Thread):
     """Pollar metrics-filen och skickar ett epokevent per epok (TASK-44).
 

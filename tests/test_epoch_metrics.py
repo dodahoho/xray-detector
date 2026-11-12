@@ -13,6 +13,7 @@ from xray_detector.infrastructure.training.epoch_metrics import (
     parse_event_line,
     parse_rfdetr_row,
     parse_yolo_row,
+    read_epoch_history,
 )
 
 YOLO_HEADER = (
@@ -227,6 +228,40 @@ def test_metrics_tail_restarts_when_the_file_is_rewritten(tmp_path):
 
 def test_metrics_tail_ignores_a_missing_file(tmp_path):
     assert MetricsTail(tmp_path / "saknas.csv").read_new_rows() == []
+
+
+# --- Sparad epokhistorik (TASK-70) ---
+
+
+def test_read_epoch_history_returns_every_yolo_epoch(tmp_path):
+    path = tmp_path / "results.csv"
+    path.write_text(YOLO_HEADER + YOLO_ROW + YOLO_ROW.replace("1,12.5", "2,13.5"),
+                    encoding="utf-8")
+
+    epochs = read_epoch_history(path, "yolo", 10)
+
+    assert [metrics.epoch for metrics in epochs] == [1, 2]
+    assert epochs[1].map50_95 == 0.41
+    assert epochs[1].total_epochs == 10
+
+
+def test_read_epoch_history_merges_rfdetr_rows(tmp_path):
+    path = tmp_path / "metrics.csv"
+    path.write_text(
+        RFDETR_HEADER + "0,1,2.0,,,,\n" + "0,2,,1.8,,0.3,,\n", encoding="utf-8"
+    )
+
+    epochs = read_epoch_history(path, "rfdetr", 5)
+
+    assert len(epochs) == 1
+    assert epochs[0].epoch == 1
+    assert epochs[0].train_loss == 2.0
+    assert epochs[0].val_loss == 1.8
+    assert epochs[0].map50_95 == 0.3
+
+
+def test_read_epoch_history_without_file_is_empty(tmp_path):
+    assert read_epoch_history(tmp_path / "saknas.csv", "yolo", 10) == []
 
 
 # --- Rapportören (AC 1, 2) ---
