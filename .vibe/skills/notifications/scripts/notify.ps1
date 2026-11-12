@@ -46,7 +46,7 @@ try {
         -Method Post `
         -Headers $Headers `
         -ContentType "text/plain; charset=utf-8" `
-        -Body ([System.Text.Encoding]::UTF8.GetBytes($Body)) `
+        -Body ([System.Text.Encoding]::UTF8.GetBytes($Message)) `
         -TimeoutSec 10 `
         -ErrorAction Stop | Out-Null
 
