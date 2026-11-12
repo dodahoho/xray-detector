@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QCloseEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 
 from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
@@ -164,3 +165,27 @@ def test_tab_change_with_dirty_warns_and_can_revert(qapp, tmp_path, monkeypatch)
     assert window.tabs.currentIndex() == 1  # vakten vände tillbaka
     window.annotation_view.mark_clean()
     window.closeEvent(QCloseEvent())
+
+
+def test_annotation_view_has_no_delete_button(qapp, tmp_path):
+    """Borttagning sker med tangentbordet, inte med en knapp (TASK-69)."""
+    view, _ = _make_view(qapp, tmp_path)
+
+    assert not hasattr(view, "delete_button")
+    labels = [button.text() for button in view.findChildren(QPushButton)]
+    assert not any("Ta bort" in label for label in labels)
+
+
+def test_delete_key_removes_the_selected_annotation_in_the_view(qapp, tmp_path):
+    view, _ = _make_view(qapp, tmp_path)
+    canvas = view.canvases[0]
+    view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
+    item = RectItem(5, 5, 30, 30, "klass")
+    canvas.rects.append(item)
+    canvas.selected = item
+
+    QTest.keyClick(canvas, Qt.Key.Key_Delete)
+
+    assert canvas.rects == []
+    assert canvas.selected is None
+    assert view.is_dirty()

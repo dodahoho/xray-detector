@@ -404,9 +404,6 @@ class AnnotationView(QWidget):
         self.remove_class_button.setToolTip("Ta bort den valda klassen ur listan (Ctrl+-)")
         self.remove_class_button.clicked.connect(self._on_remove_class)
         bar.addWidget(self.remove_class_button)
-        self.delete_button = button(mnemonic("Ta bort markerad", "B"))
-        self.delete_button.clicked.connect(self._on_delete)
-        bar.addWidget(self.delete_button)
         bar.addStretch(1)
         self.save_button = button(mnemonic("Spara till dataset", "P"), primary=True)
         self.save_button.clicked.connect(self._on_save)
@@ -564,10 +561,6 @@ class AnnotationView(QWidget):
         datasetet än och kan sparas direkt.
         """
         self.save_button.setEnabled(not self._save_requires_change or self.is_dirty())
-
-    def _on_delete(self) -> None:
-        for canvas in self.canvases:
-            canvas.delete_selected()
 
     def _on_save(self) -> None:
         if self._save_task is not None:

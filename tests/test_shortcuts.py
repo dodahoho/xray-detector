@@ -87,7 +87,6 @@ def test_button_labels_show_underline_or_hint(window):
     assert detection.left.retry_button.text() == "Försök i&gen"
     assert detection.right.retry_button.text() == "Försök ige&n"
     assert annotation.save_button.text() == "S&para till dataset"
-    assert annotation.delete_button.text() == "Ta &bort markerad"
     assert annotation.cancel_button.text() == "Avbryt (Esc)"
     assert window.dataset_view.delete_button.text() == "Ta &bort markerade"
     assert training.start_button.text() == "Sta&rta träning"
@@ -130,7 +129,6 @@ def test_buttons_register_their_mnemonic(window):
         window.detection_view.left.retry_button: "Alt+G",
         window.detection_view.right.retry_button: "Alt+N",
         window.annotation_view.save_button: "Alt+P",
-        window.annotation_view.delete_button: "Alt+B",
         window.dataset_view.delete_button: "Alt+B",
         window.dataset_view.export_coco_button: "Alt+E",
         window.dataset_view.export_yolo_button: "Alt+Y",
