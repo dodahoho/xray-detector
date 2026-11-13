@@ -11,7 +11,7 @@ Plan utifrån `specs.md`. Beslut tagna i dialog 2025 (GUI på svenska, YOLO26 me
 | Video | OpenCV; `VideoSource`-abstraktion med `UvcSource` och `FileSource` (videofil för test utan capture cards) |
 | Detektion | Ultralytics **YOLO26 medium** som default, modell valbar i GUI; RF-DETR-stöd via samma `Detector`-ABC |
 | Klasser | Startlista: `cigaretter`, `cannabis`, `kniv`, `pistol` (utökningsbar via annoteringsläget) |
-| Dataset | COCO internt, med versionssiffra/datum/objektantal; YOLO-export via konvertering |
+| Dataset | YOLO internt (`data.yaml`, `images/`, `labels/`) med datum och objektantal i metadata; export till YOLO, COCO och RF-DETR |
 | Träning | Separat process (CUDA), kopplad till datasetversion; detektion pausas under träning |
 
 ## Modulstruktur
@@ -34,8 +34,8 @@ xray_detector/
 │   ├── rfdetr_detector.py # RF-DETR-familjen
 │   └── registry.py        # tillgängliga modeller + valda vikter
 ├── dataset/
-│   ├── store.py           # COCO, versionering, metadata
-│   └── export.py          # COCO→YOLO, manifest.json
+│   ├── store.py           # YOLO-lagring, metadata
+│   └── export.py          # YOLO/COCO/RF-DETR-export, manifest.json
 ├── training/trainer.py    # subprocess, progress via queue
 └── config.py              # klasser, sökvägar, trösklar
 ```
@@ -45,7 +45,7 @@ xray_detector/
 - **0/1/2 strömmar:** varje halva i split screen visar antingen video, detekterad video, eller en grå platta med "Ingen videokälla". Källval per vy: UVC-index eller fil (via "Öppna videofil...").
 - **Detektion:** worker-tråd per aktiv källa; hoppar över frames om inferens är långsammare än fps; rektangel + `klass 98%` ritas på frames i GUI-tråden.
 - **Fånga:** senaste frame + aktuella detektioner från båda vyerna → annoteringsläget öppnas med detektioner förrenderade som redigerbara rektanglar.
-- **Annotation:** rita (drag), resize via hörn-/kanthandles, klassbyte från lista eller fritext (nya klasser sparas globalt), radera; Spara → COCO + återgång till detektion.
+- **Annotation:** rita (drag), resize via hörn-/kanthandles, klassbyte från lista eller fritext (nya klasser sparas globalt), radera; Spara → YOLO + återgång till detektion.
 - **Träning:** YOLO26-träning via Ultralytics; RF-DETR via dess egna API bakom `trainer`-interfacet; vikter sparas som `v{datasetversion}_{datum}.pt`.
 
 ## Fasordning
@@ -54,7 +54,7 @@ xray_detector/
 2. **Video:** `VideoSource` (UVC + fil), trådar, källval per vy.
 3. **Detektion:** `Detector`-ABC, YOLO26-detektor, overlay-ritning, modellval.
 4. **Fånga + annotering:** fånga-knapp, annoteringsvy med redigerbara rektanglar och klasslistan.
-5. **Dataset:** COCO-store, versionering, YOLO-export med manifest.
+5. **Dataset:** YOLO-store, metadata, export med manifest.
 6. **Träning:** träningsvy, subprocess, paus av detektion, vikter med versionskoppling.
 7. **RF-DETR:** andra detektorn, modellval i GUI.
 8. **Polering:** felhantering, inställningar (confidens, kamera-index), loggning.
@@ -63,4 +63,4 @@ xray_detector/
 
 - **Trådning:** kameror = 2 trådar, detektion = worker-trådar, GUI = huvudtråd. Träning = separat process (undvik GIL + full GPU-access).
 - **Frame-strategi:** senaste-frame-wins; detektion kan hoppa över frames om inferensen är långsammare än kamerans fps.
-- **Dataset:** alltid COCO internt → ingen "export nödvändig" för fortsatt arbete; YOLO genereras vid träning/export.
+- **Dataset:** alltid YOLO internt → ingen "export nödvändig" för fortsatt arbete; exporten delar bara train/val och bygger COCO/RF-DETR när det behövs.

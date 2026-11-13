@@ -305,25 +305,27 @@ def test_removing_every_class_keeps_the_list_empty(qapp, tmp_path, monkeypatch):
     assert view._class_names() == []
 
 
-def test_set_classes_keeps_the_category_ids(tmp_path):
+def test_set_classes_remaps_the_label_indexes(tmp_path):
+    """YOLO lagrar klassen som index, så en borttagen klass flyttar de senare (TASK-78)."""
     service = DatasetService(tmp_path / "datasets")
     service.set_classes(["kniv", "pistol"])
+    service.add_samples([sample("pistol")])
 
     service.set_classes(["pistol", "cigaretter"])
 
-    categories = service.load_coco()["categories"]
-    assert [(c["id"], c["name"]) for c in categories] == [(1, "pistol"), (2, "cigaretter")]
+    assert service.classes() == ["pistol", "cigaretter"]
+    annotations = service.load_dataset()["images"][0]["annotations"]
+    assert [annotation["class_name"] for annotation in annotations] == ["pistol"]
 
 
-def test_new_category_gets_a_free_id_after_a_removal(tmp_path):
+def test_new_class_is_appended_after_a_removal(tmp_path):
     service = DatasetService(tmp_path / "datasets")
     service.set_classes(["kniv", "pistol"])
     service.set_classes(["pistol"])
 
     service.add_samples([sample("cigaretter")])
 
-    categories = service.load_coco()["categories"]
-    assert [(c["id"], c["name"]) for c in categories] == [(1, "pistol"), (2, "cigaretter")]
+    assert service.classes() == ["pistol", "cigaretter"]
 
 
 # --- Klick på klassnamnet i bilden (AC 5) ---

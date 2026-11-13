@@ -45,7 +45,7 @@ def _header_text(view, group_id) -> str:
 def test_add_samples_records_capture_time(service):
     service.add_samples([_sample()], captured="2026-11-10T09:56:38")
 
-    images = service.load_coco()["images"]
+    images = service.load_dataset()["images"]
     assert images[0]["captured"] == "2026-11-10T09:56:38"
 
 
@@ -139,13 +139,13 @@ def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
     """Äldre dataset saknar 'captured': då används bildfilens tidsstämpel."""
     service.add_samples([_sample()])
     path = service.store.root / "dataset.json"
-    coco = json.loads(path.read_text(encoding="utf-8"))
-    for image in coco["images"]:
+    metadata = json.loads(path.read_text(encoding="utf-8"))
+    for image in metadata["images"]:
         image.pop("captured", None)
-    path.write_text(json.dumps(coco), encoding="utf-8")
+    path.write_text(json.dumps(metadata), encoding="utf-8")
 
     stamp = datetime(2026, 5, 4, 12, 30, 15).timestamp()
-    image_path = service.images_dir / coco["images"][0]["file_name"]
+    image_path = service.images_dir / metadata["images"][0]["file_name"]
     os.utime(image_path, (stamp, stamp))
 
     view = DatasetView(config, service, settings)
@@ -194,6 +194,6 @@ def test_saved_capture_keeps_pending_timestamp(qapp, tmp_path, monkeypatch):
     window.annotation_view._on_save()
     window.annotation_view.wait_for_save()
 
-    images = window.dataset_service.load_coco()["images"]
+    images = window.dataset_service.load_dataset()["images"]
     assert images
     assert all(image["captured"] == saved_at for image in images)

@@ -143,7 +143,7 @@ def test_save_without_boxes_declined_writes_nothing(qapp, tmp_path, monkeypatch)
     view, service = _make_view(qapp, tmp_path)
     view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
     view._on_save()
-    assert service.load_coco()["images"] == []
+    assert service.load_dataset()["images"] == []
 
 
 def test_tab_change_with_dirty_warns_and_can_revert(qapp, tmp_path, monkeypatch):

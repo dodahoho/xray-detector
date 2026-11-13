@@ -59,9 +59,9 @@ def test_image_sizes_ignore_images_without_dimensions(tmp_path):
     """Ett äldre dataset.json kan sakna width/height och får inte krascha vyn."""
     service = DatasetService(tmp_path / "datasets")
     service.add_samples([_sample(640, 480)])
-    coco = service.load_coco()
-    coco["images"].append({"id": 99, "file_name": "gammal.png"})
-    (service.store.root / "dataset.json").write_text(json.dumps(coco), encoding="utf-8")
+    dataset = service.load_dataset()
+    dataset["images"].append({"id": 99, "file_name": "gammal.png"})
+    (service.store.root / "dataset.json").write_text(json.dumps(dataset), encoding="utf-8")
 
     assert service.image_sizes() == [(640, 480, 1)]
 

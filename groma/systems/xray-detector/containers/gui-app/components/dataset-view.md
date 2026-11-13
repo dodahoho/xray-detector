@@ -18,8 +18,8 @@ Visar datasetet i en sektion per datum bilderna fångades, med datumet som rubri
 
 | Source | Target | Description | Technology |
 | --- | --- | --- | --- |
-| [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/dataset/store.py](../../../../../../xray_detector/dataset/store.py) | Listar och raderar bilder | COCO JSON + cv2.imread |
 | [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/ui/busy_indicator.py](../../../../../../xray_detector/ui/busy_indicator.py) | Visar upptagenindikator | Qt-widget |
 | [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/ui/settings_dialog.py](../../../../../../xray_detector/ui/settings_dialog.py) | Öppnar vyens inställningar | Qt-widget |
 | [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/application/dataset_service.py](../../../../../../xray_detector/application/dataset_service.py) | Listar, raderar och exporterar datasetet | direkt anrop |
 | [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/application/background_task.py](../../../../../../xray_detector/application/background_task.py) | Läser datasetet och exporterar i bakgrunden | Qt-signaler |
+| [xray_detector/ui/dataset_view.py](../../../../../../xray_detector/ui/dataset_view.py) | [xray_detector/dataset/store.py](../../../../../../xray_detector/dataset/store.py) | Listar och raderar bilder | YOLO-txt + cv2.imread |

@@ -51,9 +51,9 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     # spara -> ny fångstgrupp i samma dataset
     window.annotation_view._on_save()
     window.annotation_view.wait_for_save()
-    coco = service.load_coco()
-    assert len(coco["images"]) == 2
-    groups = {image.get("group") for image in coco["images"]}
+    dataset = service.load_dataset()
+    assert len(dataset["images"]) == 2
+    groups = {image.get("group") for image in dataset["images"]}
     assert None not in groups and len(groups) == 2
 
     # datasetvyn visar tvÃ¥ thumbnails och annotation-fliken lÃ¥st igen
@@ -83,7 +83,7 @@ def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
     service = window.dataset_service
     # avbryt (cancel) utan sparande
     window.annotation_view.cancelled.emit()
-    assert service.load_coco()["images"] == []
+    assert service.load_dataset()["images"] == []
 
 
 def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):

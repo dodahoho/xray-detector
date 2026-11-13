@@ -115,8 +115,8 @@ def test_delete_removes_whole_capture(view, service, monkeypatch):
     view._on_delete()
     view.wait_for_refresh()
 
-    assert service.load_coco()["images"] == []
-    assert service.load_coco()["annotations"] == []
+    assert service.load_dataset()["images"] == []
+    assert not list(service.store.labels_dir.glob("*.txt"))
     assert view._thumbs == []
     assert not view.delete_button.isEnabled()
 
@@ -150,7 +150,7 @@ def test_delete_without_selection_keeps_dataset(view, service):
     view._on_delete()
 
     assert messages == ["Markera bilder att ta bort först"]
-    assert len(service.load_coco()["images"]) == 2
+    assert len(service.load_dataset()["images"]) == 2
 
 
 def test_click_selects_whole_pending_capture(qapp, config, tmp_path, settings, monkeypatch):

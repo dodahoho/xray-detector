@@ -54,8 +54,9 @@ class DatasetService:
     def delete_images(self, image_ids: list[int]) -> None:
         self.store.delete_images(image_ids)
 
-    def load_coco(self) -> dict:
-        return self.store.load_coco()
+    def load_dataset(self) -> dict:
+        """Datasetet som läsmodell: klasser och bilder med annoteringar i pixlar."""
+        return self.store.load_dataset()
 
     def metadata(self) -> dict:
         return self.store.metadata()
@@ -75,7 +76,7 @@ class DatasetService:
 
     def train_val_counts(self, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
         """Antal bildpar i train respektive val för den seedade grupp-delningen (TASK-72)."""
-        train, val = train_val_split(self.load_coco(), ratio, seed)
+        train, val = train_val_split(self.load_dataset()["images"], ratio, seed)
         return group_count(train), group_count(val)
 
 

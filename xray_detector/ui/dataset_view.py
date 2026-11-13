@@ -233,7 +233,6 @@ def _capture_header(
 def _thumbnail_pixmap(
     image: QImage,
     annotations: list[dict],
-    category_names: dict[int, str],
 ) -> QPixmap:
     """Thumbnail med bildens detektioner inritade (TASK-64).
 
@@ -253,7 +252,7 @@ def _thumbnail_pixmap(
     pen.setWidth(2)
     for annotation in annotations:
         x, y, width, height = annotation["bbox"]
-        pen.setColor(class_color(category_names[annotation["category_id"]]))
+        pen.setColor(class_color(annotation["class_name"]))
         painter.setPen(pen)
         painter.drawRect(QRectF(x * scale, y * scale, width * scale, height * scale))
     painter.end()
@@ -341,7 +340,7 @@ class DatasetView(QWidget):
         self._group_headers: dict = {}
         self._section_headings: dict[str, QLabel] = {}
         self._section_cards: dict[str, QWidget] = {}
-        self._coco: dict | None = None
+        self._dataset: dict | None = None
         self._pending_by_group: dict[str, object] = {}
         self._refresh_task: BackgroundTask | None = None
         self._refresh_pending = False
@@ -432,13 +431,13 @@ class DatasetView(QWidget):
         QImage får skapas utanför GUI-tråden, QPixmap får det inte.
         """
         pending = self.dataset_service.pending_captures()
-        coco = self.dataset_service.load_coco()
+        dataset = self.dataset_service.load_dataset()
         images_dir = self.dataset_service.images_dir
         decoded = {
             image["id"]: QImage(str(images_dir / image["file_name"]))
-            for image in coco["images"]
+            for image in dataset["images"]
         }
-        return {"coco": coco, "images": decoded, "pending": pending}
+        return {"dataset": dataset, "images": decoded, "pending": pending}
 
     def _on_load_failed(self, message: str) -> None:
         self.status_changed.emit(f"Kunde inte läsa datasetet: {message}")
@@ -521,15 +520,14 @@ class DatasetView(QWidget):
         self._pending_by_group = {}
 
         newest_first = sort_order(self.settings) == SORT_NEWEST
-        coco = data["coco"]
-        self._coco = coco
-        annotations_by_image: dict[int, list[dict]] = {}
-        for annotation in coco["annotations"]:
-            annotations_by_image.setdefault(annotation["image_id"], []).append(annotation)
-        category_names = {c["id"]: c["name"] for c in coco["categories"]}
+        dataset = data["dataset"]
+        self._dataset = dataset
+        annotations_by_image: dict[int, list[dict]] = {
+            image["id"]: image["annotations"] for image in dataset["images"]
+        }
 
         groups: dict[int, list[dict]] = {}
-        for image in coco["images"]:
+        for image in dataset["images"]:
             key = image.get("group") or image["id"]
             groups.setdefault(key, []).append(image)
 
@@ -542,11 +540,11 @@ class DatasetView(QWidget):
             by_date.setdefault(stamp[:10], []).append((key, images, stamp))
 
         self._sync_filters(
-            self._filter_classes(coco, data["pending"]),
+            self._filter_classes(dataset, data["pending"]),
             self._capture_days(data, by_date),
         )
         self._add_pending_section(data["pending"], newest_first)
-        if not coco["images"]:
+        if not dataset["images"]:
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
             self.content_layout.addStretch(1)
@@ -559,7 +557,7 @@ class DatasetView(QWidget):
         for date in _ordered_dates(by_date, newest_first):
             for key, images, stamp in by_date[date]:
                 classes = {
-                    category_names[ann["category_id"]]
+                    ann["class_name"]
                     for image in images
                     for ann in annotations_by_image.get(image["id"], [])
                 }
@@ -575,7 +573,6 @@ class DatasetView(QWidget):
                     images,
                     stamp,
                     annotations_by_image,
-                    category_names,
                     data["images"],
                 )
         if not self._thumbs:
@@ -594,9 +591,9 @@ class DatasetView(QWidget):
                 days.append(stamp[:10])
         return days
 
-    def _filter_classes(self, coco: dict, pending) -> list[str]:
+    def _filter_classes(self, dataset: dict, pending) -> list[str]:
         """Klasserna som går att filtrera på: datasetets och de osparades (TASK-67)."""
-        names = [category["name"] for category in coco["categories"]]
+        names = list(dataset["classes"])
         detected = {
             detection.class_name
             for capture in pending
@@ -691,14 +688,13 @@ class DatasetView(QWidget):
         images: list[dict],
         stamp: str,
         annotations_by_image: dict[int, list[dict]],
-        category_names: dict[int, str],
         decoded: dict,
     ) -> None:
         """Ett kort per fångst: tid, klassmärken och bildparet (TASK-42, TASK-66)."""
         classes = tuple(
             sorted(
                 {
-                    category_names[ann["category_id"]]
+                    ann["class_name"]
                     for img in images
                     for ann in annotations_by_image.get(img["id"], [])
                 }
@@ -719,9 +715,7 @@ class DatasetView(QWidget):
         row.setSpacing(4)
         for image in images:
             annotations = annotations_by_image.get(image["id"], [])
-            pixmap = _thumbnail_pixmap(
-                decoded[image["id"]], annotations, category_names
-            )
+            pixmap = _thumbnail_pixmap(decoded[image["id"]], annotations)
             thumb = Thumbnail(image["id"], key, pixmap)
             thumb.clicked.connect(self._on_thumb_clicked)
             thumb.double_clicked.connect(self._on_thumb_double_clicked)
@@ -870,21 +864,18 @@ class DatasetView(QWidget):
         group = self._groups.get(thumb.group_id, [thumb])
         frames: list[StreamFrame] = []
         for member in group:
-            entry = next(img for img in self._coco["images"] if img["id"] == member.image_id)
+            entry = next(
+                img for img in self._dataset["images"] if img["id"] == member.image_id
+            )
             frame = cv2.imread(str(self.dataset_service.images_dir / entry["file_name"]))
             if frame is None:
                 continue
             detections = []
-            for ann in self._coco["annotations"]:
-                if ann["image_id"] != entry["id"]:
-                    continue
-                x, y, w, h = ann["bbox"]
-                class_name = next(
-                    c["name"] for c in self._coco["categories"] if c["id"] == ann["category_id"]
-                )
+            for annotation in entry["annotations"]:
+                x, y, w, h = annotation["bbox"]
                 detections.append(
                     Detection(x1=float(x), y1=float(y), x2=float(x + w), y2=float(y + h),
-                             class_name=class_name, confidence=1.0)
+                             class_name=annotation["class_name"], confidence=1.0)
                 )
             frames.append(
                 StreamFrame(source_id=f"img{entry['id']}", frame=frame,

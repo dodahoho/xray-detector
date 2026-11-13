@@ -184,7 +184,7 @@ def test_filtering_reuses_the_loaded_dataset(qapp, config, service, settings, mo
     def fail() -> dict:
         raise AssertionError("datasetet lästes om")
 
-    monkeypatch.setattr(service, "load_coco", fail)
+    monkeypatch.setattr(service, "load_dataset", fail)
 
     _select_class(view, "pistol")
 

@@ -31,12 +31,12 @@ def add_groups(svc: DatasetService, groups: int, per_group: int = 2) -> None:
 
 
 def test_split_is_group_aware():
-    coco = {"images": [
+    images = [
         {"id": 1, "group": 1}, {"id": 2, "group": 1},
         {"id": 3, "group": 2}, {"id": 4, "group": 2},
         {"id": 5, "group": 3}, {"id": 6, "group": 3},
-    ]}
-    train, val = train_val_split(coco)
+    ]
+    train, val = train_val_split(images)
     train_ids = {image["id"] for image in train}
     val_ids = {image["id"] for image in val}
     assert train_ids | val_ids == {1, 2, 3, 4, 5, 6}
@@ -47,9 +47,9 @@ def test_split_is_group_aware():
 
 
 def test_split_is_reproducible():
-    coco = {"images": [{"id": i, "group": i} for i in range(1, 21)]}
-    first = train_val_split(coco)
-    second = train_val_split(coco)
+    images = [{"id": i, "group": i} for i in range(1, 21)]
+    first = train_val_split(images)
+    second = train_val_split(images)
     assert [image["id"] for image in first[0]] == [image["id"] for image in second[0]]
     assert [image["id"] for image in first[1]] == [image["id"] for image in second[1]]
 
@@ -69,7 +69,7 @@ def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
     yaml_text = (out / "data.yaml").read_text(encoding="utf-8")
     assert "train: images/train" in yaml_text
     assert "val: images/val" in yaml_text
-    assert "names: ['kniv', 'pistol']" in yaml_text
+    assert 'names: ["kniv", "pistol"]' in yaml_text
 
     label = (out / "labels" / "train" / "img_000001.txt").read_text(encoding="utf-8")
     assert label.startswith("0 ")
@@ -81,8 +81,8 @@ def test_export_yolo_group_integrity(tmp_path):
     add_groups(svc, 6)
     out = svc.export_yolo(tmp_path / "exports")
 
-    coco = svc.load_coco()
-    group_of = {image["id"]: image.get("group") for image in coco["images"]}
+    dataset = svc.load_dataset()
+    group_of = {image["id"]: image.get("group") for image in dataset["images"]}
     train_groups = {group_of[int(p.stem.split("_")[1])] for p in (out / "images" / "train").glob("*.png")}
     val_groups = {group_of[int(p.stem.split("_")[1])] for p in (out / "images" / "val").glob("*.png")}
     assert not (train_groups & val_groups)
@@ -112,7 +112,7 @@ def test_export_replaces_images_from_an_earlier_export(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 2)
     svc.export_yolo(tmp_path / "exports")
-    svc.delete_images([image["id"] for image in svc.load_coco()["images"][:2]])
+    svc.delete_images([image["id"] for image in svc.load_dataset()["images"][:2]])
 
     out = svc.export_yolo(tmp_path / "exports")
 
@@ -122,9 +122,9 @@ def test_export_replaces_images_from_an_earlier_export(tmp_path):
 
 def test_split_ratio_controls_the_group_counts():
     """Andelen räknas i bildpar, så 50 % av tio par ger fem par per del (TASK-72)."""
-    coco = {"images": [{"id": i, "group": i} for i in range(1, 11)]}
+    images = [{"id": i, "group": i} for i in range(1, 11)]
 
-    train, val = train_val_split(coco, 0.5)
+    train, val = train_val_split(images, 0.5)
 
     assert (group_count(train), group_count(val)) == (5, 5)
 

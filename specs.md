@@ -21,7 +21,7 @@ Planerar att köra applikationen på dator med Windows 11 dit två UVC video cap
 * Samtliga inritade rektanglar ska kunna redigeras (storleksändras) genom att trycka och dra i en rektangels kant eller hörn. 
 * Samtliga annoterade klasser ska kunna ändras genom att välja annan klass från lista, alternativt skriva in en helt ny klass.
 * Spara i annoteringsläget fyller på dataset och återgår till detektionsläge.
-* Dataset ska kunna exporteras till COCO alt YOLO format (eller är det bäst att alltid jobba i t ex COCO format så att export inte behövs?)
+* Dataset ska kunna exporteras till COCO alt YOLO format; internt lagras datasetet i YOLO-format, så export behövs inte för träning.
 * För exporterat dataset ska det framgå versionssiffra, datum, antal bildobjekt
 
 ### Träningsläge

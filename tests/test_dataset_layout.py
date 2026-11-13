@@ -152,11 +152,11 @@ def test_captures_without_a_date_are_listed_last(
     service.add_samples([_sample()], captured="2026-11-10T09:00:00")
     service.add_samples([_sample()])
     path = service.store.root / "dataset.json"
-    coco = json.loads(path.read_text(encoding="utf-8"))
-    for image in coco["images"]:
+    metadata = json.loads(path.read_text(encoding="utf-8"))
+    for image in metadata["images"]:
         if image["group"] == 2:
             image.pop("captured", None)
-    path.write_text(json.dumps(coco), encoding="utf-8")
+    path.write_text(json.dumps(metadata), encoding="utf-8")
     monkeypatch.setattr("xray_detector.ui.dataset_view._mtime_timestamp", lambda path: "")
 
     view = _built(config, service, settings)

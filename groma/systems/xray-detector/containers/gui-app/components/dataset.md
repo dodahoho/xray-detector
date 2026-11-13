@@ -16,9 +16,11 @@ groma:
       file: xray_detector/infrastructure/dataset_store/export.py
     - scanner: python
       file: xray_detector/infrastructure/dataset_store/__init__.py
+    - scanner: python
+      file: xray_detector/infrastructure/dataset_store/yolo.py
   group: Dataset och träning
-  technology: COCO JSON, PNG, YOLO-txt
-description: COCO-dataset samt YOLO/COCO-export.
+  technology: YOLO (data.yaml, PNG, txt), JSON-metadata
+description: YOLO-dataset samt YOLO/COCO/RF-DETR-export.
 ---
 
-DatasetStore skriver bilder och annoteringar som en COCO-JSON (dataset.json) med metadata; bilder som sparats i samma annoteringssession får samma "group"-id (fångstgrupp) i datafilen. Ett dataset som sparades som v<N> flyttas upp till roten vid start. export_yolo, export_coco och export_rfdetr skriver träningsklara kataloger med manifest och tömmer katalogen först; rfdetr-exporten delar upp i train/valid/test med _annotations.coco.json per split. Kataloger under ~/.xray-detector.
+DatasetStore lagrar datasetet i YOLO-format: klasserna i data.yaml, bilderna i images/ och annoteringarna i labels/ (en .txt per bild med klassindex och normaliserade mått). dataset.json innehåller bara metadata som YOLO saknar: bild-id, bildstorlek, fångstgrupp och fångsttid. Ett dataset som sparades som v<N> flyttas upp till roten vid start, och ett dataset i det tidigare COCO-formatet konverteras automatiskt till YOLO. Klassändringar skriver om label-filernas index så att sparade annoteringar behåller sin klass. export_yolo, export_coco och export_rfdetr skriver träningsklara kataloger med manifest och tömmer katalogen först; yolo-exporten kopierar images/ och labels/ och delar train/val per fångstgrupp, medan rfdetr-exporten delar upp i train/valid/test med _annotations.coco.json per split. Kataloger under ~/.xray-detector.
