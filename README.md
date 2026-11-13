@@ -84,6 +84,8 @@ Ett element som behöver egna mått skickar `height=` eller `width=` till `butto
 
 Formulärfälten ligger i ett `FormCard`: en gruppruta med rubrik och ett `QFormLayout` som har en maxbredd (`FORM_MAX_WIDTH`, 520 px). Fälten blir då aldrig bredare än kortet, så en dropdown eller ett textfält inte sträcker sig över hela skärmen på en stor skärm; kortet håller sig till vänster i vyn och resten av bredden lämnas tom. Träningsvyns inställningar, temavalet, träningsschemat, train/val-delningen och sorteringen delar samma mått, och modellistan har en egen, något bredare maxbredd (`LIST_MAX_WIDTH`, 640 px) eftersom knappraden behöver plats. `tests/test_form_width.py` visar fönstret brett och mäter att korten, fälten och knapparna håller sig inom måtten.
 
+Qt:s egna standardknappar blir svenska genom att appen laddar `qtbase_sv.qm`, som följer med PySide6 (`xray_detector/ui/translations.py`). Utan den står **Ok**, **Avbryt**, **Ja**, **Nej**, **Spara**, **Förkasta** och **Stäng** på engelska medan resten av appen är på svenska. Översättningen installeras direkt efter `QApplication` och före första fönstret, eftersom Qt slår upp texten när knappen skapas. Saknas filen startar appen som förut med Qt:s egna texter.
+
 ## Tidskrävande operationer
 
 Fem operationer som tidigare blockerade GUI-tråden körs i en arbetstråd och visar en gemensam upptagenindikator (`xray_detector/ui/busy_indicator.py`) som läggs över vyn: modellbyte i detektionsvyn, omladdning av bildlistan och export till COCO/YOLO i datasetvyn, sparning av annoteringar och enhetskontrollen vid start. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning.

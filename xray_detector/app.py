@@ -3,6 +3,7 @@ from pathlib import Path
 
 from xray_detector.application.app_config import load_config_with_yaml, setup_logging
 from xray_detector.ui.main_window import MainWindow
+from xray_detector.ui.translations import install_swedish_translations
 
 ICON_PATH = Path(__file__).parent / "ui" / "assets" / "app.ico"
 APP_USER_MODEL_ID = "xray-detector"
@@ -62,6 +63,8 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
+    # före första fönstret, så Qt:s standardknappar blir svenska direkt (TASK-83)
+    install_swedish_translations(app)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
     from xray_detector.ui.crash_dialog import install_exception_dialog
 
