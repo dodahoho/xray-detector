@@ -116,6 +116,25 @@ def test_adding_from_an_address_downloads_the_model(section, monkeypatch):
     assert section.current_key() == "egen"
 
 
+def test_the_address_dialog_shows_an_example(section, monkeypatch):
+    """Dialogen har ingen egen hjälptext, så instruktionen står i etiketten."""
+    opened: list = []
+
+    def capture(parent, title, label, *args, **kwargs):
+        opened.append((title, label))
+        return ("", False)
+
+    monkeypatch.setattr(QInputDialog, "getText", capture)
+
+    section.add_url_button.click()
+
+    title, label = opened[0]
+    assert title == "Lägg till modell från internet"
+    assert "https://huggingface.co/Ultralytics/YOLO26/resolve/main/yolo26l.pt" in label
+    assert ".pt" in label and ".pth" in label
+    assert "nedladdningslänk" in label
+
+
 def test_a_failed_download_is_reported(section, monkeypatch):
     _answer(monkeypatch, "https://example.com/vikter/")
 

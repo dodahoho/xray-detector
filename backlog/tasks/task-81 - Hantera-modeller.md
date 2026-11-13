@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-13T14:32:00Z'
-updated_date: '2026-11-13T14:56:00Z'
+updated_date: '2026-11-13T16:36:00Z'
 labels: []
 dependencies: []
 type: feature
@@ -64,6 +64,8 @@ Borttagning rör bara listan; viktfilen ligger kvar i models/ så en modell som 
 UI: ui/model_settings.py med ModelSection (lista, Lägg till från fil, Hämta från internet, Byt namn, Ta bort). Nedladdningen körs i BackgroundTask så GUI:t svarar. SettingsView sänder models_changed och MainWindow kopplar den till DetectionView.refresh_models() och den nya TrainingView.refresh_models().
 
 Tester: tests/test_model_catalog.py (20) och tests/test_model_settings.py (10). Verifiering: hela sviten 572 passed, 1 skipped. Enda felet är test_sample_video.py::test_sample_video_meta, som faller på att media/*.mp4 i arbetskatalogen är utbytta (6000 ramar mot testets 2250) och som faller även utan denna ändring.
+
+Uppföljning efter att uppgiften markerats klar: adressdialogen (Hämta från internet) visar nu en instruktion i etiketten, eftersom QInputDialog inte har någon egen hjälptext. Den säger att adressen måste sluta på .pt (YOLO) eller .pth (RF-DETR) och vara en nedladdningslänk, inte en webbsida, och ger ett exempel från Hugging Face: https://huggingface.co/Ultralytics/YOLO26/resolve/main/yolo26l.pt. Exempeladressen är kontrollerad med HEAD (200, 53,2 MB) och hela vägen genom add_from_url. Testet test_the_address_dialog_shows_an_example fångar etiketten och kontrollerar exemplet.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

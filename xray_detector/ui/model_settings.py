@@ -29,6 +29,15 @@ WEIGHT_FILTER = "Modellvikter (*.pt *.pth)"
 FAMILY_LABELS = {"yolo": "YOLO", "rfdetr": "RF-DETR"}
 LIST_MAX_HEIGHT = 220
 MUTED_COLOR = "#888"
+# dialogen har ingen egen hjälptext, så instruktionen står i etiketten
+URL_HINT = (
+    "Adress till viktfilen. Den måste sluta på .pt (YOLO)\n"
+    "eller .pth (RF-DETR) och vara en nedladdningslänk,\n"
+    "inte en webbsida.\n"
+    "\n"
+    "Exempel från Huggingface:\n"
+    "https://huggingface.co/Ultralytics/YOLO26/resolve/main/yolo26l.pt"
+)
 
 
 class ModelSection(QGroupBox):
@@ -140,7 +149,7 @@ class ModelSection(QGroupBox):
 
     def _on_add_url(self) -> None:
         url, ok = QInputDialog.getText(
-            self, "Lägg till modell från internet", "Adress (http/https):"
+            self, "Lägg till modell från internet", URL_HINT
         )
         if not ok or not url.strip():
             return
