@@ -1,7 +1,7 @@
 ---
 id: TASK-83
 title: Svenska standardknappar i Qt:s egna dialoger
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-13T16:46:00Z'
@@ -32,7 +32,7 @@ Appen är på svenska, men standardknapparna i Qt:s egna dialoger (QMessageBox, 
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
