@@ -3,11 +3,11 @@ id: TASK-80
 title: >-
   Träning  - Default upplösning vid träning ska anpassa sig efter aktuellt
   dataset
-status: In Progress
+status: Done
 assignee:
   - '@vibe-mistral'
 created_date: '2026-11-13T12:41:00Z'
-updated_date: '2026-11-13T13:12:00Z'
+updated_date: '2026-11-13T13:13:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -45,7 +45,7 @@ Det bör också framgå bredvid inställningen vilka olika upplösningar som fö
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan

@@ -3,11 +3,11 @@ id: TASK-79
 title: >-
   Detektion - Använd samma upplösning vid detektion som de aktuella
   ingångskällorna har
-status: In Progress
+status: Done
 assignee:
   - '@vibe-mistral'
 created_date: '2026-11-13T12:38:00Z'
-updated_date: '2026-11-13T13:12:00Z'
+updated_date: '2026-11-13T13:13:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -41,7 +41,7 @@ Om videofil är input så ska upplösningen anpassas till innehållet i videofil
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
