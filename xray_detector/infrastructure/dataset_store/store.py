@@ -1,5 +1,6 @@
 import json
 import shutil
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -153,6 +154,24 @@ class DatasetStore:
 
     def metadata(self) -> dict:
         return self._load_coco()["info"]
+
+    def image_sizes(self) -> list[tuple[int, int, int]]:
+        """Datasetets bildupplösningar som (bredd, höjd, antal) (TASK-80).
+
+        Vanligaste upplösningen först; vid lika antal den större bilden, så
+        träningens default bevarar detaljer när datasetet är blandat.
+        """
+        counts = Counter(
+            (int(image["width"]), int(image["height"]))
+            for image in self._load_coco()["images"]
+            if image.get("width") and image.get("height")
+        )
+        return [
+            (width, height, count)
+            for (width, height), count in sorted(
+                counts.items(), key=lambda item: (-item[1], -item[0][0] * item[0][1])
+            )
+        ]
 
     def delete_images(self, image_ids: list[int]) -> None:
         coco = self._load_coco()

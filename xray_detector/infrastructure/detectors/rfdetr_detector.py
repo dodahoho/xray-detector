@@ -49,6 +49,11 @@ class RfDetrDetector(BaseDetector):
 
     predict() returnerar supervision.Detections med xyxy/class_id/confidence
     och modellens egna klassnamn i data["class_name"].
+
+    Till skillnad från YOLO följer inferensen inte källans upplösning
+    (TASK-79): RF-DETR bygger på en fast upplösning med positionskodningar
+    för den, så en annan storlek vid inferens ger sämre rutor. Modellen kör
+    därför på den upplösning den är skapad med.
     """
 
     def __init__(

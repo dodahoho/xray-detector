@@ -23,7 +23,8 @@ from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.training_history import run_epochs
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
-from xray_detector.domain.training import TrainConfig
+from xray_detector.domain.model_input import DEFAULT_SIZE, MAX_SIZE, MIN_SIZE, STEP
+from xray_detector.domain.training import TrainConfig, imgsz_for
 from xray_detector.ui.settings_dialog import (
     TrainValSplitSection,
     TrainingScheduleSection,
@@ -34,6 +35,14 @@ from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.style import button
 from xray_detector.ui.training_chart import TrainingChart
 from xray_detector.ui.training_history import TrainingHistoryView
+
+
+def _format_image_sizes(sizes: list[tuple[int, int, int]]) -> str:
+    """Datasetets upplösningar som "1920x1080 (12), 1280x720 (3)" (TASK-80)."""
+    if not sizes:
+        return "Datasetets upplösningar: -"
+    listed = ", ".join(f"{width}x{height} ({count})" for width, height, count in sizes)
+    return f"Datasetets upplösningar: {listed}"
 
 
 class TrainingView(QWidget):
@@ -49,6 +58,9 @@ class TrainingView(QWidget):
         self.training_service = TrainingService()
         self.worker = None
         self.training_log = None
+        # bildstorleken följer datasetet tills användaren väljer en egen (TASK-80)
+        self._imgsz_user_set = False
+        self._applying_imgsz = False
         self.training_service.worker_created.connect(self._on_worker_created)
         self.training_service.scheduler().status_changed.connect(self.status_changed.emit)
         self._activity_filter = _ActivityFilter(self.training_service.scheduler().record_activity)
@@ -128,10 +140,16 @@ class TrainingView(QWidget):
         self.epochs_spin.setValue(100)
         form.addRow("Epoker:", self.epochs_spin)
         self.imgsz_spin = QSpinBox()
-        self.imgsz_spin.setRange(320, 1920)
-        self.imgsz_spin.setSingleStep(32)
-        self.imgsz_spin.setValue(640)
-        form.addRow("Bildstorlek:", self.imgsz_spin)
+        self.imgsz_spin.setRange(MIN_SIZE, MAX_SIZE)
+        self.imgsz_spin.setSingleStep(STEP)
+        self.imgsz_spin.setValue(DEFAULT_SIZE)
+        self.imgsz_spin.valueChanged.connect(self._on_imgsz_changed)
+        self.imgsz_info = QLabel("-")
+        self.imgsz_info.setStyleSheet("color: #888;")
+        imgsz_row = QHBoxLayout()
+        imgsz_row.addWidget(self.imgsz_spin)
+        imgsz_row.addWidget(self.imgsz_info, 1)
+        form.addRow("Bildstorlek:", imgsz_row)
         self.batch_spin = QSpinBox()
         self.batch_spin.setRange(1, 128)
         self.batch_spin.setValue(16)
@@ -159,6 +177,18 @@ class TrainingView(QWidget):
         bind_shortcut(self, "Esc", self._on_abort)
         return form
 
+    def _on_imgsz_changed(self, _value: int) -> None:
+        """Ett eget val stannar kvar när datasetet ändras (TASK-80)."""
+        if not self._applying_imgsz:
+            self._imgsz_user_set = True
+
+    def _set_imgsz(self, value: int, user: bool) -> None:
+        """Sätter storleken utan att den räknas som ett användarval."""
+        self._applying_imgsz = True
+        self.imgsz_spin.setValue(value)
+        self._applying_imgsz = False
+        self._imgsz_user_set = user
+
     def restore_settings(self) -> None:
         saved = self.settings.value("training/base_model", type=str)
         if saved:
@@ -170,12 +200,15 @@ class TrainingView(QWidget):
                 self.model_combo.setCurrentIndex(index)
         for key, spin, default in (
             ("epochs", self.epochs_spin, 100),
-            ("imgsz", self.imgsz_spin, 640),
             ("batch", self.batch_spin, 16),
         ):
             value = self.settings.value(f"training/{key}", default, type=int)
             if value:
                 spin.setValue(value)
+        # utan sparat val fortsätter storleken att följa datasetet (TASK-80)
+        saved_imgsz = self.settings.value("training/imgsz", type=int)
+        if saved_imgsz:
+            self._set_imgsz(saved_imgsz, user=True)
         self.overfitting_check.setChecked(
             self.settings.value("training/overfitting_guard", True, type=bool)
         )
@@ -183,7 +216,8 @@ class TrainingView(QWidget):
     def save_settings(self) -> None:
         self.settings.setValue("training/base_model", self.model_combo.currentData())
         self.settings.setValue("training/epochs", self.epochs_spin.value())
-        self.settings.setValue("training/imgsz", self.imgsz_spin.value())
+        if self._imgsz_user_set:
+            self.settings.setValue("training/imgsz", self.imgsz_spin.value())
         self.settings.setValue("training/batch", self.batch_spin.value())
         self.settings.setValue(
             "training/overfitting_guard", self.overfitting_check.isChecked()
@@ -193,6 +227,7 @@ class TrainingView(QWidget):
         """Visar sammanställningen för datasetet som träningen utgår från.
 
         Train/val räknas i bildpar, eftersom delningen sker per fångstgrupp (TASK-72).
+        Bildstorlekens default följer datasetets vanligaste upplösning (TASK-80).
         """
         info = self.dataset_service.metadata()
         num_train, num_val = self.dataset_service.train_val_counts(
@@ -203,6 +238,10 @@ class TrainingView(QWidget):
             f"Train/val: {num_train}/{num_val} par  "
             f"Uppdaterad: {info['updated'][:10]}"
         )
+        sizes = self.dataset_service.image_sizes()
+        self.imgsz_info.setText(_format_image_sizes(sizes))
+        if sizes and not self._imgsz_user_set:
+            self._set_imgsz(imgsz_for(sizes[0][0], sizes[0][1]), user=False)
 
     def _on_start(self) -> None:
         import importlib.util

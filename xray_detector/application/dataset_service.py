@@ -60,6 +60,10 @@ class DatasetService:
     def metadata(self) -> dict:
         return self.store.metadata()
 
+    def image_sizes(self) -> list[tuple[int, int, int]]:
+        """Datasetets upplösningar som (bredd, höjd, antal), vanligaste först (TASK-80)."""
+        return self.store.image_sizes()
+
     def export_yolo(self, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
         return export_yolo(self.store, export_root, ratio)
 

@@ -1,7 +1,20 @@
 import numpy as np
 
 from xray_detector.domain.detection import Detection
+from xray_detector.domain.model_input import round_size
 from xray_detector.infrastructure.detectors.base import BaseDetector, class_names_from
+
+
+def input_size_for(frame: np.ndarray) -> tuple[int, int]:
+    """Inferensens bildstorlek följer källans upplösning (TASK-79).
+
+    Ultralytics letterboxar annars varje ram till modellens standardstorlek
+    (640), så en 1080p-ström tappade detaljer innan modellen såg dem. Mätt på
+    RTX 5080 kostar 1088x1920 samma tid som 640 för yolo26n, eftersom
+    förbehandlingen på CPU är den dyra delen.
+    """
+    height, width = frame.shape[:2]
+    return round_size(height), round_size(width)
 
 
 def resolve_device(requested: str) -> str:
@@ -52,6 +65,7 @@ class YoloDetector(BaseDetector):
             frame,
             conf=self.confidence_threshold,
             device=self.device,
+            imgsz=input_size_for(frame),
             verbose=False,
         )[0]
         detections: list[Detection] = []

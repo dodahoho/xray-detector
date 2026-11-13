@@ -1,6 +1,17 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from xray_detector.domain.model_input import DEFAULT_SIZE, round_size
+
+
+def imgsz_for(width: int, height: int) -> int:
+    """Bildstorlek som bevarar datasetets upplösning (TASK-80).
+
+    Träningen tar en enda storlek och letterboxar till en kvadrat, så den
+    längsta sidan väljs: då ryms hela bilden utan att något skalas ned.
+    """
+    return round_size(max(int(width), int(height)))
+
 
 @dataclass
 class TrainConfig:
@@ -8,7 +19,7 @@ class TrainConfig:
     weights: str
     output_dir: Path
     epochs: int = 100
-    imgsz: int = 640
+    imgsz: int = DEFAULT_SIZE
     batch: int = 16
     family: str = "yolo"
     overfitting_guard: bool = True
