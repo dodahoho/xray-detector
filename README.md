@@ -66,7 +66,9 @@ Under grafen ligger två flikar: **Logg** med träningsprocessens utmatning och 
 
 ## Inställningar
 
-Inställningsfliken håller applikationens globala inställningar, det vill säga sådant som inte hör till någon av de andra flikarna. I dag är det temat.
+Inställningsfliken håller applikationens globala inställningar, det vill säga sådant som inte hör till någon av de andra flikarna. I dag är det temat och modellistan.
+
+**Modeller** i inställningsfliken listar modellerna som väljarna i detektions- och träningsvyn bygger sina listor ur. En modell läggs till från en viktfil på disk (**Lägg till från fil...**) eller från en http/https-adress (**Hämta från internet...**); filen kopieras respektive laddas ner till `models/` och får en egen post i listan. Nedladdningen körs i en arbetstråd, så fönstret svarar medan filen hämtas. **Byt namn...** ändrar visningsnamnet i väljarna men rör varken nyckeln eller viktfilen, och **Ta bort** tar bort posten ur listan – viktfilen ligger kvar i `models/`, så en modell som togs bort av misstag går att lägga till igen utan att laddas ner på nytt. En ändrad lista slår igenom direkt i båda modellväljarna. Modellfamiljen avgörs av filens ändelse: `.pt` blir YOLO och `.pth` blir RF-DETR. Listan sparas i `models/models.json`, som skapas först när listan ändras; utan filen gäller standardmodellerna i `model_registry.py`.
 
 Varje vy har dessutom en **Inställningar**-knapp högst upp till höger, med ett kugghjul framför texten. Den öppnar de inställningar som hör till vyn: detektionsvyn har klassfiltret, datasetvyn sorteringen och träningsvyn träningsschemat med nattfönster och inaktivitet samt train/val-delningen. Klassfiltret listar modellens klasser i flera kolumner i en rullista, så även en modell med hundratals klasser (COCO:s 80) ryms i dialogrutan i stället för att växa utanför skärmen. En vy utan egna inställningar har kvar knappen men avstängd, så placeringen är densamma oavsett vilken flik som är öppen.
 
@@ -79,6 +81,8 @@ Detektionsvyns inställningar håller **klassfiltret**: en kryssruta per klass s
 Knapparna har samma höjd (32 px) i alla vyer. Måtten ligger i `xray_detector/ui/style.py` i stället för i varje vy, och vyerna skapar knappar med `button()`; en ändring av `BUTTON_HEIGHT` slår då igenom överallt. Huvudåtgärden i en vy markeras med `primary=True`, vilket ger fet stil i stället för en högre knapp, så raden håller sig rak: **Fånga bilder**, **Spara till dataset** och **Starta träning**. Klassknapparna `+` och `−` i annoteringsvyn är 36 px breda (`ICON_BUTTON_WIDTH`).
 
 Ett element som behöver egna mått skickar `height=` eller `width=` till `button()`, eller använder `apply_metrics()` på en widget som Qt har skapat, som dialogens **Stäng**-knapp. `height=None` lämnar höjden till Qt. `tests/test_style.py` mäter att alla knappar i alla vyer har samma höjd, så en ny knapp som sätter en egen höjd fastnar i testet.
+
+Formulärfälten ligger i ett `FormCard`: en gruppruta med rubrik och ett `QFormLayout` som har en maxbredd (`FORM_MAX_WIDTH`, 520 px). Fälten blir då aldrig bredare än kortet, så en dropdown eller ett textfält inte sträcker sig över hela skärmen på en stor skärm; kortet håller sig till vänster i vyn och resten av bredden lämnas tom. Träningsvyns inställningar, temavalet, träningsschemat, train/val-delningen och sorteringen delar samma mått, och modellistan har en egen, något bredare maxbredd (`LIST_MAX_WIDTH`, 640 px) eftersom knappraden behöver plats. `tests/test_form_width.py` visar fönstret brett och mäter att korten, fälten och knapparna håller sig inom måtten.
 
 ## Tidskrävande operationer
 
@@ -110,6 +114,7 @@ Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Datasetet
 | Sökväg | Innehåll |
 | --- | --- |
 | `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
+| `models/models.json` | Modellistan som väljarna bygger på: nyckel, visningsnamn, familj och viktfil per modell. Skapas först när listan ändras i inställningsfliken; utan filen gäller standardmodellerna. |
 | `models/trained/` | Egentränade modeller, en katalog per träningskörning (`<datum>_<tid>`) med `training_manifest.json` och bästa vikterna under `yolo/weights/best.pt` (YOLO) eller `rfdetr/checkpoint_best_total.pth` (RF-DETR). |
 | `logs/app.log` | Applikationsloggen: start, statusmeddelanden och ohanterade undantag. |
 | `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med tidsstämpel, basmodell och körningskatalog. |

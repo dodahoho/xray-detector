@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
-    QFormLayout,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from xray_detector.ui.shortcuts import mnemonic
-from xray_detector.ui.style import apply_metrics, button
+from xray_detector.ui.style import FormCard, apply_metrics, button
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
 
 GEAR_COLOR = "#8a8a8a"
@@ -57,13 +56,13 @@ def train_ratio(settings) -> float:
     return max(1, min(99, int(percent))) / 100.0
 
 
-class ThemeSection(QGroupBox):
+class ThemeSection(FormCard):
     """Temaval; gäller hela appen och visas i inställningsfliken."""
 
     def __init__(self, settings, parent=None) -> None:
         super().__init__("Utseende", parent)
         self.settings = settings
-        form = QFormLayout(self)
+        form = self.form
         self.theme_combo = QComboBox()
         for key, label in THEMES.items():
             self.theme_combo.addItem(label, key)
@@ -79,13 +78,13 @@ class ThemeSection(QGroupBox):
         apply_theme(QApplication.instance(), theme)
 
 
-class TrainingScheduleSection(QGroupBox):
+class TrainingScheduleSection(FormCard):
     """Träningsschema: nattfönster och inaktivitetsgräns (TASK-7, flyttad hit)."""
 
     def __init__(self, settings, parent=None) -> None:
         super().__init__("Träningsschema", parent)
         self.settings = settings
-        form = QFormLayout(self)
+        form = self.form
         self.night_start = QSpinBox()
         self.night_start.setRange(0, 23)
         self.night_start.setValue(
@@ -120,7 +119,7 @@ class TrainingScheduleSection(QGroupBox):
         self.settings.setValue(key, f"{hour:02d}:00")
 
 
-class TrainValSplitSection(QGroupBox):
+class TrainValSplitSection(FormCard):
     """Andel av datasetet som används till träning respektive validering (TASK-72).
 
     Delningen sker per fångstgrupp, så andelen räknas i bildpar: ett bildpar
@@ -132,7 +131,7 @@ class TrainValSplitSection(QGroupBox):
     def __init__(self, settings, parent=None) -> None:
         super().__init__("Train/val-delning", parent)
         self.settings = settings
-        form = QFormLayout(self)
+        form = self.form
         self.ratio = QSpinBox()
         self.ratio.setRange(1, 99)
         self.ratio.setSuffix(" %")
@@ -148,7 +147,7 @@ class TrainValSplitSection(QGroupBox):
         self.ratio_changed.emit()
 
 
-class DatasetSortSection(QGroupBox):
+class DatasetSortSection(FormCard):
     """Sortering av fångsterna i datasetvyn (TASK-56)."""
 
     order_changed = Signal()
@@ -156,7 +155,7 @@ class DatasetSortSection(QGroupBox):
     def __init__(self, settings, parent=None) -> None:
         super().__init__("Sortering", parent)
         self.settings = settings
-        form = QFormLayout(self)
+        form = self.form
         self.order_combo = QComboBox()
         for key, label in SORT_ORDERS.items():
             self.order_combo.addItem(label, key)

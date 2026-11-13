@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         )
         self.dataset_view = DatasetView(config, self.dataset_service, self.settings)
         self.training_view = TrainingView(config, self.dataset_service, self.settings)
-        self.settings_view = SettingsView(self.settings)
+        self.settings_view = SettingsView(config, self.settings)
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.detection_view, mnemonic("Detektion", "D"))
@@ -72,6 +72,9 @@ class MainWindow(QMainWindow):
         self.training_view.status_changed.connect(self._show_status)
         self.dataset_view.open_annotation_requested.connect(self._on_open_from_dataset)
         self.dataset_view.status_changed.connect(self._show_status)
+        # en ändrad modellista slår igenom i båda modellväljarna (TASK-81)
+        self.settings_view.models_changed.connect(self.detection_view.refresh_models)
+        self.settings_view.models_changed.connect(self.training_view.refresh_models)
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)

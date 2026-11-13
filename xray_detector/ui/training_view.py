@@ -1,12 +1,11 @@
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, Signal
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -32,7 +31,7 @@ from xray_detector.ui.settings_dialog import (
     train_ratio,
 )
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
-from xray_detector.ui.style import button
+from xray_detector.ui.style import FormCard, button
 from xray_detector.ui.training_chart import TrainingChart
 from xray_detector.ui.training_history import TrainingHistoryView
 
@@ -67,7 +66,8 @@ class TrainingView(QWidget):
         QApplication.instance().installEventFilter(self._activity_filter)
         layout = QVBoxLayout(self)
         layout.addLayout(self._build_header())
-        layout.addLayout(self._build_settings())
+        # kortet håller sig till vänster, så fälten inte växer över skärmen (TASK-82)
+        layout.addWidget(self._build_settings(), 0, Qt.AlignmentFlag.AlignLeft)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)
@@ -88,7 +88,23 @@ class TrainingView(QWidget):
         self.bottom_tabs.addTab(self.history, "Tidigare träningar")
         layout.addWidget(self.bottom_tabs, 1)
         self.refresh_dataset_info()
+
+    def refresh_models(self) -> None:
+        """Bygger om basmodellistan ur katalogen och behåller valet (TASK-81)."""
+        from xray_detector.application.model_registry import base_models
+
+        current = self.model_combo.currentData()
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+        self._specs = {}
+        for spec in base_models(self.config.models_dir):
+            self.model_combo.addItem(spec.label, spec.key)
+            self._specs[spec.key] = spec
         self._disable_missing_rfdetr()
+        index = self.model_combo.findData(current)
+        if index >= 0:
+            self.model_combo.setCurrentIndex(index)
+        self.model_combo.blockSignals(False)
 
     def _disable_missing_rfdetr(self) -> None:
         """Avstanger RF-DETR posten nar paketet inte ar installerat."""
@@ -123,17 +139,16 @@ class TrainingView(QWidget):
         split.ratio_changed.connect(self.refresh_dataset_info)
         return [TrainingScheduleSection(self.settings), split]
 
-    def _build_settings(self) -> QFormLayout:
-        form = QFormLayout()
+    def _build_settings(self) -> FormCard:
+        """Träningsinställningarna i ett kort med maxbredd (TASK-82)."""
+        card = FormCard("Träningsinställningar")
+        form = card.form
         self.model_combo = QComboBox()
-        from xray_detector.application.model_registry import base_models
-
-        self._specs = {}
-        for spec in base_models(self.config.models_dir):
-            self.model_combo.addItem(spec.label, spec.key)
-            self._specs[spec.key] = spec
+        self.refresh_models()
         form.addRow("Basmodell:", self.model_combo)
         self.dataset_info = QLabel("-")
+        # sammanställningen kan bli lång; den radbryts i stället för att klippas
+        self.dataset_info.setWordWrap(True)
         form.addRow("Dataset:", self.dataset_info)
         self.epochs_spin = QSpinBox()
         self.epochs_spin.setRange(1, 1000)
@@ -144,12 +159,12 @@ class TrainingView(QWidget):
         self.imgsz_spin.setSingleStep(STEP)
         self.imgsz_spin.setValue(DEFAULT_SIZE)
         self.imgsz_spin.valueChanged.connect(self._on_imgsz_changed)
+        form.addRow("Bildstorlek:", self.imgsz_spin)
+        # upplösningarna får en egen rad, annars klipps listan i ett smalt kort
         self.imgsz_info = QLabel("-")
         self.imgsz_info.setStyleSheet("color: #888;")
-        imgsz_row = QHBoxLayout()
-        imgsz_row.addWidget(self.imgsz_spin)
-        imgsz_row.addWidget(self.imgsz_info, 1)
-        form.addRow("Bildstorlek:", imgsz_row)
+        self.imgsz_info.setWordWrap(True)
+        form.addRow(self.imgsz_info)
         self.batch_spin = QSpinBox()
         self.batch_spin.setRange(1, 128)
         self.batch_spin.setValue(16)
@@ -175,7 +190,7 @@ class TrainingView(QWidget):
         buttons.addWidget(self.abort_button)
         form.addRow(buttons)
         bind_shortcut(self, "Esc", self._on_abort)
-        return form
+        return card
 
     def _on_imgsz_changed(self, _value: int) -> None:
         """Ett eget val stannar kvar när datasetet ändras (TASK-80)."""
