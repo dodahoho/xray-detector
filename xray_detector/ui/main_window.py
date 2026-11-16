@@ -230,5 +230,6 @@ class MainWindow(QMainWindow):
         self.annotation_view.wait_for_save()
         self.dataset_view.wait_for_refresh()
         self.dataset_view.wait_for_export()
+        self.dataset_view.wait_for_variations()
         self.detection_view.stop()
         super().closeEvent(event)

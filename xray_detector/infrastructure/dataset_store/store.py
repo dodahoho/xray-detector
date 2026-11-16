@@ -1,4 +1,5 @@
 import json
+import random
 import shutil
 from collections import Counter
 from datetime import UTC, datetime
@@ -6,7 +7,11 @@ from pathlib import Path
 
 import cv2
 
-from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
+from xray_detector.infrastructure.dataset_store.augment import (
+    apply_variation,
+    variation_plan,
+)
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.dataset_store.yolo import (
     DATA_YAML,
@@ -248,6 +253,99 @@ class DatasetStore:
             write_data_yaml(self.data_yaml, names)
         metadata["info"]["num_objects"] = metadata["info"].get("num_objects", 0) + objects
         self._save_metadata(metadata)
+
+    def add_variations(
+        self,
+        settings: VariationSettings,
+        seed: int | None = None,
+    ) -> int:
+        """Utökar datasetet med syntetiska variationer av originalbilderna (TASK-88).
+
+        Varje variation blir en egen fångstgrupp med samma bilder som
+        originalet, så bildparet hålls ihop och variationen syns som ett eget
+        kort. Bara originalbilderna varieras, så en ny utökning inte varierar
+        en tidigare variation. Returvärdet är antalet tillagda bildpar.
+        """
+        dataset = self.load_dataset()
+        originals = [
+            image for image in dataset["images"] if not image.get("synthetic")
+        ]
+        if not originals or settings.total == 0:
+            return 0
+        groups: dict[object, list[dict]] = {}
+        for image in originals:
+            groups.setdefault(image.get("group") or image["id"], []).append(image)
+        self.images_dir.mkdir(parents=True, exist_ok=True)
+        self.labels_dir.mkdir(parents=True, exist_ok=True)
+        metadata = self._load_metadata()
+        image_id = max((img["id"] for img in metadata["images"]), default=0) + 1
+        group_id = max((img.get("group", 0) for img in metadata["images"]), default=0) + 1
+        names = self.classes()
+        known = list(names)
+        objects = 0
+        added = 0
+        rng = random.Random(seed)
+        for key in sorted(groups, key=str):
+            members = sorted(groups[key], key=lambda img: img["id"])
+            # originalet läses en gång och återanvänds för alla variationer
+            frames = [
+                (image, cv2.imread(str(self.images_dir / image["file_name"])))
+                for image in members
+            ]
+            frames = [(image, frame) for image, frame in frames if frame is not None]
+            if not frames:
+                continue
+            for variation in variation_plan(settings, rng):
+                for image, frame in frames:
+                    varied, annotations = apply_variation(
+                        frame, image["annotations"], variation
+                    )
+                    image_name = f"img_{image_id:06d}.png"
+                    cv2.imwrite(str(self.images_dir / image_name), varied)
+                    height, width = varied.shape[:2]
+                    rows = [
+                        from_pixels(
+                            self._class_index(names, annotation["class_name"]),
+                            annotation["bbox"],
+                            width,
+                            height,
+                        )
+                        for annotation in annotations
+                    ]
+                    write_labels(self._label_path(image_name), rows)
+                    metadata["images"].append(
+                        {
+                            "id": image_id,
+                            "file_name": image_name,
+                            "width": width,
+                            "height": height,
+                            "group": group_id,
+                            "captured": image.get("captured"),
+                            "synthetic": True,
+                            "source": image["id"],
+                            "variation": variation,
+                        }
+                    )
+                    objects += len(rows)
+                    image_id += 1
+                group_id += 1
+                added += 1
+        if names != known:
+            write_data_yaml(self.data_yaml, names)
+        metadata["info"]["num_objects"] = metadata["info"].get("num_objects", 0) + objects
+        self._save_metadata(metadata)
+        return added
+
+    def delete_synthetic(self) -> int:
+        """Tar bort alla syntetiska bilder; returnerar antalet borttagna bilder (TASK-88)."""
+        ids = [
+            image["id"]
+            for image in self._load_metadata()["images"]
+            if image.get("synthetic")
+        ]
+        if ids:
+            self.delete_images(ids)
+        return len(ids)
 
     def metadata(self) -> dict:
         return self._load_metadata()["info"]

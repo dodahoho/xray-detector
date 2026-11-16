@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
 from xray_detector.infrastructure.dataset_store.export import (
     SPLIT_RATIO,
     SPLIT_SEED,
@@ -53,6 +53,18 @@ class DatasetService:
 
     def delete_images(self, image_ids: list[int]) -> None:
         self.store.delete_images(image_ids)
+
+    def add_variations(
+        self,
+        settings: VariationSettings,
+        seed: int | None = None,
+    ) -> int:
+        """Utökar datasetet med syntetiska variationer; antalet tillagda bildpar (TASK-88)."""
+        return self.store.add_variations(settings, seed)
+
+    def delete_synthetic(self) -> int:
+        """Raderar alla syntetiska bilder; antalet borttagna bilder (TASK-88)."""
+        return self.store.delete_synthetic()
 
     def load_dataset(self) -> dict:
         """Datasetet som läsmodell: klasser och bilder med annoteringar i pixlar."""

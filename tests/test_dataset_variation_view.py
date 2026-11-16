@@ -1,0 +1,264 @@
+"""Syntetiska bildpar i datasetvyn: märke, filter, utökning och återställning (TASK-88)."""
+
+import numpy as np
+import pytest
+from PySide6.QtCore import QDate, QSettings
+from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
+
+from tests.conftest import synthetic_frame
+from xray_detector.application.dataset_service import DatasetService
+from xray_detector.domain.capture import StreamFrame
+from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
+from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.ui.dataset_view import (
+    ORIGINALS_ONLY,
+    SYNTHETIC_LABEL,
+    SYNTHETIC_ONLY,
+    DatasetView,
+)
+from xray_detector.ui.variation_dialog import VariationDialog
+
+ORIGINAL_GROUP = 1
+ROTATION_GROUP = 2
+FLIP_GROUP = 3
+
+
+def _sample(fill: int = 60) -> AnnotatedImage:
+    frame = np.full((40, 50, 3), fill, np.uint8)
+    return AnnotatedImage(frame, [{"class_name": "kniv", "bbox": [2, 3, 10, 12]}])
+
+
+@pytest.fixture
+def service(tmp_path) -> DatasetService:
+    """Ett originalpar och två syntetiska par: en rotation och en vändning."""
+    svc = DatasetService(tmp_path / "datasets")
+    svc.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
+    svc.add_variations(
+        VariationSettings(
+            rotation_count=1, rotation_degrees=30, flip_horizontal=True
+        ),
+        seed=5,
+    )
+    return svc
+
+
+@pytest.fixture
+def settings(tmp_path) -> QSettings:
+    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+
+
+def _built(config, service, settings) -> DatasetView:
+    view = DatasetView(config, service, settings)
+    view.refresh()
+    view.wait_for_refresh()
+    return view
+
+
+def _header_labels(view, group_id) -> list[str]:
+    header, _frame = view._group_headers[group_id]
+    return [label.text() for label in header.parentWidget().findChildren(QLabel)]
+
+
+def _select_type(view, key) -> None:
+    view.type_combo.setCurrentIndex(view.type_combo.findData(key))
+
+
+def test_synthetic_pair_shows_a_badge(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    assert SYNTHETIC_LABEL in _header_labels(view, ROTATION_GROUP)
+    assert SYNTHETIC_LABEL in _header_labels(view, FLIP_GROUP)
+    assert SYNTHETIC_LABEL not in _header_labels(view, ORIGINAL_GROUP)
+
+
+def test_synthetic_badge_explains_the_variation(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    header, _frame = view._group_headers[ROTATION_GROUP]
+    tooltips = [
+        label.toolTip() for label in header.parentWidget().findChildren(QLabel)
+    ]
+
+    assert any("rotation" in tooltip for tooltip in tooltips)
+
+
+def test_type_filter_shows_only_the_originals(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    _select_type(view, "original")
+
+    assert list(view._group_headers) == [ORIGINAL_GROUP]
+    assert len(view._thumbs) == 2
+
+
+def test_type_filter_shows_only_the_synthetic_pairs(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    _select_type(view, "synthetic")
+
+    assert list(view._group_headers) == [FLIP_GROUP, ROTATION_GROUP]
+    assert len(view._thumbs) == 4
+
+
+def test_type_filter_can_be_cleared(qapp, config, service, settings):
+    view = _built(config, service, settings)
+    _select_type(view, "synthetic")
+
+    _select_type(view, None)
+
+    assert list(view._group_headers) == [FLIP_GROUP, ROTATION_GROUP, ORIGINAL_GROUP]
+
+
+def test_synthetic_filter_hides_the_pending_captures(qapp, config, tmp_path, settings):
+    """Osparade fångster är alltid original, så de göms med de syntetiska."""
+    service = DatasetService(tmp_path / "datasets")
+    service.add_samples([_sample()], captured="2026-11-01T09:00:00")
+    service.add_variations(VariationSettings(flip_horizontal=True), seed=1)
+    save_pending(
+        tmp_path, [StreamFrame("left", synthetic_frame(), [], "kamera-vanster")]
+    )
+    view = _built(config, service, settings)
+    assert "Osparade fångster" in view._section_headings
+
+    _select_type(view, "synthetic")
+
+    assert "Osparade fångster" not in view._section_headings
+    assert all(not thumb.pending for thumb in view._thumbs)
+
+
+def test_type_filter_combines_with_the_date_filter(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    _select_type(view, "synthetic")
+    view.date_filter.setChecked(True)
+    view.date_from.setDate(QDate.fromString("2026-12-01", "yyyy-MM-dd"))
+    view.date_to.setDate(QDate.fromString("2026-12-31", "yyyy-MM-dd"))
+
+    assert view._group_headers == {}
+
+
+def test_reset_button_is_disabled_without_synthetic_images(
+    qapp, config, tmp_path, settings
+):
+    service = DatasetService(tmp_path / "datasets")
+    service.add_samples([_sample()])
+
+    view = _built(config, service, settings)
+
+    assert not view.reset_button.isEnabled()
+    assert view.variation_button.isEnabled()
+
+
+def test_reset_removes_the_synthetic_images(qapp, config, service, settings, monkeypatch):
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *args, **kwargs: QMessageBox.StandardButton.Yes),
+    )
+    view = _built(config, service, settings)
+    messages = []
+    view.status_changed.connect(messages.append)
+
+    view._on_reset_synthetic()
+    view.wait_for_refresh()
+
+    assert [image["id"] for image in service.load_dataset()["images"]] == [1, 2]
+    assert messages == ["Tog bort 2 syntetiska bildpar från datasetet"]
+    assert list(view._group_headers) == [ORIGINAL_GROUP]
+    assert not view.reset_button.isEnabled()
+
+
+def test_reset_can_be_cancelled(qapp, config, service, settings, monkeypatch):
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *args, **kwargs: QMessageBox.StandardButton.No),
+    )
+    view = _built(config, service, settings)
+
+    view._on_reset_synthetic()
+
+    assert len(service.load_dataset()["images"]) == 6
+
+
+def test_reset_without_synthetic_images_reports_it(
+    qapp, config, tmp_path, settings
+):
+    service = DatasetService(tmp_path / "datasets")
+    service.add_samples([_sample()])
+    view = _built(config, service, settings)
+    messages = []
+    view.status_changed.connect(messages.append)
+
+    view._on_reset_synthetic()
+
+    assert messages == ["Det finns inga syntetiska bilder att ta bort"]
+
+
+def test_extend_adds_the_variations_from_the_dialog(
+    qapp, config, service, settings, monkeypatch
+):
+    def accept(self) -> QDialog.DialogCode:
+        self.rotation_count.setValue(1)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(VariationDialog, "exec", accept)
+    view = _built(config, service, settings)
+    messages = []
+    view.status_changed.connect(messages.append)
+
+    view._on_add_variations()
+    view.wait_for_variations()
+    view.wait_for_refresh()
+
+    assert len(service.load_dataset()["images"]) == 8
+    assert messages == ["Lade till 1 syntetiskt bildpar i datasetet"]
+    assert len(view._group_headers) == 4
+
+
+def test_extend_can_be_cancelled(qapp, config, service, settings, monkeypatch):
+    monkeypatch.setattr(
+        VariationDialog, "exec", lambda self: QDialog.DialogCode.Rejected
+    )
+    view = _built(config, service, settings)
+
+    view._on_add_variations()
+    view.wait_for_variations()
+
+    assert len(service.load_dataset()["images"]) == 6
+
+
+def test_extend_without_originals_reports_it(qapp, config, service, settings):
+    service.delete_images([1, 2])
+    view = _built(config, service, settings)
+    messages = []
+    view.status_changed.connect(messages.append)
+
+    view._on_add_variations()
+
+    assert messages == ["Det finns inga originalbilder att variera"]
+
+
+def test_extend_button_opens_the_dialog_with_the_original_pairs(
+    qapp, config, service, settings, monkeypatch
+):
+    opened = []
+
+    def accept(self) -> QDialog.DialogCode:
+        opened.append(self.pairs)
+        return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(VariationDialog, "exec", accept)
+    view = _built(config, service, settings)
+
+    view.variation_button.click()
+
+    assert opened == [1]
+
+
+def test_type_filter_labels(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    labels = [view.type_combo.itemText(index) for index in range(view.type_combo.count())]
+
+    assert labels == ["Alla bilder", ORIGINALS_ONLY, SYNTHETIC_ONLY]

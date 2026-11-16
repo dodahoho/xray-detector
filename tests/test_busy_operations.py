@@ -6,6 +6,7 @@ import time
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtWidgets import QDialog
 
 from tests.conftest import FakeDetector, synthetic_frame
 from xray_detector.application import model_registry
@@ -17,6 +18,7 @@ from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.detection_view import DetectionView
 from xray_detector.ui.main_window import MainWindow
+from xray_detector.ui.variation_dialog import VariationDialog
 
 
 def _spin_until(qapp, predicate, timeout_s: float = 5.0) -> bool:
@@ -313,6 +315,57 @@ def test_export_keeps_the_indicator_while_the_list_reloads(
     release.set()
     view.wait_for_export()
 
+    assert not view.busy.is_busy()
+
+
+# --- Datasetvyn: utökning med bildvariationer (TASK-88) ---
+
+
+def _accept_with_rotation(dialog):
+    """Väljer en rotation i dialogen och genomför den."""
+    dialog.rotation_count.setValue(1)
+    return QDialog.DialogCode.Accepted
+
+
+def test_variations_show_indicator_and_report_result(
+    qapp, config, settings, dataset_service, monkeypatch
+):
+    monkeypatch.setattr(VariationDialog, "exec", _accept_with_rotation)
+    view = DatasetView(config, dataset_service, settings)
+    view.wait_for_refresh()
+    messages: list = []
+    view.status_changed.connect(messages.append)
+
+    view._on_add_variations()
+
+    assert view.busy.is_busy()
+    assert not view.variation_button.isEnabled()
+    view.wait_for_variations()
+    view.wait_for_refresh()
+
+    assert not view.busy.is_busy()
+    assert view.variation_button.isEnabled()
+    assert messages and messages[0].startswith("Lade till ")
+
+
+def test_variation_failure_is_reported(
+    qapp, config, settings, dataset_service, monkeypatch
+):
+    def broken(settings, seed=None):
+        raise OSError("disken är full")
+
+    monkeypatch.setattr(VariationDialog, "exec", _accept_with_rotation)
+    monkeypatch.setattr(dataset_service, "add_variations", broken)
+    view = DatasetView(config, dataset_service, settings)
+    view.wait_for_refresh()
+    messages: list = []
+    view.status_changed.connect(messages.append)
+
+    view._on_add_variations()
+    view.wait_for_variations()
+
+    assert messages == ["Kunde inte skapa bildvariationer: disken är full"]
+    assert view.variation_button.isEnabled()
     assert not view.busy.is_busy()
 
 

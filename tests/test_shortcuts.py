@@ -93,6 +93,8 @@ def test_button_labels_show_underline_or_hint(window):
     assert training.abort_button.text() == "Avbryt (Esc)"
     assert window.dataset_view.export_coco_button.text() == "&Exportera COCO"
     assert window.dataset_view.export_yolo_button.text() == "Exportera &YOLO"
+    assert window.dataset_view.variation_button.text() == "&Utöka med bildvariationer"
+    assert window.dataset_view.reset_button.text() == "Åte&rställ till original"
 
 
 def test_mnemonics_are_unique_per_view(window):
@@ -132,6 +134,8 @@ def test_buttons_register_their_mnemonic(window):
         window.dataset_view.delete_button: "Alt+B",
         window.dataset_view.export_coco_button: "Alt+E",
         window.dataset_view.export_yolo_button: "Alt+Y",
+        window.dataset_view.variation_button: "Alt+U",
+        window.dataset_view.reset_button: "Alt+R",
         window.training_view.start_button: "Alt+R",
         window.detection_view.settings_button: "Alt+I",
         window.annotation_view.settings_button: "Alt+I",

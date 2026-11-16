@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDateEdit,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -23,6 +24,7 @@ from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
+from xray_detector.infrastructure.dataset_store.augment import describe
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
 from xray_detector.ui.settings_dialog import (
@@ -34,6 +36,7 @@ from xray_detector.ui.settings_dialog import (
 )
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
+from xray_detector.ui.variation_dialog import VariationDialog
 
 THUMB_HEIGHT = 170
 THUMB_BORDER = 3
@@ -48,6 +51,16 @@ DATE_FORMAT = "yyyy-MM-dd"
 HEADER_OBJECT_NAME = "captureHeader"
 HEADER_MARGINS = (6, 2, 6, 2)
 TIME_BADGE_GAP = 6
+ALL_IMAGES = "Alla bilder"
+ORIGINALS_ONLY = "Endast original"
+SYNTHETIC_ONLY = "Endast syntetiska"
+IMAGE_TYPES = (
+    (None, ALL_IMAGES),
+    ("original", ORIGINALS_ONLY),
+    ("synthetic", SYNTHETIC_ONLY),
+)
+SYNTHETIC_COLOR = "#b48ce8"
+SYNTHETIC_LABEL = "Syntetisk"
 
 
 class FlowLayout(QLayout):
@@ -163,6 +176,13 @@ def _header_text_style(color: str) -> str:
     return f"color: {color}; background: transparent; border: none;"
 
 
+def _pairs(count: int) -> str:
+    """'1 syntetiskt bildpar' eller '2 syntetiska bildpar' (TASK-88)."""
+    if count == 1:
+        return "1 syntetiskt bildpar"
+    return f"{count} syntetiska bildpar"
+
+
 def _header_style(color: str, background: str | None = None) -> str:
     """Rubrikens stil; bara färgerna skiljer så rubriken behåller sin storlek (TASK-63).
 
@@ -198,13 +218,29 @@ def _badge(name: str, parent: QWidget) -> QLabel:
     return badge
 
 
+def _synthetic_badge(variation: dict, parent: QWidget) -> QLabel:
+    """Märke som visar att bildparet är syntetiskt genererat (TASK-88).
+
+    Tooltipen anger vilken variation som skapade paret, så en rotation går att
+    skilja från en spegling utan att öppna datasetets metadata.
+    """
+    badge = QLabel(SYNTHETIC_LABEL, parent)
+    badge.setStyleSheet(
+        f"QLabel {{ background: {SYNTHETIC_COLOR}; color: #111; "
+        "border-radius: 6px; padding: 1px 6px; font-weight: bold; }"
+    )
+    badge.setToolTip(f"Syntetisk variation: {describe(variation)}")
+    return badge
+
+
 def _capture_header(
     text: str,
     color: str,
     parent: QWidget,
     classes: tuple[str, ...] = (),
+    synthetic: dict | None = None,
 ) -> tuple[QWidget, QLabel]:
-    """Rubrikrad med tid och klassmärken (TASK-66, TASK-68).
+    """Rubrikrad med tid, syntetisk-märke och klassmärken (TASK-66, TASK-68, TASK-88).
 
     Raden bär färgen och bakgrunden, så markeringen täcker både tiden och
     märkena. Texten är densamma i alla lägen, så märkena hamnar strax efter
@@ -222,8 +258,10 @@ def _capture_header(
     label = QLabel(text, row)
     label.setStyleSheet(_header_text_style(color))
     layout.addWidget(label)
-    if classes:
+    if classes or synthetic is not None:
         layout.addSpacing(TIME_BADGE_GAP)
+    if synthetic is not None:
+        layout.addWidget(_synthetic_badge(synthetic, row))
     for name in classes:
         layout.addWidget(_badge(name, row))
     layout.addStretch(1)
@@ -346,11 +384,18 @@ class DatasetView(QWidget):
         self._refresh_pending = False
         self._export_task: BackgroundTask | None = None
         self._export_label = ""
+        self._variation_task: BackgroundTask | None = None
         self._data: dict | None = None
         self._date_bounds_ready = False
 
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
+        self.variation_button = button(mnemonic("Utöka med bildvariationer", "U"))
+        self.variation_button.clicked.connect(self._on_add_variations)
+        bar.addWidget(self.variation_button)
+        self.reset_button = button(mnemonic("Återställ till original", "R"))
+        self.reset_button.clicked.connect(self._on_reset_synthetic)
+        bar.addWidget(self.reset_button)
         bar.addStretch(1)
         self.export_coco_button = button(mnemonic("Exportera COCO", "E"))
         self.export_coco_button.clicked.connect(self._on_export_coco)
@@ -373,6 +418,13 @@ class DatasetView(QWidget):
         self.class_combo.addItem(ALL_CLASSES, None)
         self.class_combo.currentIndexChanged.connect(self._on_filter_changed)
         filters.addWidget(self.class_combo)
+        filters.addSpacing(12)
+        filters.addWidget(QLabel("Bildtyp:"))
+        self.type_combo = QComboBox()
+        for key, label in IMAGE_TYPES:
+            self.type_combo.addItem(label, key)
+        self.type_combo.currentIndexChanged.connect(self._on_filter_changed)
+        filters.addWidget(self.type_combo)
         filters.addSpacing(12)
         self.date_filter = QCheckBox("Datumintervall")
         self.date_filter.toggled.connect(self._on_date_filter_toggled)
@@ -450,8 +502,12 @@ class DatasetView(QWidget):
             self.refresh()
 
     def _update_busy(self) -> None:
-        """Stänger indikatorn först när varken omladdning eller export pågår."""
-        if self._refresh_task is None and self._export_task is None:
+        """Stänger indikatorn först när ingen omladdning, export eller utökning pågår."""
+        if (
+            self._refresh_task is None
+            and self._export_task is None
+            and self._variation_task is None
+        ):
             self.busy.stop()
 
     def wait_for_refresh(self, timeout_ms: int = 10000) -> None:
@@ -505,6 +561,92 @@ class DatasetView(QWidget):
         if self._export_task is not None:
             self._export_task.wait(timeout_ms)
 
+    def _on_add_variations(self) -> None:
+        """Utökar datasetet med de variationer dialogen valt (TASK-88).
+
+        Dialogen räknar ut antalet bildpar innan den genomförs, och själva
+        bildarbetet ligger i en arbetstråd eftersom varje variation skrivs som
+        en egen bildfil.
+        """
+        if self._variation_task is not None:
+            return
+        pairs = self._original_pairs()
+        if not pairs:
+            self.status_changed.emit("Det finns inga originalbilder att variera")
+            return
+        dialog = VariationDialog(pairs, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        settings = dialog.settings()
+        if settings.total == 0:
+            return
+        self.busy.start("Skapar bildvariationer...")
+        self._set_variation_enabled(False)
+        task = BackgroundTask(lambda: self.dataset_service.add_variations(settings))
+        task.succeeded.connect(self._on_variations_done)
+        task.failed.connect(self._on_variations_failed)
+        task.finished.connect(self._on_variations_finished)
+        self._variation_task = task
+        task.start()
+
+    def _on_variations_done(self, added: int) -> None:
+        self.status_changed.emit(f"Lade till {_pairs(added)} i datasetet")
+        self.refresh()
+
+    def _on_variations_failed(self, message: str) -> None:
+        self.status_changed.emit(f"Kunde inte skapa bildvariationer: {message}")
+
+    def _on_variations_finished(self) -> None:
+        self._variation_task = None
+        self._update_busy()
+        self._set_variation_enabled(True)
+
+    def wait_for_variations(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående utökning (tester och stängning)."""
+        if self._variation_task is not None:
+            self._variation_task.wait(timeout_ms)
+
+    def _set_variation_enabled(self, enabled: bool) -> None:
+        self.variation_button.setEnabled(enabled)
+        self.reset_button.setEnabled(enabled)
+
+    def _on_reset_synthetic(self) -> None:
+        """Raderar alla syntetiska bilder så bara originalen är kvar (TASK-88)."""
+        pairs = self._synthetic_pairs()
+        if not pairs:
+            self.status_changed.emit("Det finns inga syntetiska bilder att ta bort")
+            return
+        answer = QMessageBox.question(
+            self,
+            "Återställ till original",
+            f"Ta bort {_pairs(pairs)}? Originalbilderna ligger kvar.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.dataset_service.delete_synthetic()
+        self.status_changed.emit(f"Tog bort {_pairs(pairs)} från datasetet")
+        self.refresh()
+
+    def _original_pairs(self) -> int:
+        """Antal bildpar som bara innehåller originalbilder (TASK-88)."""
+        return self._pair_count(synthetic=False)
+
+    def _synthetic_pairs(self) -> int:
+        """Antal bildpar som är syntetiskt genererade (TASK-88)."""
+        return self._pair_count(synthetic=True)
+
+    def _pair_count(self, synthetic: bool) -> int:
+        """Antalet fångstgrupper av den ena eller andra typen i det lästa datasetet."""
+        if self._dataset is None:
+            return 0
+        groups = {
+            image.get("group") or image["id"]
+            for image in self._dataset["images"]
+            if bool(image.get("synthetic")) is synthetic
+        }
+        return len(groups)
+
     def _build(self, data: dict) -> None:
         """Ritar listan i GUI-tråden från det arbetstråden läste (TASK-40)."""
         self._data = data
@@ -522,6 +664,8 @@ class DatasetView(QWidget):
         newest_first = sort_order(self.settings) == SORT_NEWEST
         dataset = data["dataset"]
         self._dataset = dataset
+        self.variation_button.setEnabled(self._original_pairs() > 0)
+        self.reset_button.setEnabled(self._synthetic_pairs() > 0)
         annotations_by_image: dict[int, list[dict]] = {
             image["id"]: image["annotations"] for image in dataset["images"]
         }
@@ -531,9 +675,12 @@ class DatasetView(QWidget):
             key = image.get("group") or image["id"]
             groups.setdefault(key, []).append(image)
 
+        selected_type = self.type_combo.currentData()
         by_date: dict[str, list] = {}
         for key in sorted(groups, reverse=newest_first):
             images = sorted(groups[key], key=lambda img: img["id"])
+            if not self._matches_type(images, selected_type):
+                continue
             stamp = _format_timestamp(images[0].get("captured")) or _mtime_timestamp(
                 self.dataset_service.images_dir / images[0]["file_name"]
             )
@@ -543,7 +690,9 @@ class DatasetView(QWidget):
             self._filter_classes(dataset, data["pending"]),
             self._capture_days(data, by_date),
         )
-        self._add_pending_section(data["pending"], newest_first)
+        if selected_type != "synthetic":
+            # osparade fångster är alltid original, så de göms med syntetiska
+            self._add_pending_section(data["pending"], newest_first)
         if not dataset["images"]:
             if not self._thumbs:
                 self.content_layout.addWidget(QLabel("Inga bilder sparade än."))
@@ -649,6 +798,18 @@ class DatasetView(QWidget):
                 return False
         return True
 
+    @staticmethod
+    def _matches_type(images: list[dict], selected: str | None) -> bool:
+        """Om fångsten är syntetisk eller ett original (TASK-88).
+
+        Ett bildpar är syntetiskt när bilderna i det är det, så filtret gäller
+        hela paret och korten delas aldrig upp.
+        """
+        if selected is None:
+            return True
+        synthetic = any(image.get("synthetic") for image in images)
+        return synthetic if selected == "synthetic" else not synthetic
+
     def _on_filter_changed(self, *_args) -> None:
         """Bygger om listan med de nya filtren; datan läses inte om (TASK-67)."""
         if self._data is not None:
@@ -700,12 +861,18 @@ class DatasetView(QWidget):
                 }
             )
         )
+        variation = next(
+            (img.get("variation") or {} for img in images if img.get("synthetic")),
+            None,
+        )
         time_label = stamp[11:] if stamp else f"Fångst {key}"
         card = CaptureCard(key)
         card.setFrameShape(QFrame.Shape.Box)
         card.setStyleSheet(_card_style("#666"))
         card.clicked.connect(self._on_card_clicked)
-        header, header_label = _capture_header(time_label, "#888", card, classes)
+        header, header_label = _capture_header(
+            time_label, "#888", card, classes, variation
+        )
         self._group_headers[key] = (header_label, card)
         inner = QVBoxLayout(card)
         inner.setContentsMargins(8, 8, 8, 8)
