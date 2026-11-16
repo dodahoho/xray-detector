@@ -25,7 +25,7 @@ from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
-from xray_detector.ui.badge import BadgeTracker, badge_delays, draw_badge
+from xray_detector.ui.badge import BadgeTracker, badge_delays, draw_badges
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
@@ -427,21 +427,22 @@ class StreamPanel(QFrame):
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
-        self._draw_badge(scaled, stream_frame.detections)
+        self._draw_badges(scaled, stream_frame.detections)
         self.display.setPixmap(scaled)
 
-    def _draw_badge(self, pixmap: QPixmap, detections: list[Detection]) -> None:
-        """Ritar klassmärket på den skalade bilden (TASK-84).
+    def _draw_badges(self, pixmap: QPixmap, detections: list[Detection]) -> None:
+        """Ritar klassmärkena på den skalade bilden (TASK-84).
 
-        Märket ritas efter skalningen, så det har samma storlek oavsett
-        källans upplösning och hamnar högst upp i själva videobilden.
+        Ett märke per klass som syns i ramen, staplade uppifrån och ned. De
+        ritas efter skalningen, så de har samma storlek oavsett källans
+        upplösning och hamnar högst upp i själva videobilden.
         """
-        badge = self.badge.update(detections)
-        if badge is None:
+        badges = self.badge.update(detections)
+        if not badges:
             return
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        draw_badge(painter, pixmap.rect(), badge, align_right=self.badge_align_right)
+        draw_badges(painter, pixmap.rect(), badges, align_right=self.badge_align_right)
         painter.end()
 
     def set_badge_delays(self, show_frames: int, hide_frames: int) -> None:

@@ -9,6 +9,9 @@ En detektion nära confidence-tröskeln slår av och på mellan ramar, så märk
 kräver ett antal ramar i följd med klassen innan det visas och lika många utan
 innan det döljs. Fördröjningarna är inställbara och räknas i ramar, eftersom
 det är ramar som flimrar.
+
+Detekteras flera klasser samtidigt får varje klass ett eget märke, staplade
+uppifrån och ned med den säkraste klassen överst.
 """
 
 from PySide6.QtCore import QRect, Qt
@@ -24,6 +27,7 @@ HIDE_FRAMES_DEFAULT = 10
 BADGE_MARGIN = 8
 BADGE_PADDING = 6
 BADGE_RADIUS = 6
+BADGE_GAP = 4
 BADGE_POINT_SIZE = 12
 DARK_TEXT = "#111"
 LIGHT_TEXT = "#fff"
@@ -51,12 +55,12 @@ def _frames(settings, key: str, default: int) -> int:
 
 
 class BadgeTracker:
-    """Vilket klassmärke som ska visas, med hysteres över ramar.
+    """Vilka klassmärken som ska visas, med hysteres över ramar.
 
     Varje klass räknar sammanhängande ramar med och utan detektion. Klassen
     syns när den setts show_frames ramar i följd och släcks först efter
     hide_frames ramar utan, så enstaka missade ramar inte får märket att
-    flimra. Syns flera klasser samtidigt visas den med högst sannolikhet.
+    flimra. Flera klasser kan synas samtidigt och får då varsitt märke.
     """
 
     def __init__(
@@ -81,8 +85,8 @@ class BadgeTracker:
         self._last.clear()
         self._visible.clear()
 
-    def update(self, detections: list[Detection]) -> Detection | None:
-        """Räknar ramen och returnerar märket som ska visas, om något."""
+    def update(self, detections: list[Detection]) -> list[Detection]:
+        """Räknar ramen och returnerar märkena som ska visas, säkrast först."""
         present = _best_per_class(detections)
         for name in list(self._hits):
             if name in present:
@@ -103,11 +107,9 @@ class BadgeTracker:
             elif self._hits[name] >= self.show_frames:
                 self._visible.add(name)
         self._forget_hidden()
-        if not self._visible:
-            return None
-        return max(
+        return sorted(
             (self._last[name] for name in self._visible),
-            key=lambda detection: detection.confidence,
+            key=lambda detection: (-detection.confidence, detection.class_name),
         )
 
     def _forget_hidden(self) -> None:
@@ -137,28 +139,39 @@ def badge_text(detection: Detection) -> str:
     return f"{detection.class_name} {detection.confidence * 100:.0f} %"
 
 
-def draw_badge(
-    painter: QPainter, area: QRect, detection: Detection, *, align_right: bool
+def draw_badges(
+    painter: QPainter, area: QRect, detections: list[Detection], *, align_right: bool
 ) -> None:
-    """Ritar klass och sannolikhet högst upp i videofönstret.
+    """Ritar klass och sannolikhet högst upp i videofönstret, ett märke per klass.
 
-    Märket ritas på den skalade bilden, så texten har samma storlek oavsett
-    källans upplösning. Bakgrunden är klassens färg, så kontrasten mot bilden
-    bakom spelar ingen roll.
+    Märkena staplas uppifrån och ned med den säkraste klassen överst, så flera
+    detekterade klasser syns samtidigt utan att skriva över varandra. De ritas
+    på den skalade bilden, så texten har samma storlek oavsett källans
+    upplösning. Bakgrunden är klassens färg, så kontrasten mot bilden bakom
+    spelar ingen roll. Fler märken än det finns plats för ritas inte.
     """
-    color = class_color(detection.class_name)
-    text = badge_text(detection)
     font = QFont()
     font.setPointSize(BADGE_POINT_SIZE)
     font.setBold(True)
     painter.setFont(font)
     metrics = painter.fontMetrics()
-    width = metrics.horizontalAdvance(text) + 2 * BADGE_PADDING
     height = metrics.height() + 2 * BADGE_PADDING
-    x = area.right() - BADGE_MARGIN - width if align_right else area.left() + BADGE_MARGIN
-    rect = QRect(x, area.top() + BADGE_MARGIN, width, height)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(color)
-    painter.drawRoundedRect(rect, BADGE_RADIUS, BADGE_RADIUS)
-    painter.setPen(QColor(DARK_TEXT if color.lightness() > 140 else LIGHT_TEXT))
-    painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+    top = area.top() + BADGE_MARGIN
+    for detection in detections:
+        if top + height > area.bottom() - BADGE_MARGIN:
+            break
+        color = class_color(detection.class_name)
+        text = badge_text(detection)
+        width = metrics.horizontalAdvance(text) + 2 * BADGE_PADDING
+        x = (
+            area.right() - BADGE_MARGIN - width
+            if align_right
+            else area.left() + BADGE_MARGIN
+        )
+        rect = QRect(x, top, width, height)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        painter.drawRoundedRect(rect, BADGE_RADIUS, BADGE_RADIUS)
+        painter.setPen(QColor(DARK_TEXT if color.lightness() > 140 else LIGHT_TEXT))
+        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
+        top += height + BADGE_GAP

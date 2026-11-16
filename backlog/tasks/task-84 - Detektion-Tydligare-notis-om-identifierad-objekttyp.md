@@ -1,11 +1,11 @@
 ---
 id: TASK-84
 title: Detektion - Tydligare notis om identifierad objekttyp
-status: Done
+status: In Progress
 assignee:
   - '@vibe'
 created_date: '2026-11-16T07:47:00Z'
-updated_date: '2026-11-16T07:54:00Z'
+updated_date: '2026-11-16T08:12:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -34,6 +34,7 @@ Föreslår följande:
 - [x] #3 Badgen visas först efter ett inställningsbart antal ramar med detektion och döljs först efter ett inställningsbart antal ramar utan
 - [x] #4 Fördröjningarna går att ställa in i detektionsvyns inställningar och sparas mellan starterna
 - [x] #5 Testerna passerar
+- [x] #6 Flera klasser som detekteras samtidigt visas som varsitt märke i videofönstret
 <!-- AC:END -->
 
 ## Definition of Done
@@ -53,6 +54,8 @@ Föreslår följande:
 3. ui/settings_dialog.py: BadgeSection med två spinnrar (visa efter N ramar, dölj efter N ramar) som sparas i QSettings och slår igenom direkt på båda panelerna.
 4. Tester i tests/test_detection_badge.py: hysteresen (visas efter N ramar, hålls kvar över glapp, döljs efter N missade ramar, högsta sannolikhet vinner), märkets placering i respektive panel, att etiketten blir större och att inställningarna sparas och slår igenom.
 5. Uppdatera README (detektionsläget och vyernas inställningar) samt groma-beskrivningen av detektionsvyn.
+
+6. Uppföljning: märket visar bara en klass trots att flera detekteras. BadgeTracker.update returnerar i stället alla synliga klasser sorterade på sannolikhet, och draw_badges staplar ett märke per klass uppifrån och ned på samma plats i fönstret. Uppdatera testerna så de räknar listor, lägg till tester för två klasser samtidigt, och uppdatera README och groma.
 <!-- SECTION:PLAN:END -->
 
 ## Implementation Notes
@@ -70,21 +73,32 @@ Verifiering:
 - Visuell kontroll: båda panelerna renderade till PNG med ljus och mörk bakgrund. Märket sitter högst upp till höger respektive vänster, med klassfärg och mörk text, och rutans etikett är tydligt större.
 
 Dokumentation: README (detektionsläget och avsnittet om vyernas inställningar) samt groma (ny komponenten badge med beskrivning, relationen detection-view -> badge och detektionsvyns översikt).
+
+Uppföljning: flera klasser samtidigt.
+- BadgeTracker.update returnerar nu en lista med alla synliga klassers säkraste detektion, sorterad på sannolikhet (och klassnamn vid lika), i stället för en enda Detection. Hysteresen är oförändrad och räknas fortfarande per klass, så en klass som ligger stabilt över tröskeln syns även när en annan flimrar.
+- draw_badge ersattes av draw_badges, som staplar ett märke per klass uppifrån och ned med BADGE_GAP mellan. Den säkraste klassen ligger överst. Märken som inte får plats i fönstret ritas inte, så en liten panel inte täcks helt.
+- StreamPanel._draw_badge heter _draw_badges och skickar hela listan till draw_badges.
+
+Verifiering:
+- tests/test_detection_badge.py: 21 tester. Nya: varje detekterad klass får ett märke med den säkraste först, en klass som ännu väntar på show_frames får inget märke medan en annan får det, en klass som försvinner lämnar de andra i fred, båda klasserna syns i märkesremsan i båda panelerna, och det andra märket sitter under det första.
+- Regressionen reproducerad: med badge.py och detection_view.py återställda till HEAD fallerar test_both_detected_classes_get_a_badge med 0 pixlar i kniv-färg, alltså exakt det rapporterade felet. Med ändringen passerar alla 21.
+- 93 tester i de berörda filerna passerar. Hela sviten: 600 passed, 1 skipped. test_sample_video_meta som föll i förra omgången passerar nu.
+- Visuell kontroll: panel renderad till PNG med tre klasser (pistol 93 %, kniv 71 %, bomb 55 %). Tre staplade märken högst upp till höger, i klassfärg och i sannolikhetsordning.
+
+Dokumentation: README (detektionsläget och klassmärkets fördröjning) samt groma (badge-komponenten och detektionsvyns översikt).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Detektionsvyn visar nu vilken klass som identifieras, både på rutan och högst upp i videofönstret.
+Detektionsvyn visar nu ett märke per detekterad klass, så två klasser i samma ram ger två märken i stället för ett.
 
 Vad som ändrades:
-- Etiketten på en detekterad ruta ritas i 20 pt i stället för 10 pt och placeras med fontmetrik, så den inte klipps när rutan ligger högt i bilden.
-- Ny modul ui/badge.py med BadgeTracker, som per klass räknar sammanhängande ramar med och utan detektion. Märket visas först efter 3 ramar med klassen och döljs först efter 10 ramar utan, så en detektion nära tröskelvärdet inte får det att flimra. Syns flera klasser samtidigt visas den med högst sannolikhet.
-- Märket ritas på den skalade bilden, så textstorleken inte beror av källans upplösning, och sitter högst upp till höger i vänstra panelen och högst upp till vänster i högra, så de två märkena hamnar nära varandra. Bakgrunden är klassens färg, så kontrasten mot bilden bakom spelar ingen roll.
-- Fördröjningarna ställs in i detektionsvyns inställningar (Visa efter / Dölj efter, i ramar) och sparas i settings.ini under detection/badge_show_frames och detection/badge_hide_frames. Ändringar slår igenom direkt på båda panelerna.
-- När detektionen slås av eller pausas nollställs spårningen, så märket försvinner direkt i stället för att dröja kvar.
+- BadgeTracker.update returnerar en lista med alla synliga klassers säkraste detektion, sorterad på sannolikhet med den säkraste först, i stället för en enda Detection. Hysteresen är oförändrad och räknas per klass, så en klass som ligger stabilt över tröskeln syns även när en annan flimrar kring den.
+- draw_badge ersattes av draw_badges, som staplar ett märke per klass uppifrån och ned på samma plats i fönstret: högst upp till höger i vänstra panelen och högst upp till vänster i högra. Märken som inte får plats i fönstret ritas inte, så en liten panel inte täcks helt av märken.
+- StreamPanel._draw_badge heter _draw_badges och skickar hela listan vidare.
 
-Verifiering: 16 nya tester i tests/test_detection_badge.py, och 88 tester i de berörda filerna passerar. Hela sviten gav 594 passed och 1 failed: test_sample_video_meta förväntar 2250 ramar men demovideorna byttes i c1d39f4 och har 6000. Felet finns även på HEAD före denna uppgift och rör inte denna ändring. Båda panelerna renderades till PNG och kontrollerades visuellt.
+Verifiering: 21 tester i tests/test_detection_badge.py, varav fem nya för flera klasser samtidigt. Regressionen är reproducerad: med badge.py och detection_view.py återställda till HEAD fallerar testet för två klasser med noll pixlar i den andra klassens färg, alltså exakt det rapporterade felet. 93 tester i de berörda filerna passerar och hela sviten ger 600 passed, 1 skipped. En panel med tre klasser renderades till PNG och kontrollerades: tre staplade märken i klassfärg, i sannolikhetsordning.
 
-Risker och uppföljning: test_sample_video_meta behöver uppdateras till de nya demovideornas ramantal, och groma-komponenten translations.md ligger fortfarande ocommittad sedan TASK-83.
+Risker och uppföljning: märkena staplas nedåt, så en panel med många klasser samtidigt får de lägst rankade klasserna utan märke när platsen tar slut. Klassfiltret är vägen att begränsa antalet.
 <!-- SECTION:FINAL_SUMMARY:END -->
