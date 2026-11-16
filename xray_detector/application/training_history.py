@@ -13,6 +13,7 @@ from pathlib import Path
 
 from xray_detector.domain.training import EpochMetrics
 from xray_detector.infrastructure.training.epoch_metrics import read_epoch_history
+from xray_detector.infrastructure.training.verdict import Verdict, verdict
 
 MANIFEST_NAME = "training_manifest.json"
 #: Metrics-filen träningsprocessen skriver per familj (TASK-70).
@@ -24,6 +25,12 @@ STATUS_LABELS = {
     "completed": "Klar",
     "aborted": "Avbruten",
     "running": "Pågår",
+}
+#: Varför en avbruten körning stannade (TASK-97). Ett stopp av
+#: överträningsvakten är ett lyckat utfall, en krasch är det inte.
+STOP_REASON_LABELS = {
+    "overfitting": "överträning",
+    "error": "fel",
 }
 UNKNOWN = "-"
 
@@ -48,10 +55,19 @@ class TrainingRun:
     dataset_yaml: str
     imgsz: int | None
     batch: int | None
+    stop_reason: str | None = None
 
     @property
     def status_label(self) -> str:
-        return STATUS_LABELS.get(self.status, self.status or UNKNOWN)
+        label = STATUS_LABELS.get(self.status, self.status or UNKNOWN)
+        if self.status == "aborted" and self.stop_reason in STOP_REASON_LABELS:
+            return f"{label} ({STOP_REASON_LABELS[self.stop_reason]})"
+        return label
+
+    @property
+    def verdict(self) -> Verdict:
+        """Dom över hur körningen slutade, ur de sparade epokvärdena (TASK-97)."""
+        return verdict(run_epochs(self))
 
     @property
     def duration_text(self) -> str:
@@ -90,6 +106,7 @@ class TrainingRun:
             f"Epoker: {self.epochs_text}",
             f"mAP50-95: {self.map50_95_text}",
             f"Status: {self.status_label}",
+            f"Dom: {self.verdict.text}",
         ]
         if self.classes:
             parts.append(f"Klasser: {', '.join(self.classes)}")
@@ -137,6 +154,7 @@ def _read_run(trained_dir: Path, manifest_path: Path) -> TrainingRun | None:
         dataset_yaml=str(manifest.get("dataset_yaml") or ""),
         imgsz=manifest.get("imgsz"),
         batch=manifest.get("batch"),
+        stop_reason=manifest.get("stop_reason"),
     )
 
 

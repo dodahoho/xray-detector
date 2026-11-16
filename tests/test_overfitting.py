@@ -226,6 +226,9 @@ def test_rfdetr_gets_early_stopping_when_the_guard_is_on(monkeypatch, tmp_path):
     captured = {}
 
     class _FakeNano:
+        def __init__(self, **kwargs):
+            pass
+
         def train(self, **kwargs):
             captured.update(kwargs)
 
@@ -248,6 +251,9 @@ def test_rfdetr_gets_no_early_stopping_when_the_guard_is_off(monkeypatch, tmp_pa
     captured = {}
 
     class _FakeNano:
+        def __init__(self, **kwargs):
+            pass
+
         def train(self, **kwargs):
             captured.update(kwargs)
 

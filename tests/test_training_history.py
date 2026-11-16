@@ -249,7 +249,7 @@ def test_history_view_lists_the_runs(qapp, tmp_path):
 
     assert view.table.rowCount() == 2
     assert view.table.item(0, 0).text() == "2026-11-12_090000"
-    assert view.table.item(0, 5).text() == "Klar"
+    assert view.table.item(0, 6).text() == "Klar"
     assert view.table.item(0, 3).text() == "12 min 30 s"
 
 

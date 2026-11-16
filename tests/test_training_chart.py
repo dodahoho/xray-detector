@@ -183,6 +183,7 @@ class _FakeWorker(QObject):
 
     progress = Signal(str)
     epoch_metrics = Signal(object)
+    progress_event = Signal(object)
     abort_reason = Signal(str)
     finished_training = Signal(bool, str)
 

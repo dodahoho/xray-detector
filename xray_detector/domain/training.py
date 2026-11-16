@@ -3,6 +3,15 @@ from pathlib import Path
 
 from xray_detector.domain.model_input import DEFAULT_SIZE, round_size
 
+#: RF-DETR:s upplösning måste vara delbar med patch_size * num_windows, som är
+#: 16 * 2 för alla storlekar (TASK-91).
+RFDETR_RESOLUTION_DIVISOR = 32
+
+#: Batch-default per familj (TASK-91). RF-DETR large får OOM på ett 16 GB-kort
+#: vid resolution 704 med batch 16, och CUDA-kontexten går inte att rädda efter
+#: det, så RF-DETR utgår från en mindre batch.
+DEFAULT_BATCH = {"yolo": 16, "rfdetr": 4}
+
 
 def imgsz_for(width: int, height: int) -> int:
     """Bildstorlek som bevarar datasetets upplösning (TASK-80).
@@ -13,6 +22,30 @@ def imgsz_for(width: int, height: int) -> int:
     return round_size(max(int(width), int(height)))
 
 
+def default_batch(family: str) -> int:
+    """Batch-default för modellfamiljen."""
+    return DEFAULT_BATCH.get(family, DEFAULT_BATCH["yolo"])
+
+
+def rfdetr_resolution_error(imgsz: int) -> str | None:
+    """Felmeddelande när bildstorleken inte går att använda som RF-DETR-upplösning.
+
+    RF-DETR delar bilden i patchar om patch_size pixlar och väver dem över
+    num_windows fönster, så upplösningen måste vara delbar med 32. Felet
+    returneras i stället för att kastas, så både träningsprocessen och vyn kan
+    avvisa storleken innan träningen startar.
+    """
+    if imgsz <= 0:
+        return f"Bildstorleken måste vara positiv, fick {imgsz}"
+    if imgsz % RFDETR_RESOLUTION_DIVISOR:
+        return (
+            f"RF-DETR kräver en bildstorlek som är delbar med "
+            f"{RFDETR_RESOLUTION_DIVISOR} (patch_size 16 x num_windows 2), "
+            f"fick {imgsz}"
+        )
+    return None
+
+
 @dataclass
 class TrainConfig:
     dataset_yaml: Path
@@ -20,9 +53,13 @@ class TrainConfig:
     output_dir: Path
     epochs: int = 100
     imgsz: int = DEFAULT_SIZE
-    batch: int = 16
+    batch: int | None = None
     family: str = "yolo"
     overfitting_guard: bool = True
+
+    def batch_size(self) -> int:
+        """Batchestorleken; familjens default när inget eget värde är satt."""
+        return default_batch(self.family) if self.batch is None else int(self.batch)
 
 
 @dataclass(frozen=True)
@@ -91,3 +128,57 @@ def _optional_float(value) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+#: En heartbeat som är äldre än så här rapporterar ingen pågående träning (TASK-96).
+PROGRESS_STALE_AFTER_S = 10.0
+
+
+@dataclass(frozen=True)
+class ProgressEvent:
+    """Hur långt träningsprocessen kommit inom pågående epok (TASK-96).
+
+    Epokeventet kommer först när epoken är klar, så en epok som tar flera
+    minuter ser ut som en hängning. Det här eventet skickas med jämna mellanrum
+    under epoken och bär sin egen tidsstämpel, så mottagaren kan avgöra om
+    rapporten fortfarande är aktuell.
+    """
+
+    epoch: int
+    step: int
+    total_steps: int
+    updated: float
+
+    @property
+    def fraction(self) -> float:
+        return self.step / self.total_steps if self.total_steps > 0 else 0.0
+
+    def age(self, now: float) -> float:
+        """Sekunder sedan träningsprocessen skrev eventet."""
+        return max(0.0, now - self.updated)
+
+    def is_stale(self, now: float, max_age: float = PROGRESS_STALE_AFTER_S) -> bool:
+        """Sant när ingen ny rapport kommit på max_age sekunder."""
+        return self.age(now) > max_age
+
+    def as_dict(self) -> dict[str, float | int]:
+        return {
+            "epoch": self.epoch,
+            "step": self.step,
+            "total_steps": self.total_steps,
+            "updated": self.updated,
+        }
+
+    @classmethod
+    def from_dict(cls, payload: dict) -> "ProgressEvent":
+        return cls(
+            epoch=int(payload["epoch"]),
+            step=int(payload["step"]),
+            total_steps=int(payload["total_steps"]),
+            updated=float(payload["updated"]),
+        )
+
+    def summary(self) -> str:
+        """Läsbar rad för träningsvyn."""
+        percent = round(self.fraction * 100)
+        return f"Epok {self.epoch} · steg {self.step}/{self.total_steps} ({percent} %)"

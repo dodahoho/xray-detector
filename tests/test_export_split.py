@@ -147,7 +147,10 @@ def test_export_rfdetr_uses_the_ratio(tmp_path):
 
     train = json.loads((out / "train" / "_annotations.coco.json").read_text(encoding="utf-8"))
     valid = json.loads((out / "valid" / "_annotations.coco.json").read_text(encoding="utf-8"))
-    assert (len(train["images"]), len(valid["images"])) == (6, 6)
+    test = json.loads((out / "test" / "_annotations.coco.json").read_text(encoding="utf-8"))
+    assert len(train["images"]) == 6
+    # resten delas mellan valid och test i stället för att test kopierar valid
+    assert len(valid["images"]) + len(test["images"]) == 6
 
 
 def test_service_train_val_counts(tmp_path):
@@ -156,3 +159,155 @@ def test_service_train_val_counts(tmp_path):
     add_groups(svc, 6)
     assert svc.train_val_counts() == (5, 1)
     assert svc.train_val_counts(0.5) == (3, 3)
+
+
+# --- RF-DETR:s test-del (TASK-93) ---
+
+
+def _split_ids(out, split: str) -> set[int]:
+    coco = json.loads((out / split / "_annotations.coco.json").read_text(encoding="utf-8"))
+    return {image["id"] for image in coco["images"]}
+
+
+def test_rfdetr_test_split_is_not_a_copy_of_valid(tmp_path):
+    """Test ska vara egna bilder, inte samma som val (TASK-93)."""
+    svc = make_service(tmp_path)
+    add_groups(svc, 6)
+
+    out = svc.export_rfdetr(tmp_path / "exports")
+
+    train, valid, test = (_split_ids(out, name) for name in ("train", "valid", "test"))
+    assert test, "test-delen är tom"
+    assert not (test & valid)
+    assert not (test & train)
+    assert not (valid & train)
+
+
+def test_rfdetr_manifest_counts_the_test_split(tmp_path):
+    svc = make_service(tmp_path)
+    add_groups(svc, 6)
+
+    out = svc.export_rfdetr(tmp_path / "exports")
+
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["num_test"] == len(_split_ids(out, "test"))
+    assert manifest["num_test"] > 0
+
+
+def test_rfdetr_split_is_reproducible(tmp_path):
+    svc = make_service(tmp_path)
+    add_groups(svc, 8)
+
+    first = svc.export_rfdetr(tmp_path / "a")
+    second = svc.export_rfdetr(tmp_path / "b")
+
+    for split in ("train", "valid", "test"):
+        assert _split_ids(first, split) == _split_ids(second, split)
+
+
+def test_rfdetr_split_keeps_the_image_pairs_together(tmp_path):
+    svc = make_service(tmp_path)
+    add_groups(svc, 6)
+
+    out = svc.export_rfdetr(tmp_path / "exports")
+
+    dataset = svc.load_dataset()
+    group_of = {image["id"]: image.get("group") for image in dataset["images"]}
+    split_of_group: dict[object, str] = {}
+    for split in ("train", "valid", "test"):
+        for image_id in _split_ids(out, split):
+            group = group_of[image_id]
+            assert split_of_group.setdefault(group, split) == split, (
+                f"grupp {group} ligger i både {split_of_group[group]} och {split}"
+            )
+
+
+def test_rfdetr_with_two_groups_has_no_test_split(tmp_path):
+    """Med färre än tre grupper går tre delmängder inte att fylla (TASK-93)."""
+    svc = make_service(tmp_path)
+    add_groups(svc, 2)
+
+    out = svc.export_rfdetr(tmp_path / "exports")
+
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["num_test"] == 0
+    assert manifest["num_val"] == 2
+
+
+# --- Stratifierad delning (TASK-94) ---
+
+
+def _classes(images: list[dict]) -> set[str]:
+    return {
+        annotation["class_name"]
+        for image in images
+        for annotation in image.get("annotations") or []
+    }
+
+
+def test_rare_class_lands_in_both_train_and_val():
+    """En klass med få exempel får inte hamna helt utanför val (TASK-94)."""
+    images = [
+        {
+            "id": group,
+            "group": group,
+            "annotations": [{"class_name": "kniv", "bbox": [0, 0, 1, 1]}],
+        }
+        for group in range(1, 9)
+    ]
+    images += [
+        {
+            "id": group,
+            "group": group,
+            "annotations": [{"class_name": "pistol", "bbox": [0, 0, 1, 1]}],
+        }
+        for group in (9, 10)
+    ]
+
+    train, val = train_val_split(images)
+
+    assert _classes(train) == {"kniv", "pistol"}
+    assert _classes(val) == {"kniv", "pistol"}
+
+
+def test_stratified_split_still_keeps_the_groups_together():
+    images = [
+        {
+            "id": group,
+            "group": group,
+            "annotations": [{"class_name": "kniv", "bbox": [0, 0, 1, 1]}],
+        }
+        for group in range(1, 11)
+    ]
+    images += [
+        {
+            "id": group,
+            "group": group,
+            "annotations": [{"class_name": "pistol", "bbox": [0, 0, 1, 1]}],
+        }
+        for group in (11, 12)
+    ]
+
+    train, val = train_val_split(images)
+
+    train_groups = {image["group"] for image in train}
+    val_groups = {image["group"] for image in val}
+    assert not (train_groups & val_groups)
+    assert train_groups | val_groups == set(range(1, 13))
+
+
+def test_stratified_split_is_reproducible():
+    images = [
+        {
+            "id": group,
+            "group": group,
+            "annotations": [{"class_name": "kniv", "bbox": [0, 0, 1, 1]}],
+        }
+        for group in range(1, 21)
+    ]
+
+    first = train_val_split(images)
+    second = train_val_split(images)
+
+    assert [image["id"] for image in first[0]] == [image["id"] for image in second[0]]
+    assert [image["id"] for image in first[1]] == [image["id"] for image in second[1]]

@@ -9,6 +9,144 @@ from xray_detector.infrastructure.dataset_store.yolo import label_name, write_da
 
 SPLIT_RATIO = 0.8
 SPLIT_SEED = 42
+#: RF-DETR:s test-del får en egen grupp först när datasetet har minst tre (TASK-93).
+MIN_GROUPS_FOR_TEST = 3
+
+
+def _group_key(image: dict) -> object:
+    return image.get("group") or image["id"]
+
+
+def _groups(images: list[dict]) -> dict[object, list[dict]]:
+    """Bilderna grupperade per fångstgrupp (bildpar)."""
+    groups: dict[object, list[dict]] = {}
+    for image in images:
+        groups.setdefault(_group_key(image), []).append(image)
+    return groups
+
+
+def _signature(images: list[dict]) -> frozenset[str]:
+    """Klassuppsättningen i en fångstgrupp (TASK-94)."""
+    return frozenset(
+        annotation["class_name"]
+        for image in images
+        for annotation in image.get("annotations") or []
+    )
+
+
+def _class_group_counts(groups: dict[object, list[dict]]) -> dict[str, int]:
+    """Antal fångstgrupper som innehåller respektive klass."""
+    counts: dict[str, int] = {}
+    for images in groups.values():
+        for name in _signature(images):
+            counts[name] = counts.get(name, 0) + 1
+    return counts
+
+
+def _rarity_key(images: list[dict], counts: dict[str, int]) -> tuple:
+    """Sorteringsnyckel: grupper med den ovanligaste klassen först.
+
+    En klass som bara finns i två grupper får då sina grupper först i kön och
+    hinner fördelas på båda delmängderna innan de vanliga klasserna tar plats.
+    Negativa exempel saknar klass och läggs sist: de påverkar inte vilka
+    klasser som finns i train och val.
+    """
+    signature = _signature(images)
+    if not signature:
+        return (1, 0, 0, ())
+    return (
+        0,
+        min(counts[name] for name in signature),
+        len(signature),
+        tuple(sorted(signature)),
+    )
+
+
+def _stratified_order(groups: dict[object, list[dict]], seed: int) -> list[object]:
+    """Gruppnycklarna i stratifierad ordning: ovanligast klass först.
+
+    Ordningen inom samma ovanlighet är seedad, så delningen är reproducerbar.
+    """
+    counts = _class_group_counts(groups)
+    by_rarity: dict[tuple, list[object]] = {}
+    for key, images in groups.items():
+        by_rarity.setdefault(_rarity_key(images, counts), []).append(key)
+    rng = random.Random(seed)
+    order: list[object] = []
+    for rarity in sorted(by_rarity):
+        keys = sorted(by_rarity[rarity], key=str)
+        rng.shuffle(keys)
+        order.extend(keys)
+    return order
+
+
+def _next_split(assigned: dict[str, list[object]], targets: dict[str, int]) -> str:
+    """Delen som ligger längst efter sin andel och fortfarande har plats kvar."""
+    open_splits = [
+        name for name, target in targets.items() if len(assigned[name]) < target
+    ]
+    if not open_splits:
+        return next(iter(targets))
+    return min(
+        open_splits,
+        key=lambda name: (len(assigned[name]) / targets[name], list(targets).index(name)),
+    )
+
+
+def _assign(
+    order: list[object], targets: dict[str, int]
+) -> dict[str, list[object]]:
+    """Fördelar grupperna så att varje del får sitt målantal.
+
+    Varje grupp går till den del som ligger längst efter sin andel. En klass
+    som bara finns i två grupper hamnar därför i både train och val i stället
+    för att hamna helt utanför val.
+    """
+    assigned: dict[str, list[object]] = {name: [] for name in targets}
+    for key in order:
+        assigned[_next_split(assigned, targets)].append(key)
+    return assigned
+
+
+def _two_way_targets(total: int, ratio: float) -> dict[str, int]:
+    """Antal grupper i train respektive val; summan är alltid total."""
+    cutoff = round(total * ratio)
+    if total and cutoff == 0:
+        cutoff = 1
+    return {"train": cutoff, "val": total - cutoff}
+
+
+def _three_way_targets(total: int, ratio: float) -> dict[str, int]:
+    """Antal grupper i train, valid och test (TASK-93).
+
+    Train får andelen ratio, resten delas mellan valid och test. Med minst tre
+    grupper lämnas alltid en grupp till valid och en till test, så test aldrig
+    blir en kopia av valid.
+    """
+    if total <= 0:
+        return {"train": 0, "valid": 0, "test": 0}
+    train = round(total * ratio)
+    if total >= MIN_GROUPS_FOR_TEST:
+        train = max(1, min(train, total - 2))
+    elif total >= 2:
+        train = max(1, min(train, total - 1))
+    else:
+        train = 1
+    rest = total - train
+    valid = (rest + 1) // 2
+    return {"train": train, "valid": valid, "test": rest - valid}
+
+
+def _split(
+    images: list[dict], targets: dict[str, int], seed: int
+) -> dict[str, list[dict]]:
+    groups = _groups(images)
+    order = _stratified_order(groups, seed)
+    assigned = _assign(order, targets)
+    return {
+        name: [image for key in keys for image in groups[key]]
+        for name, keys in assigned.items()
+    }
 
 
 def train_val_split(
@@ -20,27 +158,33 @@ def train_val_split(
 
     Bilder med samma "group"-id (samma fångstögonblick) hamnar alltid i
     samma delmängd så att vänster- och högerbild från samma scen inte läcker
-    mellan train och val. Delningen är seedad och därmed reproducerbar.
+    mellan train och val. Delningen är stratifierad på klassuppsättning och
+    seedad, så en ovanlig klass hamnar i båda delmängderna och samma seed ger
+    samma delning (TASK-94).
     """
-    groups: dict[object, list[dict]] = {}
-    for image in images:
-        key = image.get("group") or image["id"]
-        groups.setdefault(key, []).append(image)
-    keys = sorted(groups, key=str)
-    random.Random(seed).shuffle(keys)
-    cutoff = int(round(len(keys) * ratio))
-    if keys and cutoff == 0:
-        cutoff = 1
-    train: list[dict] = []
-    val: list[dict] = []
-    for index, key in enumerate(keys):
-        (train if index < cutoff else val).extend(groups[key])
-    return train, val
+    splits = _split(images, _two_way_targets(group_count(images), ratio), seed)
+    return splits["train"], splits["val"]
+
+
+def train_val_test_split(
+    images: list[dict],
+    ratio: float = SPLIT_RATIO,
+    seed: int = SPLIT_SEED,
+) -> dict[str, list[dict]]:
+    """Delar upp bilderna i train/valid/test för RF-DETR (TASK-93).
+
+    Delningen sker per fångstgrupp och stratifieras som train_val_split, så
+    test innehåller bilder som inte finns i train eller valid. Test får en egen
+    grupp först när datasetet har minst tre grupper; med färre går det inte att
+    fylla tre delmängder och test blir tom.
+    """
+    targets = _three_way_targets(group_count(images), ratio)
+    return _split(images, targets, seed)
 
 
 def group_count(images: list[dict]) -> int:
     """Antal fångstgrupper (bildpar) i en lista bilder (TASK-72)."""
-    return len({image.get("group") or image["id"] for image in images})
+    return len({_group_key(image) for image in images})
 
 
 def _fresh_dir(path: Path) -> Path:
@@ -164,13 +308,23 @@ def _coco_document(dataset: dict, images: list[dict]) -> dict:
     }
 
 
-def export_rfdetr(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
-    """Exporterar i RF-DETR:s forvantalade format: train/valid/test med _annotations.coco.json."""
+def export_rfdetr(
+    store: DatasetStore,
+    export_root: Path,
+    ratio: float = SPLIT_RATIO,
+    seed: int = SPLIT_SEED,
+) -> Path:
+    """Exporterar i RF-DETR:s förväntade format: train/valid/test med _annotations.coco.json.
+
+    Test är en egen delmängd, inte en kopia av valid (TASK-93): ett mått som
+    rapporteras på test ska inte vara samma bilder som valet av bästa modell
+    gjordes på.
+    """
     dataset = store.load_dataset()
     out_dir = _fresh_dir(export_root / "rfdetr")
-    train, val = train_val_split(dataset["images"], ratio)
+    splits = train_val_test_split(dataset["images"], ratio, seed)
 
-    for split, images in (("train", train), ("valid", val), ("test", val)):
+    for split, images in splits.items():
         split_dir = out_dir / split
         (split_dir / "images").mkdir(parents=True, exist_ok=True)
         for image in images:
@@ -187,8 +341,8 @@ def export_rfdetr(store: DatasetStore, export_root: Path, ratio: float = SPLIT_R
         out_dir,
         dataset,
         "rfdetr",
-        num_train=len(train),
-        num_val=len(val),
-        num_test=len(val),
+        num_train=len(splits["train"]),
+        num_val=len(splits["valid"]),
+        num_test=len(splits["test"]),
     )
     return out_dir

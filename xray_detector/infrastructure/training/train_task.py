@@ -2,11 +2,13 @@ import argparse
 import ast
 import csv
 import inspect
+import sys
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from json import load as json_load
 from pathlib import Path
 
+from xray_detector.domain.training import default_batch, rfdetr_resolution_error
 from xray_detector.infrastructure.training.epoch_metrics import (
     EpochReporter,
     abort_line,
@@ -15,10 +17,44 @@ from xray_detector.infrastructure.training.overfitting import (
     DEFAULT_PATIENCE,
     OverfittingGuard,
 )
+from xray_detector.infrastructure.training.progress import ProgressReporter
 
 MANIFEST_NAME = "training_manifest.json"
 YOLO_RUN_DIR = "yolo"
 RFDETR_RUN_DIR = "rfdetr"
+
+#: Dataloader-arbetare för RF-DETR. Paketets default är 2, vilket svälter GPU:n
+#: på ett stort dataset (TASK-91).
+DEFAULT_WORKERS = 8
+#: Träningens seed, så en körning går att göra om (TASK-91, TASK-92).
+DEFAULT_SEED = 42
+
+#: YOLO:ts hyperparametrar för röntgenbilder (TASK-92).
+#:
+#: Ultralytics default passar dåligt här: ``optimizer=auto`` väljer SGD eller
+#: AdamW utifrån epokantalet, så samma konfiguration kan ge olika optimerare;
+#: ``degrees=0`` tillåter ingen rotation trots att objekten ligger på godtycklig
+#: ledd; ``mosaic=1.0`` limmar ihop fyra bilder till scener som inte finns på
+#: riktigt; och ``hsv_s=0.7`` ändrar mättnaden kraftigt i en nästan gråskalig
+#: bild. Värdena skrivs också i manifestet, så en genomförd körning går att
+#: läsa av efteråt.
+YOLO_HYPERPARAMETERS = {
+    "optimizer": "AdamW",
+    "lr0": 0.001,
+    "cos_lr": True,
+    "seed": DEFAULT_SEED,
+    "deterministic": True,
+    "mosaic": 0.3,
+    "close_mosaic": 15,
+    "degrees": 30,
+    "translate": 0.1,
+    "scale": 0.5,
+    "fliplr": 0.5,
+    "flipud": 0.0,
+    "hsv_h": 0.015,
+    "hsv_s": 0.2,
+    "hsv_v": 0.4,
+}
 
 #: RF-DETR:s bästa checkpoints i den ordning de föredras. checkpoint_best_total
 #: skrivs först när träningen är klar, så under en pågående eller avbruten
@@ -83,6 +119,9 @@ class _RunState:
 
     status: str = "running"
     reason: str | None = None
+    #: "overfitting" när vakten stoppade körningen, "error" vid ett undantag
+    #: (TASK-97). Skillnaden avgör om körningen gick bra eller kraschade.
+    stop_reason: str | None = None
     metrics: dict[str, float] = field(default_factory=dict)
     epochs_completed: int = 0
 
@@ -141,6 +180,22 @@ def _best_checkpoint(run_dir: Path, family: str) -> Path | None:
     return None
 
 
+def _hyperparameters(args) -> dict:
+    """Hyperparametrarna som skickas till ramverket, för manifestet (TASK-92).
+
+    YOLO:s värden är desamma som ``_train_yolo`` skickar, så manifestet visar
+    vad körningen faktiskt använde i stället för vad ultralytics råkade
+    defaulta till.
+    """
+    if args.family == "rfdetr":
+        return {
+            "resolution": args.imgsz,
+            "num_workers": getattr(args, "workers", DEFAULT_WORKERS),
+            "seed": getattr(args, "seed", DEFAULT_SEED),
+        }
+    return dict(YOLO_HYPERPARAMETERS)
+
+
 def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
     """Skriver manifestet för körningen; anropas även under pågående träning.
 
@@ -165,11 +220,13 @@ def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
         "imgsz": args.imgsz,
         "batch": args.batch,
         "device": args.device,
+        "hyperparameters": _hyperparameters(args),
         "overfitting_guard": getattr(args, "overfitting_guard", "on") == "on",
         "metrics": metrics,
         "epochs_completed": state.epochs_completed,
         "status": state.status,
         "abort_reason": state.reason,
+        "stop_reason": state.stop_reason,
         "started": started.isoformat() if started is not None else None,
         "finished": finished.isoformat() if finished is not None else None,
         "duration_seconds": (
@@ -215,6 +272,21 @@ def _start_reporter(args, run_dir: Path, state: _RunState, stop: _StopSignal):
     return reporter
 
 
+def _finish_state(state: _RunState, stop: _StopSignal) -> None:
+    """Avgör hur körningen slutade innan manifestet skrivs (TASK-97).
+
+    Ett stopp av överträningsvakten är ett lyckat utfall och sparas därför som
+    ``overfitting``, medan ett undantag redan har satt ``error``. Skillnaden
+    låter historikvyn skilja ett planerat stopp från en krasch.
+    """
+    if stop.reason is not None:
+        state.status = "aborted"
+        state.reason = stop.reason
+        state.stop_reason = "overfitting"
+    elif state.status == "running":
+        state.status = "completed"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True, help="Sökväg till YOLO data.yaml")
@@ -222,9 +294,21 @@ def main() -> None:
     parser.add_argument("--output", required=True, help="Katalog för sparade vikter")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--batch", type=int, default=16)
+    parser.add_argument(
+        "--batch",
+        type=int,
+        default=None,
+        help="Bilder per steg; familjens default när det inte anges",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--family", default="yolo", choices=["yolo", "rfdetr"])
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help="Dataloader-arbetare (RF-DETR)",
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument(
         "--overfitting-guard",
         default="on",
@@ -233,6 +317,15 @@ def main() -> None:
     )
     parser.add_argument("--overfitting-patience", type=int, default=DEFAULT_PATIENCE)
     args = parser.parse_args()
+    if args.batch is None:
+        args.batch = default_batch(args.family)
+    if args.family == "rfdetr":
+        # avvisas innan körningskatalogen skapas, så ett fel inte lämnar en
+        # halvstartad körning efter sig (TASK-91)
+        error = rfdetr_resolution_error(args.imgsz)
+        if error is not None:
+            print(f"Fel: {error}", file=sys.stderr, flush=True)
+            raise SystemExit(2)
     args.output_path = _output_path(args.output)
     args.started = datetime.now(UTC)
 
@@ -246,28 +339,26 @@ def main() -> None:
     state = _RunState()
     stop = _StopSignal()
     reporter = _start_reporter(args, run_dir, state, stop)
+    progress = ProgressReporter()
     try:
         if args.family == "rfdetr":
             _train_rfdetr(args, device)
         else:
-            _train_yolo(args, device, stop)
+            _train_yolo(args, device, stop, progress)
     except BaseException as exc:
         state.status = "aborted"
         state.reason = str(exc) or type(exc).__name__
+        state.stop_reason = "error"
         raise
     finally:
         reporter.stop()
         reporter.join(timeout=5)
-        if stop.reason is not None:
-            state.status = "aborted"
-            state.reason = stop.reason
-        elif state.status == "running":
-            state.status = "completed"
+        _finish_state(state, stop)
         _write_manifest(args, run_dir, state)
     print("TRAINING_DONE")
 
 
-def _train_yolo(args, device, stop: _StopSignal) -> Path:
+def _train_yolo(args, device, stop: _StopSignal, progress: ProgressReporter) -> Path:
     from ultralytics import YOLO
 
     model = YOLO(args.weights)
@@ -275,6 +366,7 @@ def _train_yolo(args, device, stop: _StopSignal) -> Path:
         # on_fit_epoch_end körs efter save_metrics och save_model, så ett stop
         # här avbryter före nästa epok och bästa vikterna är redan sparade.
         model.add_callback("on_fit_epoch_end", lambda trainer: _apply_stop(trainer, stop))
+    model.add_callback("on_train_batch_end", _batch_callback(progress))
     model.train(
         data=args.dataset,
         epochs=args.epochs,
@@ -287,8 +379,35 @@ def _train_yolo(args, device, stop: _StopSignal) -> Path:
         patience=(
             args.overfitting_patience if args.overfitting_guard == "on" else args.epochs
         ),
+        **YOLO_HYPERPARAMETERS,
     )
     return args.output_path / YOLO_RUN_DIR
+
+
+def _batch_callback(progress: ProgressReporter):
+    """Rapporterar hur långt epoken kommit, throttlat av rapportören (TASK-96).
+
+    Ultralytics saknar ett epokevent mitt i epoken, men varje avslutad batch
+    går genom on_train_batch_end. Antalet steg läses ur träningslastaren en
+    gång per epok, så andelen går att räkna ut.
+    """
+
+    state = {"epoch": None, "step": 0, "total_steps": 0}
+
+    def on_train_batch_end(trainer) -> None:
+        epoch = int(getattr(trainer, "epoch", 0)) + 1
+        if state["epoch"] != epoch:
+            state["epoch"] = epoch
+            state["step"] = 0
+            loader = getattr(trainer, "train_loader", None)
+            state["total_steps"] = len(loader) if loader is not None else 0
+        state["step"] += 1
+        total = state["total_steps"]
+        if not total:
+            return
+        progress.update(epoch, state["step"], total, force=state["step"] >= total)
+
+    return on_train_batch_end
 
 
 def _apply_stop(trainer, stop: _StopSignal) -> None:
@@ -302,14 +421,25 @@ def _train_rfdetr(args, device) -> Path:
 
     rfdetr-paketet ar valfritt och dess train()-signatur varierar mellan
     versioner: kwargs filtreras därför mot den faktiska signaturen.
+
+    Upplösningen sätts när modellen konstrueras, eftersom den styr modellens
+    positionskodningar (TASK-91). num_workers och seed sätts explicit: paketet
+    defaultar till 2 arbetare, vilket svälter GPU:n på ett stort dataset, och
+    till ingen seed alls, vilket gör körningen omöjlig att göra om.
     """
     from xray_detector.infrastructure.detectors.rfdetr_detector import rfdetr_variant
 
-    model = rfdetr_variant(args.weights)()
+    model = rfdetr_variant(args.weights)(resolution=args.imgsz)
     self = model.train
     params = inspect.signature(self).parameters
-    wanted = {"dataset_dir": args.dataset, "epochs": args.epochs,
-              "batch_size": args.batch, "device": device}
+    wanted = {
+        "dataset_dir": args.dataset,
+        "epochs": args.epochs,
+        "batch_size": args.batch,
+        "device": device,
+        "num_workers": getattr(args, "workers", DEFAULT_WORKERS),
+        "seed": getattr(args, "seed", DEFAULT_SEED),
+    }
     if getattr(args, "overfitting_guard", "on") == "on":
         # RF-DETR saknar publik callback-krok, så avbrottet sker med paketets
         # egen early stopping: samma patience som vakten i rapportören.

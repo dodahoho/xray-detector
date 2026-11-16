@@ -9,6 +9,7 @@ from xray_detector.infrastructure.dataset_store.export import (
     export_yolo,
     group_count,
     train_val_split,
+    train_val_test_split,
 )
 from xray_detector.infrastructure.dataset_store.pending import (
     PendingCapture,
@@ -83,12 +84,29 @@ class DatasetService:
     def export_coco(self, export_root: Path) -> Path:
         return export_coco(self.store, export_root)
 
-    def export_rfdetr(self, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
-        return export_rfdetr(self.store, export_root, ratio)
+    def export_rfdetr(
+        self,
+        export_root: Path,
+        ratio: float = SPLIT_RATIO,
+        seed: int = SPLIT_SEED,
+    ) -> Path:
+        return export_rfdetr(self.store, export_root, ratio, seed)
 
-    def train_val_counts(self, ratio: float = SPLIT_RATIO, seed: int = SPLIT_SEED) -> tuple[int, int]:
-        """Antal bildpar i train respektive val för den seedade grupp-delningen (TASK-72)."""
-        train, val = train_val_split(self.load_dataset()["images"], ratio, seed)
+    def train_val_counts(
+        self,
+        ratio: float = SPLIT_RATIO,
+        seed: int = SPLIT_SEED,
+        family: str = "yolo",
+    ) -> tuple[int, int]:
+        """Antal bildpar i train respektive val för den seedade grupp-delningen (TASK-72).
+
+        RF-DETR:s export har också en test-del, så val blir mindre där (TASK-93).
+        """
+        images = self.load_dataset()["images"]
+        if family == "rfdetr":
+            splits = train_val_test_split(images, ratio, seed)
+            return group_count(splits["train"]), group_count(splits["valid"])
+        train, val = train_val_split(images, ratio, seed)
         return group_count(train), group_count(val)
 
 

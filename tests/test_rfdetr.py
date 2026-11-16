@@ -37,10 +37,12 @@ def test_export_rfdetr_layout(service, tmp_path):
         assert all(img["file_name"].startswith("images/") for img in coco["images"])
     train = json.loads((out / "train" / "_annotations.coco.json").read_text(encoding="utf-8"))
     valid = json.loads((out / "valid" / "_annotations.coco.json").read_text(encoding="utf-8"))
-    assert len(train["images"]) + len(valid["images"]) == 8
+    test = json.loads((out / "test" / "_annotations.coco.json").read_text(encoding="utf-8"))
+    assert len(train["images"]) + len(valid["images"]) + len(test["images"]) == 8
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["format"] == "rfdetr"
     assert manifest["num_train"] == len(train["images"])
+    assert manifest["num_test"] == len(test["images"])
 
 
 def test_trainer_command_includes_family(tmp_path):
@@ -284,17 +286,19 @@ def test_rfdetr_detector_uses_selected_size(monkeypatch):
 
 
 def test_train_rfdetr_uses_selected_size(monkeypatch, tmp_path):
+    """Upplösningen sätts vid konstruktionen och workers/seed skickas explicit (TASK-91)."""
     import sys
     import types
 
     used = []
+    trained = []
 
     class _FakeNano:
-        def __init__(self):
-            used.append(type(self).__name__)
+        def __init__(self, **kwargs):
+            used.append((type(self).__name__, kwargs))
 
         def train(self, **kwargs):
-            return None
+            trained.append(kwargs)
 
     fake = types.ModuleType("rfdetr")
     fake.RFDETRNano = _FakeNano
@@ -306,12 +310,17 @@ def test_train_rfdetr_uses_selected_size(monkeypatch, tmp_path):
         weights="rfdetr-nano",
         dataset=str(tmp_path / "ds"),
         epochs=1,
+        imgsz=640,
         batch=1,
+        workers=8,
+        seed=42,
         output_path=tmp_path / "out",
     )
     run_dir = _train_rfdetr(args, "cpu")
 
-    assert used == ["_FakeNano"]
+    assert used == [("_FakeNano", {"resolution": 640})]
+    assert trained[0]["num_workers"] == 8
+    assert trained[0]["seed"] == 42
     assert run_dir == tmp_path / "out" / "rfdetr"
 
 

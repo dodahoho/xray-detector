@@ -1,12 +1,12 @@
 from datetime import datetime
 from pathlib import Path
+from time import time
 
-from PySide6.QtCore import QEvent, QObject, Qt, Signal
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -23,10 +23,15 @@ from xray_detector.application.training_history import run_epochs
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.model_input import DEFAULT_SIZE, MAX_SIZE, MIN_SIZE, STEP
-from xray_detector.domain.training import TrainConfig, imgsz_for
+from xray_detector.domain.training import (
+    TrainConfig,
+    default_batch,
+    imgsz_for,
+    rfdetr_resolution_error,
+)
 from xray_detector.ui.settings_dialog import (
-    TrainValSplitSection,
     TrainingScheduleSection,
+    TrainValSplitSection,
     settings_button,
     train_ratio,
 )
@@ -60,6 +65,11 @@ class TrainingView(QWidget):
         # bildstorleken följer datasetet tills användaren väljer en egen (TASK-80)
         self._imgsz_user_set = False
         self._applying_imgsz = False
+        # batch-defaulten följer modellfamiljen tills användaren väljer en egen (TASK-91)
+        self._batch_user_set = False
+        self._applying_batch = False
+        # senaste förloppseventet inom epoken (TASK-96)
+        self._progress_event = None
         self.training_service.worker_created.connect(self._on_worker_created)
         self.training_service.scheduler().status_changed.connect(self.status_changed.emit)
         self._activity_filter = _ActivityFilter(self.training_service.scheduler().record_activity)
@@ -75,13 +85,20 @@ class TrainingView(QWidget):
         layout.addWidget(self.progress_bar)
         self.epoch_label = QLabel("Ingen träning pågår")
         layout.addWidget(self.epoch_label)
+        # förloppet inom epoken; tomt när ingen träning rapporterar (TASK-96)
+        self.epoch_progress_label = QLabel("")
+        self.epoch_progress_label.setStyleSheet("color: #888;")
+        layout.addWidget(self.epoch_progress_label)
+        self._progress_timer = QTimer(self)
+        self._progress_timer.setInterval(1000)
+        self._progress_timer.timeout.connect(self._refresh_epoch_progress)
         self.chart = TrainingChart()
         # diagramytorna syns bara när det finns något att visa (TASK-70)
         self.chart.setVisible(False)
         layout.addWidget(self.chart, 2)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.history = TrainingHistoryView(self.config.trained_dir)
+        self.history = TrainingHistoryView(self.config.trained_dir, self.dataset_service)
         self.history.run_selected.connect(self._on_history_selected)
         self.bottom_tabs = QTabWidget()
         self.bottom_tabs.addTab(self.log, "Logg")
@@ -145,6 +162,7 @@ class TrainingView(QWidget):
         form = card.form
         self.model_combo = QComboBox()
         self.refresh_models()
+        self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         form.addRow("Basmodell:", self.model_combo)
         self.dataset_info = QLabel("-")
         # sammanställningen kan bli lång; den radbryts i stället för att klippas
@@ -173,7 +191,12 @@ class TrainingView(QWidget):
         form.addRow(self.imgsz_info)
         self.batch_spin = QSpinBox()
         self.batch_spin.setRange(1, 128)
-        self.batch_spin.setValue(16)
+        self.batch_spin.setValue(default_batch(self._family()))
+        self.batch_spin.valueChanged.connect(self._on_batch_changed)
+        self.batch_spin.setToolTip(
+            "Bilder per steg. RF-DETR large får slut på minne på ett 16 GB-kort "
+            "med batch 16 vid bildstorlek 704, så RF-DETR utgår från 4."
+        )
         form.addRow("Batch:", self.batch_spin)
         self.run_combo = QComboBox()
         self.run_combo.addItem("Direkt", "direct")
@@ -210,6 +233,28 @@ class TrainingView(QWidget):
         self._applying_imgsz = False
         self._imgsz_user_set = user
 
+    def _family(self) -> str:
+        """Vald basmodells familj; yolo när inget är valt."""
+        spec = self._specs.get(self.model_combo.currentData())
+        return spec.family if spec is not None else "yolo"
+
+    def _on_model_changed(self) -> None:
+        """Batch-defaulten följer familjen tills användaren väljer ett eget värde (TASK-91)."""
+        if not self._batch_user_set:
+            self._set_batch(default_batch(self._family()), user=False)
+        self.refresh_dataset_info()
+
+    def _on_batch_changed(self, _value: int) -> None:
+        if not self._applying_batch:
+            self._batch_user_set = True
+
+    def _set_batch(self, value: int, user: bool) -> None:
+        """Sätter batchen utan att den räknas som ett användarval."""
+        self._applying_batch = True
+        self.batch_spin.setValue(value)
+        self._applying_batch = False
+        self._batch_user_set = user
+
     def restore_settings(self) -> None:
         saved = self.settings.value("training/base_model", type=str)
         if saved:
@@ -219,13 +264,13 @@ class TrainingView(QWidget):
                 index = self.model_combo.findData(Path(saved).stem)
             if index >= 0:
                 self.model_combo.setCurrentIndex(index)
-        for key, spin, default in (
-            ("epochs", self.epochs_spin, 100),
-            ("batch", self.batch_spin, 16),
-        ):
-            value = self.settings.value(f"training/{key}", default, type=int)
-            if value:
-                spin.setValue(value)
+        value = self.settings.value("training/epochs", 100, type=int)
+        if value:
+            self.epochs_spin.setValue(value)
+        # utan sparat val fortsätter batch att följa modellfamiljen (TASK-91)
+        saved_batch = self.settings.value("training/batch", type=int)
+        if saved_batch:
+            self._set_batch(saved_batch, user=True)
         # utan sparat val fortsätter storleken att följa datasetet (TASK-80)
         saved_imgsz = self.settings.value("training/imgsz", type=int)
         if saved_imgsz:
@@ -239,7 +284,8 @@ class TrainingView(QWidget):
         self.settings.setValue("training/epochs", self.epochs_spin.value())
         if self._imgsz_user_set:
             self.settings.setValue("training/imgsz", self.imgsz_spin.value())
-        self.settings.setValue("training/batch", self.batch_spin.value())
+        if self._batch_user_set:
+            self.settings.setValue("training/batch", self.batch_spin.value())
         self.settings.setValue(
             "training/overfitting_guard", self.overfitting_check.isChecked()
         )
@@ -252,7 +298,7 @@ class TrainingView(QWidget):
         """
         info = self.dataset_service.metadata()
         num_train, num_val = self.dataset_service.train_val_counts(
-            train_ratio(self.settings)
+            train_ratio(self.settings), family=self._family()
         )
         self.dataset_info.setText(
             f"Bilder: {info['num_images']}  Objekt: {info['num_objects']}  "
@@ -282,6 +328,12 @@ class TrainingView(QWidget):
                 self.status_changed.emit(
                     "RF-DETR kraver rfdetr-paketet (uv sync --extra rfdetr)"
                 )
+                return
+            # en upplösning RF-DETR inte kan använda avvisas innan processen
+            # startar, så felet syns direkt i stället för i träningsloggen (TASK-91)
+            error = rfdetr_resolution_error(self.imgsz_spin.value())
+            if error is not None:
+                self.status_changed.emit(error)
                 return
             dataset_path = self.dataset_service.export_rfdetr(
                 self.config.export_dir, ratio
@@ -320,6 +372,7 @@ class TrainingView(QWidget):
         )
         worker.progress.connect(self._on_progress)
         worker.epoch_metrics.connect(self._on_epoch_metrics)
+        worker.progress_event.connect(self._on_progress_event)
         worker.abort_reason.connect(self._on_abort_reason)
         worker.finished_training.connect(self._on_finished)
         self.start_button.setEnabled(False)
@@ -329,13 +382,16 @@ class TrainingView(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("Epok %v/%m")
         self.epoch_label.setText("Väntar på första epoken")
+        self._clear_epoch_progress()
+        self._progress_timer.start()
         # en ny träning tar över grafen, så ett gammalt val i listan släpps
         self.history.table.clearSelection()
         self.chart.clear()
         self.chart.setVisible(True)
         header = (
             f"Startar träning: {worker.config.weights} på {worker.config.dataset_yaml} "
-            f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, batch {worker.config.batch}) "
+            f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, "
+            f"batch {worker.config.batch_size()}) "
             f"-> {worker.config.output_dir}"
         )
         self.log.appendPlainText(header)
@@ -356,6 +412,35 @@ class TrainingView(QWidget):
         self.progress_bar.setValue(metrics.epoch)
         self.epoch_label.setText(metrics.summary())
         self.chart.add_epoch(metrics)
+
+    def _on_progress_event(self, event) -> None:
+        """Visar hur långt epoken kommit medan den pågår (TASK-96)."""
+        self._progress_event = event
+        self._refresh_epoch_progress()
+
+    def _refresh_epoch_progress(self) -> None:
+        """Ritar om epokförloppet och markerar en gammal heartbeat som inaktuell.
+
+        Träningsprocessen skriver en förloppsrad varannat sekund. Kommer ingen
+        ny rad på en stund är det som visas inte längre sant, och då säger vyn
+        det i stället för att låta siffran se aktuell ut.
+        """
+        event = self._progress_event
+        if event is None:
+            return
+        now = time()
+        if event.is_stale(now):
+            self.epoch_progress_label.setText(
+                f"{event.summary()} · ingen rapport på {round(event.age(now))} s"
+            )
+            return
+        self.epoch_progress_label.setText(event.summary())
+
+    def _clear_epoch_progress(self) -> None:
+        """Tar bort epokförloppet, så inget ser ut att pågå efter ett avbrott."""
+        self._progress_event = None
+        self._progress_timer.stop()
+        self.epoch_progress_label.clear()
 
     def _training_active(self) -> bool:
         return self.worker is not None and self.worker.is_running()
@@ -380,6 +465,7 @@ class TrainingView(QWidget):
     def _on_abort_reason(self, reason: str) -> None:
         """Visar varför träningen avbröts, både i vyn och i statusraden (TASK-46)."""
         self.epoch_label.setText(f"Avbruten: {reason}")
+        self._clear_epoch_progress()
         self.status_changed.emit(f"Träningen avbröts: {reason}")
 
     def _on_abort(self) -> None:
@@ -398,6 +484,8 @@ class TrainingView(QWidget):
         self.start_button.setEnabled(True)
         self.abort_button.setEnabled(False)
         self.overfitting_check.setEnabled(True)
+        # ett avslutat lopp får inte lämna kvar ett förlopp som ser pågående ut
+        self._clear_epoch_progress()
         self.training_finished.emit()
         self.refresh_dataset_info()
         self.history.refresh()

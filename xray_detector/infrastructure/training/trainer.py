@@ -9,6 +9,10 @@ from xray_detector.infrastructure.training.epoch_metrics import (
     parse_abort_line,
     parse_event_line,
 )
+from xray_detector.infrastructure.training.progress import (
+    PROGRESS_MARKER,
+    parse_progress_line,
+)
 
 TRAINING_MODULE = "xray_detector.infrastructure.training.train_task"
 
@@ -28,6 +32,7 @@ class TrainingWorker(QObject):
 
     progress = Signal(str)
     epoch_metrics = Signal(object)
+    progress_event = Signal(object)
     abort_reason = Signal(str)
     finished_training = Signal(bool, str)
 
@@ -54,7 +59,7 @@ class TrainingWorker(QObject):
             "--imgsz",
             str(self.config.imgsz),
             "--batch",
-            str(self.config.batch),
+            str(self.config.batch_size()),
             "--family",
             str(self.config.family),
             "--overfitting-guard",
@@ -99,6 +104,13 @@ class TrainingWorker(QObject):
                 self._emit_progress(prefix)
                 self.epoch_metrics.emit(metrics)
                 self.progress.emit(metrics.summary())
+                return
+        prefix, event = _split_at_marker(part, PROGRESS_MARKER)
+        if event is not None:
+            progress = parse_progress_line(event)
+            if progress is not None:
+                self._emit_progress(prefix)
+                self.progress_event.emit(progress)
                 return
         prefix, event = _split_at_marker(part, ABORT_MARKER)
         if event is not None:
