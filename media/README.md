@@ -14,6 +14,8 @@ Båda är 1280x720 @ 30 fps, 200 sekunder (6000 ramar).
 
 Välj "Öppna videofil..." i respektive strömpanel och peka ut filerna här,
 eller återställ senaste källval i inställningarna (källvalet persistas).
+Filväljaren öppnas i den här katalogen första gången; pekar du ut en fil
+någon annanstans kommer nästa filväljare ihåg den katalogen.
 
 ## Tester
 

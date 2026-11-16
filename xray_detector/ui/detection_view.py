@@ -35,6 +35,7 @@ from xray_detector.ui.settings_dialog import (
 )
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
+from xray_detector.ui.video_file_dialog import remember_video_file, video_file_dir
 from xray_detector.ui.video_settings import (
     clear_video_mode,
     load_video_mode,
@@ -234,9 +235,13 @@ class StreamPanel(QFrame):
         elif kind == "file":
             pressed_index = self._last_selected_index
             path, _ = QFileDialog.getOpenFileName(
-                self, "Välj videofil", "", "Videofiler (*.mp4 *.avi *.mkv *.mov)"
+                self,
+                "Välj videofil",
+                video_file_dir(self.settings),
+                "Videofiler (*.mp4 *.avi *.mkv *.mov)",
             )
             if path:
+                remember_video_file(self.settings, path)
                 self._activate_file(path)
             else:
                 # avbruten dialog: aterhall det tidigare valet utan att emitetra
