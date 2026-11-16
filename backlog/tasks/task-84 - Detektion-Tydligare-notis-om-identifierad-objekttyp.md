@@ -1,7 +1,7 @@
 ---
 id: TASK-84
 title: Detektion - Tydligare notis om identifierad objekttyp
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-16T07:47:00Z'
