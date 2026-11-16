@@ -6,10 +6,17 @@ import numpy as np
 import pytest
 
 from xray_detector.application.dataset_service import DatasetService
-from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
+from xray_detector.domain.dataset import (
+    MODE_ALL,
+    MODE_PER_TYPE,
+    MODE_RANDOM,
+    AnnotatedImage,
+    VariationSettings,
+)
 from xray_detector.infrastructure.dataset_store.augment import (
     adjust_color,
     apply_variation,
+    apply_variations,
     describe,
     flip,
     rotate,
@@ -129,37 +136,93 @@ def test_color_variation_changes_the_pixels_but_not_the_annotations():
     assert adjusted[30, 40, 0] < _frame()[30, 40, 0]
 
 
-def test_variation_plan_follows_the_settings():
+def test_plan_gives_one_type_per_image_in_per_type_mode():
+    """En bild per variationstyp: en typ i taget, cykliskt över de valda (TASK-106)."""
     settings = VariationSettings(
-        rotation_count=2,
+        count=5,
+        mode=MODE_PER_TYPE,
+        rotation=True,
         rotation_degrees=30,
         flip_horizontal=True,
-        flip_vertical=True,
-        scale_count=1,
+        scale=True,
         scale_percent=50,
-        color_count=1,
+    )
+
+    plan = variation_plan(settings, random.Random(1))
+
+    assert len(plan) == 5
+    assert [len(variations) for variations in plan] == [1] * 5
+    assert [variations[0]["type"] for variations in plan] == [
+        "rotation",
+        "flip",
+        "scale",
+        "rotation",
+        "flip",
+    ]
+
+
+def test_plan_gives_every_type_in_each_image_in_all_mode():
+    settings = VariationSettings(
+        count=2,
+        mode=MODE_ALL,
+        rotation=True,
+        rotation_degrees=30,
+        flip_vertical=True,
+        scale=True,
+        scale_percent=50,
+        color=True,
         color_percent=20,
     )
 
     plan = variation_plan(settings, random.Random(1))
 
-    assert [variation["type"] for variation in plan] == [
-        "rotation",
-        "rotation",
-        "flip",
-        "flip",
-        "scale",
-        "color",
-    ]
-    assert len(plan) == settings.total
-    assert all(abs(variation["angle"]) <= 30 for variation in plan[:2])
-    assert [variation["axis"] for variation in plan[2:4]] == ["horizontal", "vertical"]
-    assert 0.5 <= plan[4]["factor"] <= 1.5
-    assert 0.8 <= plan[5]["contrast"] <= 1.2
+    assert len(plan) == 2
+    for variations in plan:
+        assert [variation["type"] for variation in variations] == [
+            "rotation",
+            "flip",
+            "scale",
+            "color",
+        ]
+    assert all(abs(variations[0]["angle"]) <= 30 for variations in plan)
+    assert all(variations[1]["axis"] == "vertical" for variations in plan)
+    assert all(0.5 <= variations[2]["factor"] <= 1.5 for variations in plan)
+    assert all(0.8 <= variations[3]["contrast"] <= 1.2 for variations in plan)
+
+
+def test_plan_picks_a_random_subset_in_random_mode():
+    """Slumpvisa kombinationer väljer bara bland de aktiverade typerna (TASK-106)."""
+    settings = VariationSettings(
+        count=20,
+        mode=MODE_RANDOM,
+        rotation=True,
+        rotation_degrees=30,
+        flip_horizontal=True,
+        scale=True,
+        scale_percent=50,
+    )
+
+    plan = variation_plan(settings, random.Random(4))
+
+    assert len(plan) == 20
+    assert all(variations for variations in plan), "en bild blev utan variation"
+    kinds = {variation["type"] for variations in plan for variation in variations}
+    assert kinds <= {"rotation", "flip", "scale"}
+    assert {len(variations) for variations in plan} != {1}, "alla bilder blev lika"
+
+
+def test_plan_is_empty_without_an_active_type():
+    assert variation_plan(VariationSettings(count=5), random.Random(1)) == []
+
+
+def test_plan_is_empty_without_a_count():
+    assert variation_plan(VariationSettings(rotation=True), random.Random(1)) == []
 
 
 def test_variation_plan_is_reproducible_with_a_seed():
-    settings = VariationSettings(rotation_count=3, rotation_degrees=360)
+    settings = VariationSettings(
+        count=3, mode=MODE_RANDOM, rotation=True, rotation_degrees=360
+    )
 
     first = variation_plan(settings, random.Random(7))
     second = variation_plan(settings, random.Random(7))
@@ -168,11 +231,17 @@ def test_variation_plan_is_reproducible_with_a_seed():
 
 
 def test_scale_is_clamped_so_the_image_never_disappears():
-    settings = VariationSettings(scale_count=20, scale_percent=100)
+    settings = VariationSettings(
+        count=20, mode=MODE_ALL, scale=True, scale_percent=100
+    )
 
     plan = variation_plan(settings, random.Random(3))
 
-    assert all(variation["factor"] >= 0.25 for variation in plan)
+    assert all(
+        variation["factor"] >= 0.25
+        for variations in plan
+        for variation in variations
+    )
 
 
 def test_apply_variation_dispatches_on_the_type():
@@ -191,6 +260,38 @@ def test_apply_variation_leaves_an_unknown_type_untouched():
     assert np.array_equal(frame, _frame())
 
 
+def test_apply_variations_applies_every_variation_in_order():
+    """En bild kan bära flera variationer samtidigt (TASK-106)."""
+    frame, annotations = apply_variations(
+        _frame(),
+        _annotations(),
+        [
+            {"type": "flip", "axis": "horizontal"},
+            {"type": "scale", "factor": 2.0},
+        ],
+    )
+
+    flipped_x = WIDTH - (BBOX[0] + BBOX[2])
+    assert frame.shape[:2] == (2 * HEIGHT, 2 * WIDTH)
+    assert annotations[0]["bbox"] == [
+        2 * flipped_x,
+        2 * BBOX[1],
+        2 * BBOX[2],
+        2 * BBOX[3],
+    ]
+
+
+def test_describe_names_every_variation_in_the_list():
+    text = describe(
+        [
+            {"type": "rotation", "angle": 12.5},
+            {"type": "scale", "factor": 0.75},
+        ]
+    )
+
+    assert text == "rotation 12.5°, storlek 0.75×"
+
+
 def test_describe_names_the_variation():
     assert describe({"type": "rotation", "angle": 12.5}) == "rotation 12.5°"
     assert describe({"type": "flip", "axis": "vertical"}) == "vänd vertikalt"
@@ -203,7 +304,7 @@ def test_add_variations_adds_one_group_per_variation(tmp_path):
     service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
 
     added = service.add_variations(
-        VariationSettings(rotation_count=2, rotation_degrees=30), seed=1
+        VariationSettings(count=2, rotation=True, rotation_degrees=30), seed=1
     )
 
     assert added == 2
@@ -219,7 +320,7 @@ def test_add_variations_keeps_the_pair_together(tmp_path):
     service = _service(tmp_path)
     service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
 
-    service.add_variations(VariationSettings(flip_horizontal=True), seed=1)
+    service.add_variations(VariationSettings(count=1, flip_horizontal=True), seed=1)
 
     synthetic = [
         image for image in service.load_dataset()["images"] if image.get("synthetic")
@@ -235,7 +336,7 @@ def test_add_variations_only_varies_the_originals(tmp_path):
     """En ny utökning varierar originalen, inte de tidigare variationerna."""
     service = _service(tmp_path)
     service.add_samples([_sample(60), _sample(120)])
-    settings = VariationSettings(rotation_count=1, rotation_degrees=20)
+    settings = VariationSettings(count=1, rotation=True, rotation_degrees=20)
 
     service.add_variations(settings, seed=1)
     service.add_variations(settings, seed=1)
@@ -257,7 +358,7 @@ def test_add_variations_without_settings_changes_nothing(tmp_path):
 def test_add_variations_without_images_changes_nothing(tmp_path):
     service = _service(tmp_path)
 
-    assert service.add_variations(VariationSettings(rotation_count=1)) == 0
+    assert service.add_variations(VariationSettings(count=1, rotation=True)) == 0
     assert service.load_dataset()["images"] == []
 
 
@@ -265,7 +366,7 @@ def test_add_variations_writes_labels_for_the_varied_annotations(tmp_path):
     service = _service(tmp_path)
     service.add_samples([_sample()])
 
-    service.add_variations(VariationSettings(scale_count=1, scale_percent=50), seed=2)
+    service.add_variations(VariationSettings(count=1, scale=True, scale_percent=50), seed=2)
 
     images = service.load_dataset()["images"]
     synthetic = images[1]
@@ -279,7 +380,7 @@ def test_add_variations_writes_labels_for_the_varied_annotations(tmp_path):
 def test_delete_synthetic_removes_only_the_synthetic_images(tmp_path):
     service = _service(tmp_path)
     service.add_samples([_sample(60), _sample(120)])
-    service.add_variations(VariationSettings(flip_horizontal=True), seed=1)
+    service.add_variations(VariationSettings(count=1, flip_horizontal=True), seed=1)
 
     removed = service.delete_synthetic()
 

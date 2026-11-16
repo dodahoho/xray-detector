@@ -323,7 +323,7 @@ def test_export_keeps_the_indicator_while_the_list_reloads(
 
 def _accept_with_rotation(dialog):
     """Väljer en rotation i dialogen och genomför den."""
-    dialog.rotation_count.setValue(1)
+    dialog.rotation.setChecked(True)
     return QDialog.DialogCode.Accepted
 
 

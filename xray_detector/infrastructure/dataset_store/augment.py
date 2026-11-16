@@ -1,8 +1,8 @@
-"""Syntetiska variationer av datasetets bilder (TASK-88).
+"""Syntetiska variationer av datasetets bilder (TASK-88, TASK-106).
 
-En variation räknas först fram som en beskrivning i en plan och appliceras
-sedan på varje bild i bildparet, så vänster- och högerbilden får samma
-rotation, vändning, storlek och färg. Annoteringarna flyttas med samma
+En plan räknas först fram med en lista av variationer per syntetisk bild och
+appliceras sedan på varje bild i bildparet, så vänster- och högerbilden får
+samma rotation, vändning, storlek och färg. Annoteringarna flyttas med samma
 matris som bilden, så rutorna ligger kvar på objekten.
 
 Rotation och storlek ändrar bildens mått i stället för att klippa bort
@@ -18,7 +18,7 @@ import random
 import cv2
 import numpy as np
 
-from xray_detector.domain.dataset import VariationSettings
+from xray_detector.domain.dataset import MODE_ALL, MODE_PER_TYPE, VariationSettings
 
 # skalningen kläms hit, så en stor variation inte krymper bilden till ingenting
 MIN_SCALE = 0.25
@@ -32,36 +32,73 @@ BACKGROUND = (255, 255, 255)
 def variation_plan(
     settings: VariationSettings,
     rng: random.Random,
-) -> list[dict]:
-    """Parametrarna för en uppsättning variationer, en beskrivning per variation.
+) -> list[list[dict]]:
+    """Parametrarna för en uppsättning variationer, en lista per syntetisk bild.
 
     Planen räknas fram en gång per bildpar, så båda bilderna i paret får
-    samma variation. Beskrivningen sparas i datasetets metadata och används
-    som tooltip i datasetvyn.
+    samma variationer. Läget avgör vad varje bild får: en typ i taget
+    (cykliskt över de aktiva typerna), alla aktiva typer, eller ett slumpvis
+    urval av dem. Beskrivningen sparas i datasetets metadata och används som
+    tooltip i datasetvyn.
     """
-    plan: list[dict] = []
-    for _ in range(settings.rotation_count):
-        angle = rng.uniform(-settings.rotation_degrees, settings.rotation_degrees)
-        plan.append({"type": "rotation", "angle": round(angle, 1)})
-    if settings.flip_horizontal:
-        plan.append({"type": "flip", "axis": "horizontal"})
-    if settings.flip_vertical:
-        plan.append({"type": "flip", "axis": "vertical"})
-    for _ in range(settings.scale_count):
-        factor = 1 + rng.uniform(-settings.scale_percent, settings.scale_percent) / 100
-        plan.append(
-            {"type": "scale", "factor": round(min(MAX_SCALE, max(MIN_SCALE, factor)), 2)}
-        )
-    for _ in range(settings.color_count):
-        percent = settings.color_percent / 100
-        plan.append(
-            {
-                "type": "color",
-                "contrast": round(rng.uniform(1 - percent, 1 + percent), 2),
-                "brightness": round(rng.uniform(-percent, percent) * BRIGHTNESS_RANGE),
-            }
-        )
+    types = settings.active_types
+    if not types or settings.count <= 0:
+        return []
+    plan: list[list[dict]] = []
+    for index in range(settings.count):
+        if settings.mode == MODE_ALL:
+            chosen = types
+        elif settings.mode == MODE_PER_TYPE:
+            chosen = [types[index % len(types)]]
+        else:
+            # minst en typ per bild, annars vore bilden identisk med originalet
+            chosen = [kind for kind in types if rng.random() < 0.5] or [
+                rng.choice(types)
+            ]
+        plan.append([_variation(kind, settings, rng) for kind in chosen])
     return plan
+
+
+def _variation(kind: str, settings: VariationSettings, rng: random.Random) -> dict:
+    """Parametrarna för en variationstyp, med styrkan inom det valda intervallet."""
+    if kind == "rotation":
+        angle = rng.uniform(-settings.rotation_degrees, settings.rotation_degrees)
+        return {"type": "rotation", "angle": round(angle, 1)}
+    if kind == "flip":
+        axes = []
+        if settings.flip_horizontal:
+            axes.append("horizontal")
+        if settings.flip_vertical:
+            axes.append("vertical")
+        # en bild får en riktning; båda samtidigt vore samma sak som 180 grader
+        return {"type": "flip", "axis": rng.choice(axes)}
+    if kind == "scale":
+        factor = 1 + rng.uniform(-settings.scale_percent, settings.scale_percent) / 100
+        return {
+            "type": "scale",
+            "factor": round(min(MAX_SCALE, max(MIN_SCALE, factor)), 2),
+        }
+    percent = settings.color_percent / 100
+    return {
+        "type": "color",
+        "contrast": round(rng.uniform(1 - percent, 1 + percent), 2),
+        "brightness": round(rng.uniform(-percent, percent) * BRIGHTNESS_RANGE),
+    }
+
+
+def apply_variations(
+    frame: np.ndarray,
+    annotations: list[dict],
+    variations: list[dict],
+) -> tuple[np.ndarray, list[dict]]:
+    """Bilden och annoteringarna efter alla variationer i listan.
+
+    Variationerna appliceras i ordning, så en syntetisk bild kan bära flera
+    typer samtidigt (TASK-106).
+    """
+    for variation in variations:
+        frame, annotations = apply_variation(frame, annotations, variation)
+    return frame, annotations
 
 
 def apply_variation(
@@ -91,8 +128,14 @@ def apply_variation(
     return frame, [dict(annotation) for annotation in annotations]
 
 
-def describe(variation: dict) -> str:
-    """Variationen som text, till tooltip och statusrad."""
+def describe(variation) -> str:
+    """Variationen som text, till tooltip och statusrad.
+
+    En syntetisk bild kan bära flera variationer (TASK-106), och äldre dataset
+    sparade en enstaka, så båda formerna läses.
+    """
+    if isinstance(variation, list):
+        return ", ".join(describe(item) for item in variation) or "variation"
     kind = variation.get("type")
     if kind == "rotation":
         return f"rotation {variation['angle']:g}°"

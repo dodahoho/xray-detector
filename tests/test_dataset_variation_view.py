@@ -8,7 +8,12 @@ from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
 from tests.conftest import synthetic_frame
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
-from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
+from xray_detector.domain.dataset import (
+    MODE_ALL,
+    MODE_PER_TYPE,
+    AnnotatedImage,
+    VariationSettings,
+)
 from xray_detector.infrastructure.dataset_store.pending import save_pending
 from xray_detector.ui.dataset_view import (
     BUTTON_GROUP_GAP,
@@ -36,7 +41,11 @@ def service(tmp_path) -> DatasetService:
     svc.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
     svc.add_variations(
         VariationSettings(
-            rotation_count=1, rotation_degrees=30, flip_horizontal=True
+            count=2,
+            mode=MODE_PER_TYPE,
+            rotation=True,
+            rotation_degrees=30,
+            flip_horizontal=True,
         ),
         seed=5,
     )
@@ -114,7 +123,7 @@ def test_synthetic_filter_hides_the_pending_captures(qapp, config, tmp_path, set
     """Osparade fångster är alltid original, så de göms med de syntetiska."""
     service = DatasetService(tmp_path / "datasets")
     service.add_samples([_sample()], captured="2026-11-01T09:00:00")
-    service.add_variations(VariationSettings(flip_horizontal=True), seed=1)
+    service.add_variations(VariationSettings(count=1, flip_horizontal=True), seed=1)
     save_pending(
         tmp_path, [StreamFrame("left", synthetic_frame(), [], "kamera-vanster")]
     )
@@ -200,7 +209,7 @@ def test_extend_adds_the_variations_from_the_dialog(
     qapp, config, service, settings, monkeypatch
 ):
     def accept(self) -> QDialog.DialogCode:
-        self.rotation_count.setValue(1)
+        self.rotation.setChecked(True)
         return QDialog.DialogCode.Accepted
 
     monkeypatch.setattr(VariationDialog, "exec", accept)
@@ -281,3 +290,28 @@ def test_variation_buttons_form_their_own_group_on_the_right(
     assert gap is not None
     assert gap.sizeHint().width() == BUTTON_GROUP_GAP
     assert bar.itemAt(4).widget() is view.export_coco_button
+
+
+def test_synthetic_badge_lists_every_variation(qapp, config, tmp_path, settings):
+    """En bild med flera variationer visar alla i tooltipen (TASK-106)."""
+    service = DatasetService(tmp_path / "datasets")
+    service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
+    service.add_variations(
+        VariationSettings(
+            count=1,
+            mode=MODE_ALL,
+            rotation=True,
+            rotation_degrees=30,
+            scale=True,
+            scale_percent=20,
+        ),
+        seed=1,
+    )
+    view = _built(config, service, settings)
+
+    header, _frame = view._group_headers[ROTATION_GROUP]
+    tooltips = [
+        label.toolTip() for label in header.parentWidget().findChildren(QLabel)
+    ]
+
+    assert any("rotation" in tip and "storlek" in tip for tip in tooltips)

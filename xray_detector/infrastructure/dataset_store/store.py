@@ -9,7 +9,7 @@ import cv2
 
 from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
 from xray_detector.infrastructure.dataset_store.augment import (
-    apply_variation,
+    apply_variations,
     variation_plan,
 )
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
@@ -295,10 +295,10 @@ class DatasetStore:
             frames = [(image, frame) for image, frame in frames if frame is not None]
             if not frames:
                 continue
-            for variation in variation_plan(settings, rng):
+            for variations in variation_plan(settings, rng):
                 for image, frame in frames:
-                    varied, annotations = apply_variation(
-                        frame, image["annotations"], variation
+                    varied, annotations = apply_variations(
+                        frame, image["annotations"], variations
                     )
                     image_name = f"img_{image_id:06d}.png"
                     cv2.imwrite(str(self.images_dir / image_name), varied)
@@ -323,7 +323,7 @@ class DatasetStore:
                             "captured": image.get("captured"),
                             "synthetic": True,
                             "source": image["id"],
-                            "variation": variation,
+                            "variation": variations,
                         }
                     )
                     objects += len(rows)

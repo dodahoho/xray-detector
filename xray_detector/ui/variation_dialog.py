@@ -1,13 +1,15 @@
-"""Dialog för att utöka datasetet med syntetiska bildvariationer (TASK-88).
+"""Dialog för att utöka datasetet med syntetiska bildvariationer (TASK-88, TASK-106).
 
-Varje variationstyp har ett antal variationer per originalbild och en styrka
-för hur mycket som får ändras. Vändningen har inget antal: de två
-riktningarna är var sin variation. Dialogen räknar ut hur många bildpar
-utökningen ger innan den genomförs, så antalet syns innan datasetet ändras.
+Antalet syntetiska bilder per bildpar ställs först, sedan vilka variationstyper
+som ska användas och hur mycket de får ändra. En typ är avstängd tills dess
+kryssruta är satt, och då är även typens fält avstängda. Kombinationsläget
+avgör om en bild får en typ, alla valda typer eller ett slumpvis urval.
+Dialogen räknar ut hur många bildpar utökningen ger innan den genomförs.
 """
 
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QLabel,
@@ -16,22 +18,28 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xray_detector.domain.dataset import VariationSettings
+from xray_detector.domain.dataset import MODES, VariationSettings
 from xray_detector.ui.style import FormCard, apply_metrics
 
 MAX_COUNT = 20
 MAX_DEGREES = 360
 MAX_PERCENT = 100
+DEFAULT_COUNT = 1
 DEFAULT_DEGREES = 360
 DEFAULT_SCALE_PERCENT = 50
 DEFAULT_COLOR_PERCENT = 20
-NO_VARIATIONS = "Ange minst en variation."
+NO_VARIATIONS = "Aktivera minst en variationstyp."
+MODE_HINT = (
+    "En bild per variationstyp ger en typ i taget, cykliskt över de valda "
+    "typerna. Alla valda variationer lägger alla typer i samma bild. "
+    "Slumpvisa kombinationer väljer en slumpmässig delmängd per bild."
+)
 # dialogen blir annars bara så bred som fälten, och då radbryts summeringen hårt
 MIN_WIDTH = 380
 
 
 def _count(maximum: int, suffix: str = "") -> QSpinBox:
-    """Heltalsfält för antal variationer eller för styrkan i procent och grader."""
+    """Heltalsfält för antal bilder eller för styrkan i procent och grader."""
     widget = QSpinBox()
     widget.setRange(0, maximum)
     if suffix:
@@ -39,8 +47,16 @@ def _count(maximum: int, suffix: str = "") -> QSpinBox:
     return widget
 
 
+def _type_card(title: str, parent: QWidget) -> FormCard:
+    """Kort vars rubrik är en kryssruta; Qt stänger av fälten när den är av."""
+    card = FormCard(title, parent)
+    card.setCheckable(True)
+    card.setChecked(False)
+    return card
+
+
 class VariationDialog(QDialog):
-    """Antal och styrka per variationstyp; Utöka lämnar inställningarna.
+    """Antal, typval och kombination; Utöka lämnar inställningarna.
 
     Avbryt stänger dialogen utan att något ändras, eftersom datasetet först
     skrivs när vyn genomför utökningen med settings().
@@ -53,36 +69,46 @@ class VariationDialog(QDialog):
         self.pairs = pairs
         layout = QVBoxLayout(self)
 
-        rotation = FormCard("Rotation", self)
-        self.rotation_count = _count(MAX_COUNT)
+        scope = FormCard("Omfattning", self)
+        self.count = _count(MAX_COUNT)
+        self.count.setValue(DEFAULT_COUNT)
+        scope.form.addRow(QLabel("Syntetiska bilder per bildpar:"), self.count)
+        self.mode_combo = QComboBox()
+        for key, label in MODES.items():
+            self.mode_combo.addItem(label, key)
+        scope.form.addRow(QLabel("Kombination:"), self.mode_combo)
+        mode_hint = QLabel(MODE_HINT)
+        mode_hint.setWordWrap(True)
+        mode_hint.setStyleSheet("color: #888;")
+        scope.form.addRow(mode_hint)
+        layout.addWidget(scope)
+
+        self.rotation = _type_card("Rotation", self)
         self.rotation_degrees = _count(MAX_DEGREES, " °")
         self.rotation_degrees.setValue(DEFAULT_DEGREES)
-        rotation.form.addRow(QLabel("Antal variationer:"), self.rotation_count)
-        rotation.form.addRow(QLabel("Vinkel ±:"), self.rotation_degrees)
-        layout.addWidget(rotation)
+        self.rotation.form.addRow(QLabel("Vinkel ±:"), self.rotation_degrees)
+        layout.addWidget(self.rotation)
 
-        flip = FormCard("Vändning", self)
+        self.flip = _type_card("Vändning", self)
         self.flip_horizontal = QCheckBox("Horisontellt")
+        self.flip_horizontal.setChecked(True)
         self.flip_vertical = QCheckBox("Vertikalt")
-        flip.form.addRow(self.flip_horizontal)
-        flip.form.addRow(self.flip_vertical)
-        layout.addWidget(flip)
+        self.flip_vertical.setChecked(True)
+        self.flip.form.addRow(self.flip_horizontal)
+        self.flip.form.addRow(self.flip_vertical)
+        layout.addWidget(self.flip)
 
-        scale = FormCard("Storlek", self)
-        self.scale_count = _count(MAX_COUNT)
+        self.scale = _type_card("Storlek", self)
         self.scale_percent = _count(MAX_PERCENT, " %")
         self.scale_percent.setValue(DEFAULT_SCALE_PERCENT)
-        scale.form.addRow(QLabel("Antal variationer:"), self.scale_count)
-        scale.form.addRow(QLabel("Ändring ±:"), self.scale_percent)
-        layout.addWidget(scale)
+        self.scale.form.addRow(QLabel("Ändring ±:"), self.scale_percent)
+        layout.addWidget(self.scale)
 
-        color = FormCard("Färg", self)
-        self.color_count = _count(MAX_COUNT)
+        self.color = _type_card("Färg", self)
         self.color_percent = _count(MAX_PERCENT, " %")
         self.color_percent.setValue(DEFAULT_COLOR_PERCENT)
-        color.form.addRow(QLabel("Antal variationer:"), self.color_count)
-        color.form.addRow(QLabel("Ändring ±:"), self.color_percent)
-        layout.addWidget(color)
+        self.color.form.addRow(QLabel("Ändring ±:"), self.color_percent)
+        layout.addWidget(self.color)
 
         self.summary = QLabel()
         self.summary.setWordWrap(True)
@@ -107,28 +133,31 @@ class VariationDialog(QDialog):
         layout.addWidget(buttons)
 
         for widget in (
-            self.rotation_count,
+            self.count,
             self.rotation_degrees,
-            self.scale_count,
             self.scale_percent,
-            self.color_count,
             self.color_percent,
         ):
             widget.valueChanged.connect(self._update_summary)
+        for card in (self.rotation, self.flip, self.scale, self.color):
+            card.toggled.connect(self._update_summary)
         for box in (self.flip_horizontal, self.flip_vertical):
             box.toggled.connect(self._update_summary)
+        self.mode_combo.currentIndexChanged.connect(self._update_summary)
         self._update_summary()
 
     def settings(self) -> VariationSettings:
         """Inställningarna som utökningen genomförs med."""
         return VariationSettings(
-            rotation_count=self.rotation_count.value(),
+            count=self.count.value(),
+            mode=self.mode_combo.currentData(),
+            rotation=self.rotation.isChecked(),
             rotation_degrees=float(self.rotation_degrees.value()),
-            flip_horizontal=self.flip_horizontal.isChecked(),
-            flip_vertical=self.flip_vertical.isChecked(),
-            scale_count=self.scale_count.value(),
+            flip_horizontal=self.flip.isChecked() and self.flip_horizontal.isChecked(),
+            flip_vertical=self.flip.isChecked() and self.flip_vertical.isChecked(),
+            scale=self.scale.isChecked(),
             scale_percent=float(self.scale_percent.value()),
-            color_count=self.color_count.value(),
+            color=self.color.isChecked(),
             color_percent=float(self.color_percent.value()),
         )
 
@@ -140,6 +169,6 @@ class VariationDialog(QDialog):
             self.summary.setText(NO_VARIATIONS)
             return
         self.summary.setText(
-            f"{total} variationer per bildpar ger {total * self.pairs} nya "
+            f"{total} syntetiska bilder per bildpar ger {total * self.pairs} nya "
             f"bildpar från {self.pairs} original."
         )

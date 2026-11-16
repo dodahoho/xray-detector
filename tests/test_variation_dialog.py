@@ -1,9 +1,14 @@
-"""Dialogen för att utöka datasetet med bildvariationer (TASK-88)."""
+"""Dialogen för att utöka datasetet med bildvariationer (TASK-88, TASK-106)."""
 
 import pytest
 from PySide6.QtWidgets import QDialog, QPushButton
 
-from xray_detector.domain.dataset import VariationSettings
+from xray_detector.domain.dataset import (
+    MODE_ALL,
+    MODE_PER_TYPE,
+    MODE_RANDOM,
+    VariationSettings,
+)
 from xray_detector.ui.variation_dialog import NO_VARIATIONS, VariationDialog
 
 
@@ -12,16 +17,18 @@ def dialog(qapp) -> VariationDialog:
     return VariationDialog(3)
 
 
-def test_dialog_starts_without_variations(dialog):
-    """Inget händer förrän användaren anger ett antal."""
+def test_dialog_starts_without_an_active_type(dialog):
+    """Inget händer förrän användaren aktiverar en variationstyp."""
     assert dialog.settings() == VariationSettings(
-        rotation_count=0,
+        count=1,
+        mode=MODE_PER_TYPE,
+        rotation=False,
         rotation_degrees=360.0,
         flip_horizontal=False,
         flip_vertical=False,
-        scale_count=0,
+        scale=False,
         scale_percent=50.0,
-        color_count=0,
+        color=False,
         color_percent=20.0,
     )
     assert dialog.summary.text() == NO_VARIATIONS
@@ -32,43 +39,75 @@ def test_dialog_is_titled_after_the_button(dialog):
     assert dialog.windowTitle() == "Utöka med bildvariationer"
 
 
-def test_counts_enable_the_extend_button(dialog):
-    dialog.rotation_count.setValue(2)
+def test_an_active_type_enables_the_extend_button(dialog):
+    dialog.rotation.setChecked(True)
 
     assert dialog.extend_button.isEnabled()
     assert dialog.summary.text() == (
-        "2 variationer per bildpar ger 6 nya bildpar från 3 original."
+        "1 syntetiska bilder per bildpar ger 3 nya bildpar från 3 original."
     )
 
 
-def test_flips_count_as_variations(dialog):
-    """Vändningen har inget antal: de två riktningarna är var sin variation."""
-    dialog.flip_horizontal.setChecked(True)
-    dialog.flip_vertical.setChecked(True)
+def test_the_count_sets_the_number_of_images_per_pair(dialog):
+    dialog.rotation.setChecked(True)
+    dialog.count.setValue(5)
 
-    assert dialog.settings().total == 2
-    assert dialog.summary.text().startswith("2 variationer per bildpar")
+    assert dialog.settings().total == 5
+    assert dialog.summary.text().startswith("5 syntetiska bilder per bildpar")
+
+
+def test_a_type_card_disables_its_fields_until_it_is_checked(dialog):
+    """Rotationens vinkel går bara att ställa in när rotationen är vald (TASK-106)."""
+    assert not dialog.rotation_degrees.isEnabled()
+
+    dialog.rotation.setChecked(True)
+
+    assert dialog.rotation_degrees.isEnabled()
+
+
+def test_the_flip_directions_need_the_flip_card(dialog):
+    """Vändningen aktiveras av sitt kort, inte av riktningarna i sig (TASK-106)."""
+    assert dialog.flip_horizontal.isChecked()
+    assert dialog.settings().flip_count == 0
+
+    dialog.flip.setChecked(True)
+
+    assert dialog.settings().flip_count == 2
 
 
 def test_settings_reads_every_field(dialog):
-    dialog.rotation_count.setValue(1)
+    dialog.count.setValue(4)
+    dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData(MODE_ALL))
+    dialog.rotation.setChecked(True)
     dialog.rotation_degrees.setValue(45)
-    dialog.flip_horizontal.setChecked(True)
-    dialog.scale_count.setValue(2)
+    dialog.flip.setChecked(True)
+    dialog.flip_vertical.setChecked(False)
+    dialog.scale.setChecked(True)
     dialog.scale_percent.setValue(30)
-    dialog.color_count.setValue(1)
+    dialog.color.setChecked(True)
     dialog.color_percent.setValue(10)
 
     assert dialog.settings() == VariationSettings(
-        rotation_count=1,
+        count=4,
+        mode=MODE_ALL,
+        rotation=True,
         rotation_degrees=45.0,
         flip_horizontal=True,
         flip_vertical=False,
-        scale_count=2,
+        scale=True,
         scale_percent=30.0,
-        color_count=1,
+        color=True,
         color_percent=10.0,
     )
+
+
+def test_the_mode_combo_offers_the_three_combinations(dialog):
+    modes = [
+        dialog.mode_combo.itemData(index)
+        for index in range(dialog.mode_combo.count())
+    ]
+
+    assert modes == [MODE_PER_TYPE, MODE_ALL, MODE_RANDOM]
 
 
 def test_buttons_are_extend_and_cancel(dialog):
@@ -79,7 +118,7 @@ def test_buttons_are_extend_and_cancel(dialog):
 
 
 def test_extend_button_accepts_the_dialog(dialog):
-    dialog.rotation_count.setValue(1)
+    dialog.rotation.setChecked(True)
 
     dialog.extend_button.click()
 
@@ -87,7 +126,7 @@ def test_extend_button_accepts_the_dialog(dialog):
 
 
 def test_cancel_button_rejects_the_dialog(dialog):
-    dialog.rotation_count.setValue(1)
+    dialog.rotation.setChecked(True)
     cancel = next(
         button for button in dialog.findChildren(QPushButton) if button.text() == "Avbryt"
     )
@@ -97,11 +136,11 @@ def test_cancel_button_rejects_the_dialog(dialog):
     assert dialog.result() == QDialog.DialogCode.Rejected
 
 
-def test_summary_follows_the_counts_down_again(dialog):
-    dialog.scale_count.setValue(4)
+def test_summary_follows_the_type_choice_down_again(dialog):
+    dialog.scale.setChecked(True)
     assert dialog.extend_button.isEnabled()
 
-    dialog.scale_count.setValue(0)
+    dialog.scale.setChecked(False)
 
     assert dialog.summary.text() == NO_VARIATIONS
     assert not dialog.extend_button.isEnabled()

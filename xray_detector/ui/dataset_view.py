@@ -220,11 +220,12 @@ def _badge(name: str, parent: QWidget) -> QLabel:
     return badge
 
 
-def _synthetic_badge(variation: dict, parent: QWidget) -> QLabel:
+def _synthetic_badge(variation: dict | list, parent: QWidget) -> QLabel:
     """Märke som visar att bildparet är syntetiskt genererat (TASK-88).
 
-    Tooltipen anger vilken variation som skapade paret, så en rotation går att
-    skilja från en spegling utan att öppna datasetets metadata.
+    Tooltipen anger vilka variationer som skapade paret, så en rotation går att
+    skilja från en spegling utan att öppna datasetets metadata. En bild kan bära
+    flera variationer samtidigt (TASK-106).
     """
     badge = QLabel(SYNTHETIC_LABEL, parent)
     badge.setStyleSheet(
@@ -240,7 +241,7 @@ def _capture_header(
     color: str,
     parent: QWidget,
     classes: tuple[str, ...] = (),
-    synthetic: dict | None = None,
+    synthetic: dict | list | None = None,
 ) -> tuple[QWidget, QLabel]:
     """Rubrikrad med tid, syntetisk-märke och klassmärken (TASK-66, TASK-68, TASK-88).
 
