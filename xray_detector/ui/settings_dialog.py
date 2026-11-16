@@ -24,7 +24,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xray_detector.ui.badge import HIDE_FRAMES_KEY, SHOW_FRAMES_KEY, badge_delays
+from xray_detector.ui.badge import (
+    HIDE_FRAMES_KEY,
+    SHOW_FRAMES_KEY,
+    SWAP_FRAMES_KEY,
+    badge_delays,
+    badge_swap_frames,
+)
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import FormCard, apply_metrics, button
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
@@ -176,8 +182,10 @@ class BadgeSection(FormCard):
 
     Märket kräver ett antal ramar i följd med klassen innan det visas och
     lika många utan innan det döljs, så en detektion nära tröskelvärdet inte
-    får märket att flimra. Ändringar sparas direkt och slår igenom på båda
-    panelerna utan att dialogen stängs.
+    får märket att flimra. Trögheten i platsbyten ställs in här också: den
+    säkraste klassen ligger överst, men tar bara över platsen när den varit
+    säkrast ett antal ramar i följd (TASK-86). Ändringar sparas direkt och
+    slår igenom på båda panelerna utan att dialogen stängs.
     """
 
     def __init__(self, settings, on_changed, parent=None) -> None:
@@ -198,9 +206,17 @@ class BadgeSection(FormCard):
         self.hide_frames.setValue(hide_frames)
         self.hide_frames.valueChanged.connect(self._on_hide_changed)
         form.addRow(QLabel("Dölj efter:"), self.hide_frames)
+        self.swap_frames = QSpinBox()
+        self.swap_frames.setRange(1, 120)
+        self.swap_frames.setSuffix(" ramar")
+        self.swap_frames.setValue(badge_swap_frames(settings))
+        self.swap_frames.valueChanged.connect(self._on_swap_changed)
+        form.addRow(QLabel("Byt plats efter:"), self.swap_frames)
         hint = QLabel(
             "Antal ramar i följd som klassen måste detekteras i innan märket "
-            "visas, respektive saknas i innan det döljs."
+            "visas, respektive saknas i innan det döljs. Platsbytet kräver "
+            "lika många ramar i följd där en annan klass är säkrare, så två "
+            "klasser med nästan samma sannolikhet inte byter plats ofta."
         )
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #888;")
@@ -212,6 +228,10 @@ class BadgeSection(FormCard):
 
     def _on_hide_changed(self, frames: int) -> None:
         self.settings.setValue(HIDE_FRAMES_KEY, frames)
+        self.on_changed()
+
+    def _on_swap_changed(self, frames: int) -> None:
+        self.settings.setValue(SWAP_FRAMES_KEY, frames)
         self.on_changed()
 
 

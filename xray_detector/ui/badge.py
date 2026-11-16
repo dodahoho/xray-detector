@@ -11,7 +11,9 @@ innan det döljs. Fördröjningarna är inställbara och räknas i ramar, efters
 det är ramar som flimrar.
 
 Detekteras flera klasser samtidigt får varje klass ett eget märke, staplade
-uppifrån och ned med den säkraste klassen överst.
+uppifrån och ned med den säkraste klassen överst. Ligger två klasser nära
+varandra i sannolikhet byter de annars plats nästan varje ram, så en klass tar
+bara över platsen när den varit säkrast ett antal ramar i följd (TASK-86).
 """
 
 from PySide6.QtCore import QRect, Qt
@@ -22,8 +24,10 @@ from xray_detector.ui.colors import class_color
 
 SHOW_FRAMES_KEY = "detection/badge_show_frames"
 HIDE_FRAMES_KEY = "detection/badge_hide_frames"
+SWAP_FRAMES_KEY = "detection/badge_swap_frames"
 SHOW_FRAMES_DEFAULT = 3
 HIDE_FRAMES_DEFAULT = 10
+SWAP_FRAMES_DEFAULT = 10
 BADGE_MARGIN = 8
 BADGE_PADDING = 6
 BADGE_RADIUS = 6
@@ -47,6 +51,18 @@ def badge_delays(settings) -> tuple[int, int]:
     )
 
 
+def badge_swap_frames(settings) -> int:
+    """Antal ramar i följd innan märkena byter plats (TASK-86).
+
+    Utan sparat värde krävs 10 ramar, alltså ungefär en tredjedels sekund i
+    30 fps, så två klasser med nästan samma sannolikhet inte byter plats
+    varje ram.
+    """
+    if settings is None:
+        return SWAP_FRAMES_DEFAULT
+    return _frames(settings, SWAP_FRAMES_KEY, SWAP_FRAMES_DEFAULT)
+
+
 def _frames(settings, key: str, default: int) -> int:
     try:
         return max(1, int(settings.value(key, default, type=int)))
@@ -61,29 +77,46 @@ class BadgeTracker:
     syns när den setts show_frames ramar i följd och släcks först efter
     hide_frames ramar utan, så enstaka missade ramar inte får märket att
     flimra. Flera klasser kan synas samtidigt och får då varsitt märke.
+
+    Märkena ligger i en egen ordning som också har hysteres: den säkraste
+    klassen ligger överst, men en klass tar bara över platsen när den varit
+    säkrast swap_frames ramar i följd (TASK-86). Två klasser med nästan samma
+    sannolikhet byter då inte plats varje ram.
     """
 
     def __init__(
         self,
         show_frames: int = SHOW_FRAMES_DEFAULT,
         hide_frames: int = HIDE_FRAMES_DEFAULT,
+        swap_frames: int = SWAP_FRAMES_DEFAULT,
     ) -> None:
         self._hits: dict[str, int] = {}
         self._misses: dict[str, int] = {}
         self._last: dict[str, Detection] = {}
         self._visible: set[str] = set()
+        self._order: list[str] = []
+        self._pending: list[str] | None = None
+        self._pending_frames = 0
         self.set_delays(show_frames, hide_frames)
+        self.set_swap_frames(swap_frames)
 
     def set_delays(self, show_frames: int, hide_frames: int) -> None:
         """Nya fördröjningar slår igenom direkt, utan att nollställa läget."""
         self.show_frames = max(1, int(show_frames))
         self.hide_frames = max(1, int(hide_frames))
 
+    def set_swap_frames(self, swap_frames: int) -> None:
+        """Ny tröghet i platsbyten, utan att nollställa läget (TASK-86)."""
+        self.swap_frames = max(1, int(swap_frames))
+
     def reset(self) -> None:
         self._hits.clear()
         self._misses.clear()
         self._last.clear()
         self._visible.clear()
+        self._order.clear()
+        self._pending = None
+        self._pending_frames = 0
 
     def update(self, detections: list[Detection]) -> list[Detection]:
         """Räknar ramen och returnerar märkena som ska visas, säkrast först."""
@@ -107,10 +140,41 @@ class BadgeTracker:
             elif self._hits[name] >= self.show_frames:
                 self._visible.add(name)
         self._forget_hidden()
-        return sorted(
-            (self._last[name] for name in self._visible),
-            key=lambda detection: (-detection.confidence, detection.class_name),
-        )
+        self._reorder()
+        return [self._last[name] for name in self._order]
+
+    def _reorder(self) -> None:
+        """Visningsordningen, med tröghet i platsbyten (TASK-86).
+
+        Den säkraste klassen ska ligga överst, men en ny ordning gäller först
+        när den efterfrågats swap_frames ramar i följd. Räknaren nollställs när
+        ordningen går tillbaka, så en korsande sannolikhet inte ger något byte.
+        Klasser som tillkommer sätts in direkt på sin plats, så deras märke
+        inte väntar på ett pågående platsbyte.
+        """
+        desired = sorted(self._visible, key=self._rank)
+        current = [name for name in self._order if name in self._visible]
+        common = [name for name in desired if name in current]
+        if common == current:
+            self._order = desired
+            self._pending = None
+            self._pending_frames = 0
+            return
+        if common == self._pending:
+            self._pending_frames += 1
+        else:
+            self._pending = common
+            self._pending_frames = 1
+        if self._pending_frames >= self.swap_frames:
+            self._order = desired
+            self._pending = None
+            self._pending_frames = 0
+            return
+        self._order = _with_new_classes(current, desired)
+
+    def _rank(self, name: str) -> tuple[float, str]:
+        """Sorteringsnyckel: säkrast först, sedan klassnamn så ordningen är stabil."""
+        return -self._last[name].confidence, name
 
     def _forget_hidden(self) -> None:
         """Glömmer klasser som varken syns eller är på väg tillbaka."""
@@ -132,6 +196,22 @@ def _best_per_class(detections: list[Detection]) -> dict[str, Detection]:
         if current is None or detection.confidence > current.confidence:
             best[detection.class_name] = detection
     return best
+
+
+def _with_new_classes(order: list[str], desired: list[str]) -> list[str]:
+    """Lägger till nya klasser på sin plats utan att röra de befintligas ordning.
+
+    Ordningen behålls när ett platsbyte väntar, men en klass som just blivit
+    synlig ska ändå få sitt märke direkt. Den sätts in där den hör hemma
+    bland de klasser som redan har en plats.
+    """
+    result = list(order)
+    for index, name in enumerate(desired):
+        if name in result:
+            continue
+        position = sum(1 for other in desired[:index] if other in result)
+        result.insert(position, name)
+    return result
 
 
 def badge_text(detection: Detection) -> str:

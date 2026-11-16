@@ -13,8 +13,11 @@ from xray_detector.ui.badge import (
     HIDE_FRAMES_KEY,
     SHOW_FRAMES_DEFAULT,
     SHOW_FRAMES_KEY,
+    SWAP_FRAMES_DEFAULT,
+    SWAP_FRAMES_KEY,
     BadgeTracker,
     badge_delays,
+    badge_swap_frames,
     badge_text,
 )
 from xray_detector.ui.colors import class_color
@@ -158,6 +161,67 @@ def test_reset_clears_the_tracking():
     assert tracker.update([]) == []
 
 
+def _order(tracker, detections) -> list[str]:
+    return [detection.class_name for detection in tracker.update(detections)]
+
+
+def test_badges_keep_their_places_when_the_confidence_crosses():
+    """Två klasser med nästan samma sannolikhet ska inte byta plats varje ram (TASK-86)."""
+    tracker = BadgeTracker(show_frames=1, hide_frames=10, swap_frames=10)
+    assert _order(tracker, [_detection("pistol", 0.90), _detection("kniv", 0.89)]) == [
+        "pistol",
+        "kniv",
+    ]
+
+    for frame in range(20):
+        high, low = (0.91, 0.90) if frame % 2 else (0.90, 0.91)
+        assert _order(
+            tracker, [_detection("pistol", high), _detection("kniv", low)]
+        ) == ["pistol", "kniv"]
+
+
+def test_a_class_takes_the_top_place_after_swap_frames():
+    tracker = BadgeTracker(show_frames=1, hide_frames=10, swap_frames=3)
+    tracker.update([_detection("pistol", 0.90), _detection("kniv", 0.80)])
+    steadier = [_detection("kniv", 0.95), _detection("pistol", 0.90)]
+
+    assert _order(tracker, steadier) == ["pistol", "kniv"]
+    assert _order(tracker, steadier) == ["pistol", "kniv"]
+    assert _order(tracker, steadier) == ["kniv", "pistol"]
+
+
+def test_swap_counter_restarts_when_the_order_goes_back():
+    tracker = BadgeTracker(show_frames=1, hide_frames=10, swap_frames=3)
+    tracker.update([_detection("pistol", 0.90), _detection("kniv", 0.80)])
+    kniv_first = [_detection("kniv", 0.95), _detection("pistol", 0.90)]
+    pistol_first = [_detection("pistol", 0.95), _detection("kniv", 0.90)]
+
+    _order(tracker, kniv_first)
+    _order(tracker, kniv_first)
+    assert _order(tracker, pistol_first) == ["pistol", "kniv"]
+
+    assert _order(tracker, kniv_first) == ["pistol", "kniv"]
+    assert _order(tracker, kniv_first) == ["pistol", "kniv"]
+    assert _order(tracker, kniv_first) == ["kniv", "pistol"]
+
+
+def test_a_new_class_gets_its_badge_while_a_swap_is_pending():
+    """En klass som tillkommer ska inte vänta på ett pågående platsbyte (TASK-86)."""
+    tracker = BadgeTracker(show_frames=1, hide_frames=10, swap_frames=10)
+    tracker.update([_detection("pistol", 0.90), _detection("kniv", 0.80)])
+
+    result = _order(
+        tracker,
+        [_detection("kniv", 0.95), _detection("pistol", 0.90), _detection("yxa", 0.50)],
+    )
+
+    assert result == ["pistol", "kniv", "yxa"]
+
+
+def test_swap_frames_fall_back_to_default_without_settings():
+    assert badge_swap_frames(None) == SWAP_FRAMES_DEFAULT
+
+
 def test_badge_text_holds_class_and_percentage():
     assert badge_text(_detection("pistol", 0.873)) == "pistol 87 %"
 
@@ -173,6 +237,14 @@ def test_panel_reads_delays_from_settings(qapp, settings):
     panel = StreamPanel("left", [], settings)
 
     assert (panel.badge.show_frames, panel.badge.hide_frames) == (4, 12)
+
+
+def test_panel_reads_swap_frames_from_settings(qapp, settings):
+    settings.setValue(SWAP_FRAMES_KEY, 4)
+
+    panel = StreamPanel("left", [], settings)
+
+    assert panel.badge.swap_frames == 4
 
 
 def test_badge_sits_top_right_in_the_left_panel(qapp, settings):
@@ -223,6 +295,23 @@ def test_the_second_badge_sits_below_the_first(qapp, settings):
 
     for _ in range(SHOW_FRAMES_DEFAULT):
         panel.show_frame(_frame([_detection("pistol", 0.9), _detection("kniv", 0.6)]))
+
+    pixmap = panel.display.pixmap()
+    pistol = _badge_rows(pixmap, "pistol", left_half=False)
+    kniv = _badge_rows(pixmap, "kniv", left_half=False)
+
+    assert max(pistol) < min(kniv)
+
+
+def test_the_badge_order_stays_put_when_the_confidence_crosses(qapp, settings):
+    """Märkena ska inte byta plats varje ram när sannolikheterna korsar varandra (TASK-86)."""
+    panel = _panel(qapp, settings)
+    for _ in range(SHOW_FRAMES_DEFAULT):
+        panel.show_frame(_frame([_detection("pistol", 0.90), _detection("kniv", 0.60)]))
+
+    for frame in range(6):
+        high, low = (0.61, 0.60) if frame % 2 else (0.60, 0.61)
+        panel.show_frame(_frame([_detection("pistol", high), _detection("kniv", low)]))
 
     pixmap = panel.display.pixmap()
     pistol = _badge_rows(pixmap, "pistol", left_half=False)
@@ -285,6 +374,26 @@ def test_badge_section_saves_and_reports_the_delays(qapp, settings):
     assert applied[-1] == (5, 20)
 
 
+def test_badge_section_saves_and_reports_the_swap_frames(qapp, settings):
+    applied = []
+    section = BadgeSection(
+        settings, lambda: applied.append(badge_swap_frames(settings))
+    )
+
+    section.swap_frames.setValue(6)
+
+    assert settings.value(SWAP_FRAMES_KEY, type=int) == 6
+    assert applied[-1] == 6
+
+
+def test_badge_section_shows_the_saved_swap_frames(qapp, settings):
+    settings.setValue(SWAP_FRAMES_KEY, 15)
+
+    section = BadgeSection(settings, lambda: None)
+
+    assert section.swap_frames.value() == 15
+
+
 def test_detection_view_applies_new_delays_to_both_panels(qapp, tmp_path):
     from xray_detector.ui.detection_view import DetectionView
 
@@ -303,4 +412,24 @@ def test_detection_view_applies_new_delays_to_both_panels(qapp, tmp_path):
 
     for panel in (view.left, view.right):
         assert (panel.badge.show_frames, panel.badge.hide_frames) == (7, 4)
+    view.stop()
+
+
+def test_detection_view_applies_new_swap_frames_to_both_panels(qapp, tmp_path):
+    from xray_detector.ui.detection_view import DetectionView
+
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    view = DetectionView(
+        config, QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    )
+    section = next(
+        item for item in view._settings_sections() if isinstance(item, BadgeSection)
+    )
+
+    section.swap_frames.setValue(25)
+
+    for panel in (view.left, view.right):
+        assert panel.badge.swap_frames == 25
     view.stop()

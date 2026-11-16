@@ -25,7 +25,12 @@ from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
-from xray_detector.ui.badge import BadgeTracker, badge_delays, draw_badges
+from xray_detector.ui.badge import (
+    BadgeTracker,
+    badge_delays,
+    badge_swap_frames,
+    draw_badges,
+)
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
@@ -165,7 +170,8 @@ class StreamPanel(QFrame):
         self.devices = list(devices or [])
         self.settings = settings
         self.badge_align_right = badge_align_right
-        self.badge = BadgeTracker(*badge_delays(settings))
+        show_frames, hide_frames = badge_delays(settings)
+        self.badge = BadgeTracker(show_frames, hide_frames, badge_swap_frames(settings))
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
         self._lost_attempts = 0
@@ -450,9 +456,16 @@ class StreamPanel(QFrame):
         draw_badges(painter, pixmap.rect(), badges, align_right=self.badge_align_right)
         painter.end()
 
-    def set_badge_delays(self, show_frames: int, hide_frames: int) -> None:
-        """Nya fördröjningar för klassmärket, utan att rita om bilden (TASK-84)."""
+    def set_badge_settings(
+        self, show_frames: int, hide_frames: int, swap_frames: int
+    ) -> None:
+        """Nya fördröjningar och ny tröghet för klassmärket, utan att rita om bilden.
+
+        Fördröjningarna styr när märket visas och döljs (TASK-84) och
+        trögheten hur ofta märkena byter plats (TASK-86).
+        """
         self.badge.set_delays(show_frames, hide_frames)
+        self.badge.set_swap_frames(swap_frames)
 
     def clear_overlay(self) -> None:
         if self.latest is not None:
@@ -645,6 +658,7 @@ class DetectionView(QWidget):
 
         Klassfiltret följer vald modell (TASK-53) och märkets fördröjningar
         styr hur snabbt en klass visas och döljs i videofönstren (TASK-84).
+        Trögheten i märkenas platsbyten ställs in på samma ställe (TASK-86).
         """
         return [
             ClassFilterSection(
@@ -656,10 +670,11 @@ class DetectionView(QWidget):
         ]
 
     def _on_badge_delays_changed(self) -> None:
-        """Nya fördröjningar slår igenom direkt på båda panelerna (TASK-84)."""
+        """Nya märkesinställningar slår igenom direkt på båda panelerna."""
         show_frames, hide_frames = badge_delays(self.settings)
+        swap_frames = badge_swap_frames(self.settings)
         for panel in (self.left, self.right):
-            panel.set_badge_delays(show_frames, hide_frames)
+            panel.set_badge_settings(show_frames, hide_frames, swap_frames)
 
     def model_class_names(self) -> list[str]:
         """Klasserna som vald modell kan detektera (TASK-52, TASK-53, TASK-61)."""
