@@ -1,7 +1,7 @@
 ---
 id: TASK-85
 title: Default folder val av videofil
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-16T08:28:00Z'
@@ -42,7 +42,7 @@ När man klickar att välja videofil öppnas ett fönster med filutforskare. Dä
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
