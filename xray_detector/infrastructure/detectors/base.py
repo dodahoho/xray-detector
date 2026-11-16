@@ -20,6 +20,19 @@ def class_names_from(names, source: str) -> list[str]:
     return [str(name) for name in names]
 
 
+def cuda_device_label() -> str:
+    """Enhetsbeskrivning för logg och GUI (TASK-101)."""
+    import torch
+
+    if not torch.cuda.is_available():
+        return "CPU (CUDA ej tillgänglig)"
+    try:
+        name = torch.cuda.get_device_name(0)
+    except Exception:
+        name = "GPU"
+    return f"CUDA ({name})"
+
+
 class BaseDetector(ABC):
     """Gemensamt gränssnitt för detektorerna.
 

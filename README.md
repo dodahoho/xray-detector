@@ -124,8 +124,8 @@ Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Datasetet
 | `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
 | `models/models.json` | Modellistan som väljarna bygger på: nyckel, visningsnamn, familj och viktfil per modell. Skapas först när listan ändras i inställningsfliken; utan filen gäller standardmodellerna. |
 | `models/trained/` | Egentränade modeller, en katalog per träningskörning (`<datum>_<tid>`) med `training_manifest.json`, bästa vikterna under `yolo/weights/best.pt` (YOLO) eller `rfdetr/checkpoint_best_total.pth` (RF-DETR) och `evaluation.json` när körningen är utvärderad. |
-| `logs/app.log` | Applikationsloggen: start, statusmeddelanden och ohanterade undantag. |
-| `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med tidsstämpel, basmodell och körningskatalog. |
+| `logs/app.log` | Applikationsloggen: start, statusmeddelanden, ohanterade undantag och tredjepartens varningar. |
+| `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med körnings-id, tidsstämpel, basmodell och körningskatalog. |
 
 Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt `Tränad <körning> (<basmodell>)`. Manifestets `family` avgör vilken detektor posten laddas med: `yolo` ger `YoloDetector` och `rfdetr` ger `RfDetrDetector`, som läser snapshoten med `rfdetr.from_checkpoint`. Manifest som skrevs innan fältet fanns saknar `family` och behandlas som `yolo`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
 
@@ -133,14 +133,18 @@ Varje körning får en unik katalog och därmed en unik snapshot av bästa vikte
 
 Klassnamnen kommer från modellen, inte från konfigurationen: detektorn läser dem ur vikterna när den laddas (YOLO: `model.names`, RF-DETR: modellens `class_names`) och exponerar dem som `class_names`. En tränad modell visar alltså klasserna den tränades på och en basmodell sina egna, till exempel COCO:s 80. Datasetets klasser ligger i `data.yaml` och är master för annoteringen: listan i annoteringsvyn är datasetets kategorier, modellens klasser erbjuds i en fråga när listan är tom, och klasser som läggs till eller tas bort i annoteringsvyn skrivs till datasetet. YOLO lagrar klassen som ett index i klasslistan, så när en klass tas bort skrivs label-filerna om med den nya ordningen och sparade annoteringar behåller sin klass. `classes` i `config.yaml` är datasetets etiketter och styr inte färgerna: klassfärgen hashas ur klassnamnet, så samma klass har samma färg i detektions-, dataset- och annoteringsvyn och mellan appstarter. Går klassnamnen inte att läsa ur vikterna misslyckas laddningen med ett tydligt felmeddelande i stället för att overlayn visar klassindex.
 
-Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`:
+Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`, och `logs/` även med miljövariabeln `XRAY_LOGS_DIR` (som testsviten använder för att inte skriva i projektets loggar):
 
 ```yaml
 models_dir: /sökväg/till/models   # relativ sökväg tolkas mot projektroten
 logs_dir: /sökväg/till/logs       # relativ sökväg tolkas mot projektroten
 ```
 
-Loggfilerna roteras vid 1 MB och sparas i fem backupfiler (`app.log.1`–`app.log.5`). Rotationen och formatet delas av alla loggtyper, så en ny loggtyp under `logs/` är bara ett nytt namn i `log_path(logs_dir, namn)` – ingen ny kod för katalog eller rotation behövs.
+Loggfilerna roteras vid 1 MB och sparas i fem backupfiler (`app.log.1`–`app.log.5`). Rotationen och formatet delas av alla loggtyper, så en ny loggtyp under `logs/` är bara ett nytt namn i `log_path(logs_dir, namn)` – ingen ny kod för katalog eller rotation behövs. Varje rad inleds med tidsstämpel och process-id, så rader från appen och från en träningsprocess går att skilja åt: `2026-11-16 21:44:50,600 [20980] INFO xray: ...`.
+
+Apploggen fångar även det som annars bara syntes i konsolen. Python-varningar från torch, transformers och rfdetr loggas under loggern `py.warnings`, och rfdetr:s egna loggrar (`rf-detr`, `rfdetr.*`) leds in i filen i stället för att stanna i stderr. Loggerns namn i raden skiljer tredjepartens rader från appens `xray`-rader. Renodlat brus, som `comtypes` INFO-rader, hålls kvar på WARNING och hamnar därför inte i filen.
+
+Vid start loggar appen vilken `config.yaml` som användes och vilka värden som gäller, datasetets storlek, kamerauppräkningens resultat och varje modelladdning med viktfil, familj, enhet och tidsåtgång. En träningskörning får ett id – körningskatalogens namn – som skrivs både i `app.log` och i `training.log`, så en körning går att följa mellan filerna. Ctrl+C loggas som INFO och stänger appen utan kraschdialog, så en ERROR-rad i loggen alltid är ett verkligt fel.
 
 Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/` och loggarna under `~/.xray-detector/logs/`. De katalogerna skrivs inte längre; flytta i så fall modellerna till `models/trained/` för att få dem i väljaren. Gamla loggar kan flyttas till `logs/` eller tas bort.
 

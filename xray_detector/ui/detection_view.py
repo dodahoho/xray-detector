@@ -1,4 +1,6 @@
 import json
+import logging
+import time
 from pathlib import Path
 
 import cv2
@@ -497,6 +499,7 @@ class DetectionView(QWidget):
         self._model_task: BackgroundTask | None = None
         self._device_task: BackgroundTask | None = None
         self._loading_spec = None
+        self._model_started: float | None = None
         # modellnyckel -> modellens klassnamn, så klassfiltret kan listas även
         # när detektorn är pausad (TASK-53)
         self._model_classes: dict[str, list[str]] = {}
@@ -544,6 +547,11 @@ class DetectionView(QWidget):
         layout.addLayout(bar)
         panels = QHBoxLayout()
         devices = self.video_service.list_devices()
+        logging.getLogger("xray").info(
+            "Kameror: %s",
+            ", ".join(f"{device.index}={device.name}" for device in devices)
+            or "inga hittade",
+        )
         # märkena sitter mot mitten, så de två fönstren visar klasserna nära varandra
         self.left = StreamPanel(
             "left", devices, self.settings, retry_letter="G", badge_align_right=True
@@ -795,6 +803,10 @@ class DetectionView(QWidget):
         self.model_combo.setEnabled(False)
         self.busy.start(f"Laddar {spec.label}...")
         self._loading_spec = spec
+        self._model_started = time.monotonic()
+        logging.getLogger("xray").info(
+            "Laddar modell: %s (familj %s) från %s", spec.label, spec.family, spec.weights
+        )
         task = BackgroundTask(lambda: self._create_detector(spec, threshold))
         task.succeeded.connect(self._on_model_loaded)
         task.failed.connect(self._on_model_failed)
@@ -815,6 +827,15 @@ class DetectionView(QWidget):
         device_label = getattr(detector, "device_label", "")
         if device_label:
             self.device_label.setText(f"Enhet: {device_label}")
+        elapsed = 0.0 if self._model_started is None else time.monotonic() - self._model_started
+        logging.getLogger("xray").info(
+            "Modell laddad: %s familj=%s vikter=%s enhet=%s på %.1f s",
+            self._loading_spec.label,
+            self._loading_spec.family,
+            self._loading_spec.weights,
+            device_label or "okänd",
+            elapsed,
+        )
         self.error_occurred.emit(f"Modell laddad: {self._loading_spec.label}")
 
     def _on_model_failed(self, message: str) -> None:

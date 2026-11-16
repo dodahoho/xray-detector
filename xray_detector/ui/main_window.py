@@ -85,6 +85,15 @@ class MainWindow(QMainWindow):
         self.fullscreen_shortcut.activated.connect(self._toggle_fullscreen)
 
         self.detection_view.check_device()
+        self._log_startup()
+
+    def _log_startup(self) -> None:
+        """Loggar läget appen startar i: datasetets storlek och klasser (TASK-101)."""
+        logging.getLogger("xray").info(
+            "Dataset: %d bildpar, klasser=%s",
+            self.dataset_service.image_pair_count(),
+            self.dataset_service.classes(),
+        )
 
     def show_window(self) -> None:
         if self.settings.value("window/maximized", True, type=bool):

@@ -4,7 +4,11 @@ import cv2
 import numpy as np
 
 from xray_detector.domain.detection import Detection
-from xray_detector.infrastructure.detectors.base import BaseDetector, class_names_from
+from xray_detector.infrastructure.detectors.base import (
+    BaseDetector,
+    class_names_from,
+    cuda_device_label,
+)
 
 #: Modellnyckel -> rfdetr-klass. rfdetr 1.7 ersatte RFDETRBase med
 #: storleksspecifika klasser (se rfdetrs migreringsguide).
@@ -16,10 +20,22 @@ RFDETR_VARIANTS = {
 }
 
 
+def _capture_rfdetr_logs() -> None:
+    """rfdetr sätter propagate=False på sina loggrar vid import (TASK-98).
+
+    Loggrarna skapas först när rfdetr importeras, alltså efter setup_logging(),
+    så fångsten måste göras om här.
+    """
+    from xray_detector.application.app_config import capture_third_party_logs
+
+    capture_third_party_logs()
+
+
 def rfdetr_variant(model_name: str):
     """Returnerar rfdetr-klassen för en modellnyckel, t.ex. 'rfdetr-small'."""
     import rfdetr
 
+    _capture_rfdetr_logs()
     class_name = RFDETR_VARIANTS.get(model_name)
     if class_name is None:
         raise ValueError(f"Okänd RF-DETR-modell: {model_name}")
@@ -39,6 +55,7 @@ def _load_model(weights: str):
     """
     import rfdetr
 
+    _capture_rfdetr_logs()
     if _is_checkpoint(weights):
         return rfdetr.from_checkpoint(weights)
     return rfdetr_variant(weights)()
@@ -68,6 +85,8 @@ class RfDetrDetector(BaseDetector):
 
         configure_inference_threads()
         model = _load_model(weights)
+        # modellbygget importerar fler rfdetr-moduler med egna loggrar
+        _capture_rfdetr_logs()
         super().__init__(
             name=f"RF-DETR ({label})",
             class_names=class_names_from(getattr(model, "class_names", None), weights),
@@ -75,6 +94,11 @@ class RfDetrDetector(BaseDetector):
         self.model = model
         self._optimize_for_inference()
         self.confidence_threshold = confidence_threshold
+
+    @property
+    def device_label(self) -> str:
+        """rfdetr kör på GPU när den finns, annars CPU (TASK-101)."""
+        return cuda_device_label()
 
     def _optimize_for_inference(self) -> None:
         """FP16-optimering på GPU ger cirka 60 % snabbare inferens (TASK-36).

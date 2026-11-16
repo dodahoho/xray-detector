@@ -1,9 +1,19 @@
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 # Projektroten ur paketets placering, så modell- och loggkatalogerna hittas även
 # när appen startas från en annan arbetskatalog (TASK-50, TASK-51).
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+#: Miljövariabel som pekar loggarna någon annanstans, t.ex. i testsviten (TASK-99).
+LOGS_DIR_ENV = "XRAY_LOGS_DIR"
+
+
+def default_logs_dir() -> Path:
+    """Loggkatalogen: XRAY_LOGS_DIR om den är satt, annars projektets logs/."""
+    override = os.environ.get(LOGS_DIR_ENV)
+    return Path(override) if override else PROJECT_ROOT / "logs"
 
 
 @dataclass
@@ -13,7 +23,7 @@ class AppConfig:
     )
     data_dir: Path = field(default_factory=lambda: Path.home() / ".xray-detector")
     models_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "models")
-    logs_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "logs")
+    logs_dir: Path = field(default_factory=default_logs_dir)
     confidence_threshold: float = 0.4
     default_model: str = "yolo26m"
 

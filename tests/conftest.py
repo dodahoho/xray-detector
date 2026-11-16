@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from xray_detector.domain.config import AppConfig
+from xray_detector.domain.config import LOGS_DIR_ENV, AppConfig
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 
@@ -45,11 +45,25 @@ def _collect_qt_objects():
     gc.collect()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolated_logs_dir(tmp_path_factory):
+    """Hela sviten loggar under tmp_path i stället för projektets logs/ (TASK-99).
+
+    Sätts som miljövariabel så att även tester som bygger AppConfig själva
+    hamnar utanför den riktiga loggkatalogen.
+    """
+    logs = tmp_path_factory.mktemp("logs")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv(LOGS_DIR_ENV, str(logs))
+        yield logs
+
+
 @pytest.fixture
 def config(tmp_path) -> AppConfig:
     """AppConfig med dataset-, export- och loggkataloger under tmp_path."""
     config = AppConfig()
     config.data_dir = tmp_path
+    config.logs_dir = tmp_path / "logs"
     config.ensure_dirs()
     return config
 

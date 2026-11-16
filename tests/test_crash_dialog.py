@@ -80,3 +80,38 @@ def test_install_and_restore(monkeypatch):
     restore_default_excepthook()
     assert sys.excepthook is sys.__excepthook__
     assert sys.excepthook is not excepthook_with_dialog or before is excepthook_with_dialog
+
+
+def test_keyboard_interrupt_quits_without_dialog(qapp, monkeypatch, caplog):
+    """Ctrl+C är ett avsiktligt avbrott, inte en krasch (TASK-100)."""
+    monkeypatch.setattr("PySide6.QtWidgets.QMessageBox", FakeMessageBox)
+    FakeMessageBox.shown.clear()
+    quit_calls = []
+    monkeypatch.setattr(QApplication, "quit", lambda *args: quit_calls.append(True))
+
+    with caplog.at_level(logging.INFO):
+        try:
+            raise KeyboardInterrupt
+        except KeyboardInterrupt:
+            excepthook_with_dialog(*sys.exc_info())
+
+    assert FakeMessageBox.shown == []
+    assert quit_calls == [True]
+    assert "Ctrl+C" in caplog.text
+    assert "Ohanterat undantag" not in caplog.text
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def test_keyboard_interrupt_without_qt_uses_default_hook(monkeypatch):
+    """Utan Qt-app tar Pythons egen krok över i stället för att tystna."""
+    calls = []
+    monkeypatch.setattr(sys, "__excepthook__", lambda *args: calls.append(args))
+    monkeypatch.setattr(QApplication, "instance", staticmethod(lambda: None))
+
+    try:
+        raise KeyboardInterrupt
+    except KeyboardInterrupt:
+        excepthook_with_dialog(*sys.exc_info())
+
+    assert len(calls) == 1
+    assert calls[0][0] is KeyboardInterrupt

@@ -16,7 +16,7 @@ from xray_detector.application.app_config import (
     setup_logging,
 )
 from xray_detector.application.dataset_service import DatasetService
-from xray_detector.domain.config import PROJECT_ROOT, AppConfig
+from xray_detector.domain.config import LOGS_DIR_ENV, PROJECT_ROOT, AppConfig
 from xray_detector.domain.training import TrainConfig
 
 
@@ -44,10 +44,17 @@ def root_handlers():
 
 
 def test_logs_dir_is_project_logs_regardless_of_workdir(tmp_path, monkeypatch):
+    monkeypatch.delenv(LOGS_DIR_ENV, raising=False)
     monkeypatch.chdir(tmp_path)
     config = AppConfig()
     assert config.logs_dir == PROJECT_ROOT / "logs"
     assert config.logs_dir.is_absolute()
+
+
+def test_logs_dir_env_override(tmp_path, monkeypatch):
+    """XRAY_LOGS_DIR pekar loggarna bort från projektet, som i testsviten (TASK-99)."""
+    monkeypatch.setenv(LOGS_DIR_ENV, str(tmp_path / "loggar"))
+    assert AppConfig().logs_dir == tmp_path / "loggar"
 
 
 def test_ensure_dirs_creates_logs_dir(tmp_path):
@@ -213,3 +220,36 @@ def test_training_log_is_not_written_to_app_log(qapp, tmp_path, root_handlers):
 
     app_log = (config.logs_dir / "app.log").read_text(encoding="utf-8")
     assert "bara i träningsloggen" not in app_log
+
+
+def test_training_worker_in_test_writes_under_tmp_path(qapp, config, tmp_path):
+    """En träningsworker i test ska inte skriva i projektets logs/ (TASK-99)."""
+    view = _training_view(qapp, config)
+    worker = _FakeWorker(_train_config(config, tmp_path))
+
+    view._on_worker_created(worker)
+    worker.progress.emit("bara under tmp_path")
+
+    assert config.logs_dir == tmp_path / "logs"
+    content = (tmp_path / "logs" / "training.log").read_text(encoding="utf-8")
+    assert "bara under tmp_path" in content
+    project_log = PROJECT_ROOT / "logs" / "training.log"
+    if project_log.exists():
+        assert "bara under tmp_path" not in project_log.read_text(encoding="utf-8")
+
+
+def test_training_run_id_is_in_both_logs(qapp, config, tmp_path, root_handlers):
+    """En träningskörning har ett id som går att hitta i båda loggarna (TASK-101)."""
+    setup_logging(config.logs_dir)
+    view = _training_view(qapp, config)
+    worker = _FakeWorker(_train_config(config, tmp_path))
+
+    view._on_worker_created(worker)
+    worker.finished_training.emit(True, "Träning avslutad (kod 0)")
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+    run_id = view.run_id
+    assert run_id
+    assert run_id in (config.logs_dir / "training.log").read_text(encoding="utf-8")
+    assert run_id in (config.logs_dir / "app.log").read_text(encoding="utf-8")

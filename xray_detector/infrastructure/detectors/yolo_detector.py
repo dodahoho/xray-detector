@@ -2,7 +2,11 @@ import numpy as np
 
 from xray_detector.domain.detection import Detection
 from xray_detector.domain.model_input import round_size
-from xray_detector.infrastructure.detectors.base import BaseDetector, class_names_from
+from xray_detector.infrastructure.detectors.base import (
+    BaseDetector,
+    class_names_from,
+    cuda_device_label,
+)
 
 
 def input_size_for(frame: np.ndarray) -> tuple[int, int]:
@@ -51,13 +55,7 @@ class YoloDetector(BaseDetector):
     @property
     def device_label(self) -> str:
         if self.device.startswith("cuda"):
-            import torch
-
-            try:
-                name = torch.cuda.get_device_name(0)
-            except Exception:
-                name = "GPU"
-            return f"CUDA ({name})"
+            return cuda_device_label()
         return "CPU (CUDA ej tillgänglig)"
 
     def detect(self, frame: np.ndarray) -> list[Detection]:

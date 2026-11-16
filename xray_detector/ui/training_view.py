@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from pathlib import Path
 from time import time
@@ -62,6 +63,8 @@ class TrainingView(QWidget):
         self.training_service = TrainingService()
         self.worker = None
         self.training_log = None
+        # körningens id, samma sträng i app.log och training.log (TASK-101)
+        self.run_id = None
         # bildstorleken följer datasetet tills användaren väljer en egen (TASK-80)
         self._imgsz_user_set = False
         self._applying_imgsz = False
@@ -367,6 +370,8 @@ class TrainingView(QWidget):
     def _on_worker_created(self, worker) -> None:
         """Kopplar en (direkt eller schemalagd) worker till loggen och startar den."""
         self.worker = worker
+        # körningskatalogen är tidsstämplad och unik per träning (TASK-101)
+        self.run_id = worker.config.output_dir.name
         self.training_log = file_logger(
             "xray.training", log_path(self.config.logs_dir, "training")
         )
@@ -389,13 +394,21 @@ class TrainingView(QWidget):
         self.chart.clear()
         self.chart.setVisible(True)
         header = (
-            f"Startar träning: {worker.config.weights} på {worker.config.dataset_yaml} "
+            f"[{self.run_id}] Startar träning: {worker.config.weights} på "
+            f"{worker.config.dataset_yaml} "
             f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, "
             f"batch {worker.config.batch_size()}) "
             f"-> {worker.config.output_dir}"
         )
         self.log.appendPlainText(header)
         self.training_log.info("=== %s ===", header)
+        logging.getLogger("xray").info(
+            "Träning %s startad: %s på %s -> %s",
+            self.run_id,
+            worker.config.weights,
+            worker.config.dataset_yaml,
+            worker.config.output_dir,
+        )
         worker.start()
         self.training_started.emit()
 
@@ -481,6 +494,7 @@ class TrainingView(QWidget):
         self.log.appendPlainText(message)
         if self.training_log is not None:
             self.training_log.info(message)
+        logging.getLogger("xray").info("Träning %s avslutad: %s", self.run_id, message)
         self.start_button.setEnabled(True)
         self.abort_button.setEnabled(False)
         self.overfitting_check.setEnabled(True)

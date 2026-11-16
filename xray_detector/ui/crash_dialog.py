@@ -6,6 +6,9 @@ med en krok som loggar felet (rotationsloggen fran TASK-15), visar en
 QMessageBox med felnamn, meddelande och full traceback som detaljtext,
 skriver tracebacken till stderr for konsolkorningar - och luter sedan
 appen fortsatta istallet for en tyst krasch.
+
+Ctrl+C ar ett avsiktligt avbrott, inte en krasch: kroken hoppar over
+KeyboardInterrupt, loggar det som INFO och stanger appen (TASK-100).
 """
 
 import logging
@@ -13,7 +16,29 @@ import sys
 import traceback
 
 
+def _quit_on_interrupt(exc_type, exc_value, exc_tb) -> None:
+    """Avslutar appen utan kraschdialog nar anvandaren tryckt Ctrl+C (TASK-100).
+
+    Loggas som INFO sa att den enda ERROR-raden i loggen forblir ett verkligt
+    fel. Utan Qt-app (konsolkorning) tar Pythons egen krok over.
+    """
+    logging.getLogger("xray").info("Avbryter: Ctrl+C")
+    try:
+        from PySide6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+    except Exception:
+        app = None
+    if app is None:
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+        return
+    app.quit()
+
+
 def excepthook_with_dialog(exc_type, exc_value, exc_tb) -> None:
+    if exc_type is not None and issubclass(exc_type, KeyboardInterrupt):
+        _quit_on_interrupt(exc_type, exc_value, exc_tb)
+        return
     text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     logging.getLogger("xray").error("Ohanterat undantag:\n%s", text)
     print(text, file=sys.stderr)

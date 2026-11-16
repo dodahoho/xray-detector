@@ -78,6 +78,10 @@ class DatasetService:
         """Datasetets upplösningar som (bredd, höjd, antal), vanligaste först (TASK-80)."""
         return self.store.image_sizes()
 
+    def image_pair_count(self) -> int:
+        """Antal bildpar (fångstgrupper) i datasetet (TASK-73, TASK-101)."""
+        return group_count(self.load_dataset()["images"])
+
     def export_yolo(self, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
         return export_yolo(self.store, export_root, ratio)
 

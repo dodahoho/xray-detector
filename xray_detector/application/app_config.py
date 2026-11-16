@@ -1,8 +1,10 @@
-"""Initiering av konfiguration och loggning (TASK-15, TASK-51).
+"""Initiering av konfiguration och loggning (TASK-15, TASK-51, TASK-98).
 
 Appen laser en valfri config.yaml i datakatalogen (eller arbetskatalogen)
 som overrider AppConfig-defaults, och startar loggning med filrotation
 under projektets logs/ via stdlib logging (ingen extra dependency).
+Tredjepartens varningar och loggrader leds in i samma fil, sa loggfilen
+visar det som annars bara syntes i konsolen.
 """
 
 import logging
@@ -12,9 +14,32 @@ from pathlib import Path
 
 from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 
-LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+LOG_FORMAT = "%(asctime)s [%(process)d] %(levelname)s %(name)s: %(message)s"
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUP_COUNT = 5
+
+#: Tredjepartsloggrar vars rader ska nå app.log (TASK-98). rfdetr sätter
+#: propagate=False och egna stream-handlers vid import, så utan detta stannar
+#: dess rader i konsolen.
+CAPTURED_LOGGERS = (
+    "rfdetr",
+    "rf-detr",
+    "ultralytics",
+    "torch",
+    "transformers",
+    "lightning",
+    "pytorch_lightning",
+    "timm",
+    "supervision",
+    "huggingface_hub",
+    "PIL",
+    "matplotlib",
+    "urllib3",
+)
+
+#: Loggrar som bara skriver brus. comtypes stod för 41 % av app.log (TASK-98).
+NOISY_LOGGERS = ("comtypes",)
+NOISY_LEVEL = logging.WARNING
 
 
 def _parse_scalar(value):
@@ -94,6 +119,16 @@ def load_config_with_yaml(config_dir: Path | None = None, workdir: Path | None =
     return config, None
 
 
+def config_values(config: AppConfig) -> str:
+    """Konfigurationens gällande värden som en loggvänlig rad (TASK-101)."""
+    return (
+        f"classes={config.classes} default_model={config.default_model} "
+        f"confidence_threshold={config.confidence_threshold} "
+        f"data_dir={config.data_dir} models_dir={config.models_dir} "
+        f"logs_dir={config.logs_dir}"
+    )
+
+
 def log_path(logs_dir: Path, name: str) -> Path:
     """Sökväg till en loggtyp under logs/, t.ex. log_path(logs_dir, "training").
 
@@ -134,6 +169,38 @@ def file_logger(name: str, path: Path, level: int = logging.INFO) -> logging.Log
     return logger
 
 
+def _matches(name: str, prefixes: tuple[str, ...]) -> bool:
+    return any(name == prefix or name.startswith(f"{prefix}.") for prefix in prefixes)
+
+
+def capture_third_party_logs() -> None:
+    """Låter tredjepartens rader nå app.log och tystar renodlat brus (TASK-98).
+
+    Python-varningar från torch, transformers och rfdetr går annars bara till
+    stderr, eftersom logging.captureWarnings aldrig anropas. rfdetr sätter
+    dessutom propagate=False på sina loggrar vid import. Raderna behåller sin
+    egen logger i %(name)s, så de går att skilja från appens xray-rader.
+
+    Idempotent: anropas från setup_logging() och igen efter import rfdetr,
+    eftersom rfdetr skapar sina loggrar först då.
+    """
+    # captureWarnings är en global engångsflagga: har något återställt
+    # warnings.showwarning (t.ex. pytest:s catch_warnings) blir ett nytt
+    # captureWarnings(True) verkningslöst. Nollställ först så fångsten alltid tar.
+    logging.captureWarnings(False)
+    logging.captureWarnings(True)
+    for name, logger in list(logging.Logger.manager.loggerDict.items()):
+        if not isinstance(logger, logging.Logger):
+            continue
+        if _matches(name, CAPTURED_LOGGERS):
+            logger.propagate = True
+        if _matches(name, NOISY_LOGGERS):
+            logger.setLevel(NOISY_LEVEL)
+    # prefixet självt också, så loggrar som skapas senare ärver nivån
+    for prefix in NOISY_LOGGERS:
+        logging.getLogger(prefix).setLevel(NOISY_LEVEL)
+
+
 def setup_logging(logs_dir: Path, level: int = logging.INFO) -> logging.Logger:
     """Rotationsloggning till <logs_dir>/app.log; returnerar xray-loggern."""
     handler = rotating_handler(log_path(logs_dir, "app"))
@@ -147,4 +214,5 @@ def setup_logging(logs_dir: Path, level: int = logging.INFO) -> logging.Logger:
     else:
         root.addHandler(handler)
     root.setLevel(level)
+    capture_third_party_logs()
     return logging.getLogger("xray")

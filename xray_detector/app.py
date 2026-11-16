@@ -1,7 +1,11 @@
 import sys
 from pathlib import Path
 
-from xray_detector.application.app_config import load_config_with_yaml, setup_logging
+from xray_detector.application.app_config import (
+    config_values,
+    load_config_with_yaml,
+    setup_logging,
+)
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.translations import install_swedish_translations
 
@@ -56,6 +60,12 @@ def _warn_about_legacy_models(config, log) -> None:
         )
 
 
+def _log_startup(config, config_file, log) -> None:
+    """Loggar vilken konfigfil som användes och vilka värden som gäller (TASK-101)."""
+    log.info("Startar X-ray detector (konfig: %s)", config_file or "default")
+    log.info("Konfigvärden: %s", config_values(config))
+
+
 def main() -> int:
     _install_message_filter()
     _set_app_user_model_id()
@@ -73,7 +83,7 @@ def main() -> int:
     config, config_file = load_config_with_yaml(config_dir=None, workdir=Path.cwd())
     config.ensure_dirs()
     log = setup_logging(config.logs_dir)
-    log.info("Startar X-ray detector (konfig: %s)", config_file or "default")
+    _log_startup(config, config_file, log)
     _warn_about_legacy_models(config, log)
     window = MainWindow(config)
     window.show_window()
