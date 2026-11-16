@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.ui.badge import HIDE_FRAMES_KEY, SHOW_FRAMES_KEY, badge_delays
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import FormCard, apply_metrics, button
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
@@ -168,6 +169,50 @@ class DatasetSortSection(FormCard):
     def _on_order_changed(self) -> None:
         self.settings.setValue(SORT_KEY, self.order_combo.currentData())
         self.order_changed.emit()
+
+
+class BadgeSection(FormCard):
+    """Fördröjningen för klassmärket i videofönstren (TASK-84).
+
+    Märket kräver ett antal ramar i följd med klassen innan det visas och
+    lika många utan innan det döljs, så en detektion nära tröskelvärdet inte
+    får märket att flimra. Ändringar sparas direkt och slår igenom på båda
+    panelerna utan att dialogen stängs.
+    """
+
+    def __init__(self, settings, on_changed, parent=None) -> None:
+        super().__init__("Klassmärke", parent)
+        self.settings = settings
+        self.on_changed = on_changed
+        form = self.form
+        show_frames, hide_frames = badge_delays(settings)
+        self.show_frames = QSpinBox()
+        self.show_frames.setRange(1, 60)
+        self.show_frames.setSuffix(" ramar")
+        self.show_frames.setValue(show_frames)
+        self.show_frames.valueChanged.connect(self._on_show_changed)
+        form.addRow(QLabel("Visa efter:"), self.show_frames)
+        self.hide_frames = QSpinBox()
+        self.hide_frames.setRange(1, 120)
+        self.hide_frames.setSuffix(" ramar")
+        self.hide_frames.setValue(hide_frames)
+        self.hide_frames.valueChanged.connect(self._on_hide_changed)
+        form.addRow(QLabel("Dölj efter:"), self.hide_frames)
+        hint = QLabel(
+            "Antal ramar i följd som klassen måste detekteras i innan märket "
+            "visas, respektive saknas i innan det döljs."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #888;")
+        form.addRow(hint)
+
+    def _on_show_changed(self, frames: int) -> None:
+        self.settings.setValue(SHOW_FRAMES_KEY, frames)
+        self.on_changed()
+
+    def _on_hide_changed(self, frames: int) -> None:
+        self.settings.setValue(HIDE_FRAMES_KEY, frames)
+        self.on_changed()
 
 
 class ClassFilterSection(QGroupBox):

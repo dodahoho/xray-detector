@@ -21,12 +21,15 @@ from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.video_service import VideoService
 from xray_detector.domain.capture import StreamFrame, VideoMode
 from xray_detector.domain.config import AppConfig
+from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.devices import list_device_modes
+from xray_detector.ui.badge import BadgeTracker, badge_delays, draw_badge
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
+    BadgeSection,
     ClassFilterSection,
     settings_button,
 )
@@ -52,6 +55,10 @@ DETECTION_TURN_OFF = mnemonic("Detektion av", "O")
 DETECTION_TURN_ON = mnemonic("Detektion på", "O")
 AUTO_MODE = "Auto"
 CLASSES_OFF_PREFIX = "detection/classes_off"
+# etiketten på rutan ritas i källans upplösning och skalas med bilden, så
+# punktstorleken är dubbelt så stor som tidigare för att synas (TASK-84)
+LABEL_POINT_SIZE = 20
+LABEL_GAP = 4
 
 from xray_detector.ui.colors import class_color
 
@@ -77,6 +84,38 @@ def _format_pair(value: int | None, total: int | None) -> str:
     if value is None or total is None:
         return ""
     return f"{_format_bytes(value)} / {_format_bytes(total)}"
+
+
+def draw_detections(painter: QPainter, detections: list[Detection]) -> None:
+    """Ritar ruta och etikett för varje detektion (TASK-76, TASK-84).
+
+    Etiketten läggs ovanför rutan när det finns plats och strax innanför
+    överkanten annars, så en detektion högt upp i bilden inte klipps.
+    """
+    pen = QPen()
+    pen.setWidth(2)
+    font = QFont()
+    font.setPointSize(LABEL_POINT_SIZE)
+    painter.setFont(font)
+    metrics = painter.fontMetrics()
+    for detection in detections:
+        color = class_color(detection.class_name)
+        pen.setColor(color)
+        painter.setPen(pen)
+        painter.drawRect(
+            int(detection.x1),
+            int(detection.y1),
+            int(detection.width),
+            int(detection.height),
+        )
+        baseline = int(detection.y1) - LABEL_GAP
+        if baseline - metrics.ascent() < 0:
+            baseline = int(detection.y1) + LABEL_GAP + metrics.ascent()
+        painter.drawText(
+            int(detection.x1),
+            baseline,
+            f"{detection.class_name} {detection.confidence * 100:.0f}%",
+        )
 
 
 class ResourceMeter(QWidget):
@@ -117,12 +156,15 @@ class StreamPanel(QFrame):
         devices=None,
         settings=None,
         retry_letter: str = "G",
+        badge_align_right: bool = True,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.source_id = source_id
         self.devices = list(devices or [])
         self.settings = settings
+        self.badge_align_right = badge_align_right
+        self.badge = BadgeTracker(*badge_delays(settings))
         self.latest: StreamFrame | None = None
         self._active: tuple[str, object] = ("none", None)
         self._lost_attempts = 0
@@ -378,38 +420,38 @@ class StreamPanel(QFrame):
         self.fps_label.setText(f"{stream_frame.fps:.1f} fps" if stream_frame.fps else "")
         image = self._to_qimage(stream_frame.frame)
         painter = QPainter(image)
-        pen = QPen()
-        pen.setWidth(2)
-        font = QFont()
-        font.setPointSize(10)
-        for detection in stream_frame.detections:
-            color = class_color(detection.class_name)
-            pen.setColor(color)
-            painter.setPen(pen)
-            painter.drawRect(
-                int(detection.x1),
-                int(detection.y1),
-                int(detection.width),
-                int(detection.height),
-            )
-            painter.setFont(font)
-            painter.drawText(
-                int(detection.x1),
-                max(12, int(detection.y1) - 4),
-                f"{detection.class_name} {detection.confidence * 100:.0f}%",
-            )
+        draw_detections(painter, stream_frame.detections)
         painter.end()
         scaled = QPixmap.fromImage(image).scaled(
             self.display.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
+        self._draw_badge(scaled, stream_frame.detections)
         self.display.setPixmap(scaled)
 
+    def _draw_badge(self, pixmap: QPixmap, detections: list[Detection]) -> None:
+        """Ritar klassmärket på den skalade bilden (TASK-84).
+
+        Märket ritas efter skalningen, så det har samma storlek oavsett
+        källans upplösning och hamnar högst upp i själva videobilden.
+        """
+        badge = self.badge.update(detections)
+        if badge is None:
+            return
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        draw_badge(painter, pixmap.rect(), badge, align_right=self.badge_align_right)
+        painter.end()
+
+    def set_badge_delays(self, show_frames: int, hide_frames: int) -> None:
+        """Nya fördröjningar för klassmärket, utan att rita om bilden (TASK-84)."""
+        self.badge.set_delays(show_frames, hide_frames)
 
     def clear_overlay(self) -> None:
         if self.latest is not None:
             self.latest.detections = []
+            self.badge.reset()
             self.show_frame(self.latest)
 
     @staticmethod
@@ -483,8 +525,13 @@ class DetectionView(QWidget):
         layout.addLayout(bar)
         panels = QHBoxLayout()
         devices = self.video_service.list_devices()
-        self.left = StreamPanel("left", devices, self.settings, retry_letter="G")
-        self.right = StreamPanel("right", devices, self.settings, retry_letter="N")
+        # märkena sitter mot mitten, så de två fönstren visar klasserna nära varandra
+        self.left = StreamPanel(
+            "left", devices, self.settings, retry_letter="G", badge_align_right=True
+        )
+        self.right = StreamPanel(
+            "right", devices, self.settings, retry_letter="N", badge_align_right=False
+        )
         for panel in (self.left, self.right):
             panel.source_requested.connect(self._on_source_requested)
             panels.addWidget(panel, 1)
@@ -588,14 +635,25 @@ class DetectionView(QWidget):
             self.settings.setValue(f"detection/source_{panel.source_id}_value", value)
 
     def _settings_sections(self) -> list:
-        """Detektionsvyns egna inställningar: klassfiltret för vald modell (TASK-53)."""
+        """Detektionsvyns egna inställningar: klassfiltret och klassmärket.
+
+        Klassfiltret följer vald modell (TASK-53) och märkets fördröjningar
+        styr hur snabbt en klass visas och döljs i videofönstren (TASK-84).
+        """
         return [
             ClassFilterSection(
                 self.model_class_names(),
                 self._disabled_classes(self.model_combo.currentData()),
                 self._on_class_filter_changed,
-            )
+            ),
+            BadgeSection(self.settings, self._on_badge_delays_changed),
         ]
+
+    def _on_badge_delays_changed(self) -> None:
+        """Nya fördröjningar slår igenom direkt på båda panelerna (TASK-84)."""
+        show_frames, hide_frames = badge_delays(self.settings)
+        for panel in (self.left, self.right):
+            panel.set_badge_delays(show_frames, hide_frames)
 
     def model_class_names(self) -> list[str]:
         """Klasserna som vald modell kan detektera (TASK-52, TASK-53, TASK-61)."""

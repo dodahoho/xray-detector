@@ -1,0 +1,164 @@
+"""Klassmärket högst upp i videofönstret (TASK-84).
+
+Rutans etikett sitter på objektet och kan drunkna i bilden: texten är liten
+och klassfärgen kan ha dålig kontrast mot det som ligger bakom. Märket visar
+samma klass och sannolikhet på en fast plats i fönstret, med klassens färg som
+bakgrund.
+
+En detektion nära confidence-tröskeln slår av och på mellan ramar, så märket
+kräver ett antal ramar i följd med klassen innan det visas och lika många utan
+innan det döljs. Fördröjningarna är inställbara och räknas i ramar, eftersom
+det är ramar som flimrar.
+"""
+
+from PySide6.QtCore import QRect, Qt
+from PySide6.QtGui import QColor, QFont, QPainter
+
+from xray_detector.domain.detection import Detection
+from xray_detector.ui.colors import class_color
+
+SHOW_FRAMES_KEY = "detection/badge_show_frames"
+HIDE_FRAMES_KEY = "detection/badge_hide_frames"
+SHOW_FRAMES_DEFAULT = 3
+HIDE_FRAMES_DEFAULT = 10
+BADGE_MARGIN = 8
+BADGE_PADDING = 6
+BADGE_RADIUS = 6
+BADGE_POINT_SIZE = 12
+DARK_TEXT = "#111"
+LIGHT_TEXT = "#fff"
+
+
+def badge_delays(settings) -> tuple[int, int]:
+    """Antal ramar innan märket visas respektive döljs.
+
+    Utan sparade värden används 3 ramar för att visa och 10 för att dölja,
+    alltså ungefär en tiondels sekund i 30 fps.
+    """
+    if settings is None:
+        return SHOW_FRAMES_DEFAULT, HIDE_FRAMES_DEFAULT
+    return (
+        _frames(settings, SHOW_FRAMES_KEY, SHOW_FRAMES_DEFAULT),
+        _frames(settings, HIDE_FRAMES_KEY, HIDE_FRAMES_DEFAULT),
+    )
+
+
+def _frames(settings, key: str, default: int) -> int:
+    try:
+        return max(1, int(settings.value(key, default, type=int)))
+    except (TypeError, ValueError):
+        return default
+
+
+class BadgeTracker:
+    """Vilket klassmärke som ska visas, med hysteres över ramar.
+
+    Varje klass räknar sammanhängande ramar med och utan detektion. Klassen
+    syns när den setts show_frames ramar i följd och släcks först efter
+    hide_frames ramar utan, så enstaka missade ramar inte får märket att
+    flimra. Syns flera klasser samtidigt visas den med högst sannolikhet.
+    """
+
+    def __init__(
+        self,
+        show_frames: int = SHOW_FRAMES_DEFAULT,
+        hide_frames: int = HIDE_FRAMES_DEFAULT,
+    ) -> None:
+        self._hits: dict[str, int] = {}
+        self._misses: dict[str, int] = {}
+        self._last: dict[str, Detection] = {}
+        self._visible: set[str] = set()
+        self.set_delays(show_frames, hide_frames)
+
+    def set_delays(self, show_frames: int, hide_frames: int) -> None:
+        """Nya fördröjningar slår igenom direkt, utan att nollställa läget."""
+        self.show_frames = max(1, int(show_frames))
+        self.hide_frames = max(1, int(hide_frames))
+
+    def reset(self) -> None:
+        self._hits.clear()
+        self._misses.clear()
+        self._last.clear()
+        self._visible.clear()
+
+    def update(self, detections: list[Detection]) -> Detection | None:
+        """Räknar ramen och returnerar märket som ska visas, om något."""
+        present = _best_per_class(detections)
+        for name in list(self._hits):
+            if name in present:
+                self._hits[name] += 1
+                self._misses[name] = 0
+            else:
+                self._hits[name] = 0
+                self._misses[name] += 1
+        for name in present:
+            if name not in self._hits:
+                self._hits[name] = 1
+                self._misses[name] = 0
+        self._last.update(present)
+        for name in list(self._hits):
+            if name in self._visible:
+                if self._misses[name] >= self.hide_frames:
+                    self._visible.discard(name)
+            elif self._hits[name] >= self.show_frames:
+                self._visible.add(name)
+        self._forget_hidden()
+        if not self._visible:
+            return None
+        return max(
+            (self._last[name] for name in self._visible),
+            key=lambda detection: detection.confidence,
+        )
+
+    def _forget_hidden(self) -> None:
+        """Glömmer klasser som varken syns eller är på väg tillbaka."""
+        for name in list(self._hits):
+            if name in self._visible or self._hits[name]:
+                continue
+            if self._misses[name] < self.hide_frames:
+                continue
+            del self._hits[name]
+            del self._misses[name]
+            self._last.pop(name, None)
+
+
+def _best_per_class(detections: list[Detection]) -> dict[str, Detection]:
+    """Klassens säkraste detektion i ramen; flera rutor av samma klass räknas en gång."""
+    best: dict[str, Detection] = {}
+    for detection in detections:
+        current = best.get(detection.class_name)
+        if current is None or detection.confidence > current.confidence:
+            best[detection.class_name] = detection
+    return best
+
+
+def badge_text(detection: Detection) -> str:
+    """Klass och sannolikhet som märket visar."""
+    return f"{detection.class_name} {detection.confidence * 100:.0f} %"
+
+
+def draw_badge(
+    painter: QPainter, area: QRect, detection: Detection, *, align_right: bool
+) -> None:
+    """Ritar klass och sannolikhet högst upp i videofönstret.
+
+    Märket ritas på den skalade bilden, så texten har samma storlek oavsett
+    källans upplösning. Bakgrunden är klassens färg, så kontrasten mot bilden
+    bakom spelar ingen roll.
+    """
+    color = class_color(detection.class_name)
+    text = badge_text(detection)
+    font = QFont()
+    font.setPointSize(BADGE_POINT_SIZE)
+    font.setBold(True)
+    painter.setFont(font)
+    metrics = painter.fontMetrics()
+    width = metrics.horizontalAdvance(text) + 2 * BADGE_PADDING
+    height = metrics.height() + 2 * BADGE_PADDING
+    x = area.right() - BADGE_MARGIN - width if align_right else area.left() + BADGE_MARGIN
+    rect = QRect(x, area.top() + BADGE_MARGIN, width, height)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(color)
+    painter.drawRoundedRect(rect, BADGE_RADIUS, BADGE_RADIUS)
+    painter.setPen(QColor(DARK_TEXT if color.lightness() > 140 else LIGHT_TEXT))
+    painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
