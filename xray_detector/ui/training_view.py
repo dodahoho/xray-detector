@@ -159,7 +159,13 @@ class TrainingView(QWidget):
         self.imgsz_spin.setSingleStep(STEP)
         self.imgsz_spin.setValue(DEFAULT_SIZE)
         self.imgsz_spin.valueChanged.connect(self._on_imgsz_changed)
-        form.addRow("Bildstorlek:", self.imgsz_spin)
+        # värdet är en kvadrat, så den längsta sidan måste rymmas (TASK-87)
+        self.imgsz_spin.setToolTip(
+            "Bildens längsta sida i pixlar. Ultralytics skalar bilden till en "
+            "kvadrat på Bildstorlek x Bildstorlek px: 1280x720 ger 1280 "
+            "(horisontell) och 720x1280 ger 1280 (vertikal)."
+        )
+        form.addRow("Bildstorlek (längsta sidan):", self.imgsz_spin)
         # upplösningarna får en egen rad, annars klipps listan i ett smalt kort
         self.imgsz_info = QLabel("-")
         self.imgsz_info.setStyleSheet("color: #888;")

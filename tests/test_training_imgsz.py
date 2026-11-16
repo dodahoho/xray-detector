@@ -10,6 +10,7 @@ from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.model_input import DEFAULT_SIZE, MAX_SIZE, MIN_SIZE
 from xray_detector.domain.training import imgsz_for
+from xray_detector.ui.style import FormCard
 from xray_detector.ui.training_view import TrainingView
 
 
@@ -83,6 +84,19 @@ def test_training_view_without_dataset_keeps_the_default(qapp, config, settings)
 
     assert view.imgsz_spin.value() == DEFAULT_SIZE
     assert view.imgsz_info.text() == "Datasetets upplösningar: -"
+
+
+def test_imgsz_label_and_tooltip_name_the_longest_side(qapp, config, settings):
+    """Ett enskilt tal måste säga vilken sida det avser (TASK-87)."""
+    view = _view(config, settings)
+    card = view.findChild(FormCard)
+
+    label = card.form.labelForField(view.imgsz_spin)
+
+    assert label.text() == "Bildstorlek (längsta sidan):"
+    tooltip = view.imgsz_spin.toolTip()
+    assert "1280x720 ger 1280 (horisontell)" in tooltip
+    assert "720x1280 ger 1280 (vertikal)" in tooltip
 
 
 def test_user_choice_survives_a_new_dataset_resolution(qapp, config, settings):

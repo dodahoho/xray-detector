@@ -83,7 +83,7 @@ def test_details_show_the_important_parameters(tmp_path):
     details = training_runs(tmp_path)[0].details
 
     assert "Dataset: C:/data/exports/yolo/data.yaml" in details
-    assert "Bildstorlek: 640" in details
+    assert "Bildstorlek (längsta sidan): 640" in details
     assert "Batch: 16" in details
     assert "mAP50-95: 0.412" in details
     assert "kniv, pistol" in details
@@ -355,4 +355,4 @@ def test_run_details_are_readable_for_a_manual_run(tmp_path):
 
     assert run.map50_95_text == "-"
     assert run.status_label == "Pågår"
-    assert "Bildstorlek: -" in run.details
+    assert "Bildstorlek (längsta sidan): -" in run.details

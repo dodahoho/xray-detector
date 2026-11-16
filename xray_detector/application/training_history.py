@@ -80,11 +80,12 @@ class TrainingRun:
     @property
     def details(self) -> str:
         """Viktiga parametrar för vald körning."""
+        imgsz = self.imgsz if self.imgsz is not None else UNKNOWN
         parts = [
             f"Familj: {self.family}",
             f"Basmodell: {Path(self.base_weights).stem}",
             f"Dataset: {self.dataset_yaml}",
-            f"Bildstorlek: {self.imgsz if self.imgsz is not None else UNKNOWN}",
+            f"Bildstorlek (längsta sidan): {imgsz}",
             f"Batch: {self.batch if self.batch is not None else UNKNOWN}",
             f"Epoker: {self.epochs_text}",
             f"mAP50-95: {self.map50_95_text}",
