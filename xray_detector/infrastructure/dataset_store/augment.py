@@ -9,7 +9,8 @@ Rotation och storlek ändrar bildens mått i stället för att klippa bort
 innehåll: en roterad bild får plats med hela den roterade rektangeln, och en
 skalad bild blir större eller mindre. Då behåller varje objekt sin annotering,
 vilket är hela poängen med att utöka ett litet dataset. Ytan utanför en
-roterad bild blir svart, vilket röntgenbilder redan har som bakgrund.
+roterad bild blir vit, samma bakgrund som röntgenbilderna har, så den nya
+ytan inte syns som en svart ram (TASK-105).
 """
 
 import random
@@ -24,6 +25,8 @@ MIN_SCALE = 0.25
 MAX_SCALE = 4.0
 # ljusstyrkan räknas som andel av det största värdet en kanal kan ha
 BRIGHTNESS_RANGE = 127.0
+# ytan som en rotation lägger till är vit som bildernas egen bakgrund (TASK-105)
+BACKGROUND = (255, 255, 255)
 
 
 def variation_plan(
@@ -112,7 +115,11 @@ def rotate(
     annotations: list[dict],
     angle: float,
 ) -> tuple[np.ndarray, list[dict]]:
-    """Roterar bilden kring mitten och vidgar den så inget klipps bort."""
+    """Roterar bilden kring mitten och vidgar den så inget klipps bort.
+
+    Den nya ytan fylls med bildernas vita bakgrund, så den inte syns som en
+    svart ram (TASK-105).
+    """
     height, width = frame.shape[:2]
     matrix = cv2.getRotationMatrix2D((width / 2, height / 2), angle, 1.0)
     corners = np.array(
@@ -131,7 +138,7 @@ def rotate(
         size,
         flags=cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT,
-        borderValue=0,
+        borderValue=BACKGROUND,
     )
     return warped, _transform(annotations, matrix, size[0], size[1])
 

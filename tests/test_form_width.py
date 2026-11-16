@@ -16,7 +16,6 @@ from xray_detector.ui.settings_dialog import (
     DatasetSortSection,
     ThemeSection,
     TrainingScheduleSection,
-    TrainValSplitSection,
 )
 from xray_detector.ui.style import FORM_MAX_WIDTH, LIST_MAX_WIDTH, FormCard
 
@@ -69,7 +68,6 @@ def test_settings_sections_share_the_form_width(qapp, settings):
     for section in (
         ThemeSection(settings),
         TrainingScheduleSection(settings),
-        TrainValSplitSection(settings),
         DatasetSortSection(settings),
     ):
         assert section.maximumWidth() == FORM_MAX_WIDTH, type(section).__name__
@@ -136,10 +134,22 @@ def test_long_dataset_summary_wraps_inside_the_card(qapp, window):
     )
     _shown_wide(qapp, window, view)
 
-    card = view.findChild(FormCard)
+    card = view.dataset_info.parentWidget()
 
     assert card.width() <= FORM_MAX_WIDTH
     assert view.dataset_info.width() <= FORM_MAX_WIDTH
+
+
+def test_dataset_card_sits_right_of_the_training_settings(qapp, window):
+    """Datasetet har ett eget kort till höger om träningsparametrarna (TASK-103)."""
+    _shown_wide(qapp, window, window.training_view)
+    view = window.training_view
+    training_card = view.findChild(FormCard)
+    dataset_card = view.ratio_spin.parentWidget()
+
+    assert dataset_card.title() == "Dataset"
+    assert dataset_card.x() >= training_card.x() + training_card.width()
+    assert dataset_card.width() <= FORM_MAX_WIDTH
 
 
 # --- Globala inställningar (AC 3, 4) ---

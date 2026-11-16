@@ -61,6 +61,8 @@ IMAGE_TYPES = (
 )
 SYNTHETIC_COLOR = "#b48ce8"
 SYNTHETIC_LABEL = "Syntetisk"
+# luften mellan utöka/återställ och exportknapparna, så grupperna syns var för sig
+BUTTON_GROUP_GAP = 24
 
 
 class FlowLayout(QLayout):
@@ -390,13 +392,16 @@ class DatasetView(QWidget):
 
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
+        # hela raden ligger till höger, och utöka/återställ får ett eget
+        # mellanrum till exportknapparna så grupperna syns var för sig (TASK-102)
+        bar.addStretch(1)
         self.variation_button = button(mnemonic("Utöka med bildvariationer", "U"))
         self.variation_button.clicked.connect(self._on_add_variations)
         bar.addWidget(self.variation_button)
         self.reset_button = button(mnemonic("Återställ till original", "R"))
         self.reset_button.clicked.connect(self._on_reset_synthetic)
         bar.addWidget(self.reset_button)
-        bar.addStretch(1)
+        bar.addSpacing(BUTTON_GROUP_GAP)
         self.export_coco_button = button(mnemonic("Exportera COCO", "E"))
         self.export_coco_button.clicked.connect(self._on_export_coco)
         bar.addWidget(self.export_coco_button)

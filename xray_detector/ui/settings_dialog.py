@@ -126,34 +126,6 @@ class TrainingScheduleSection(FormCard):
         self.settings.setValue(key, f"{hour:02d}:00")
 
 
-class TrainValSplitSection(FormCard):
-    """Andel av datasetet som används till träning respektive validering (TASK-72).
-
-    Delningen sker per fångstgrupp, så andelen räknas i bildpar: ett bildpar
-    hamnar alltid i sin helhet i train eller i val.
-    """
-
-    ratio_changed = Signal()
-
-    def __init__(self, settings, parent=None) -> None:
-        super().__init__("Train/val-delning", parent)
-        self.settings = settings
-        form = self.form
-        self.ratio = QSpinBox()
-        self.ratio.setRange(1, 99)
-        self.ratio.setSuffix(" %")
-        self.ratio.setValue(round(train_ratio(settings) * 100))
-        self.ratio.valueChanged.connect(self._on_ratio_changed)
-        form.addRow(QLabel("Andel till train:"), self.ratio)
-        hint = QLabel("Resten används till validering. Delningen sker per bildpar.")
-        hint.setStyleSheet("color: #888;")
-        form.addRow(hint)
-
-    def _on_ratio_changed(self, percent: int) -> None:
-        self.settings.setValue(TRAIN_RATIO_KEY, percent)
-        self.ratio_changed.emit()
-
-
 class DatasetSortSection(FormCard):
     """Sortering av fångsterna i datasetvyn (TASK-56)."""
 

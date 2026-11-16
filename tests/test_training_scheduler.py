@@ -120,3 +120,25 @@ def test_training_view_queue_flow(qapp, tmp_path, monkeypatch):
     # Avbryt avbokar det koade jobbet
     view._on_abort()
     assert not view.training_service.scheduler().has_queued()
+
+
+def test_start_button_says_schedule_when_the_run_is_queued(qapp, tmp_path):
+    """Knappen säger Schemalägg när jobbet köas i stället för att starta direkt (TASK-104)."""
+    from xray_detector.application.dataset_service import DatasetService
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.training_view import TrainingView
+
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+
+    assert view.start_button.text() == "Sta&rta träning"
+
+    for mode in ("night", "inactivity"):
+        view.run_combo.setCurrentIndex(view.run_combo.findData(mode))
+        assert view.start_button.text() == "&Schemalägg träning", mode
+
+    view.run_combo.setCurrentIndex(view.run_combo.findData("direct"))
+    assert view.start_button.text() == "Sta&rta träning"

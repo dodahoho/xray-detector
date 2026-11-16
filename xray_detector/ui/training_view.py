@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 from time import time
 
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -31,13 +31,13 @@ from xray_detector.domain.training import (
     rfdetr_resolution_error,
 )
 from xray_detector.ui.settings_dialog import (
+    TRAIN_RATIO_KEY,
     TrainingScheduleSection,
-    TrainValSplitSection,
     settings_button,
     train_ratio,
 )
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
-from xray_detector.ui.style import FormCard, button
+from xray_detector.ui.style import FORM_MAX_WIDTH, FormCard, button
 from xray_detector.ui.training_chart import TrainingChart
 from xray_detector.ui.training_history import TrainingHistoryView
 
@@ -79,8 +79,12 @@ class TrainingView(QWidget):
         QApplication.instance().installEventFilter(self._activity_filter)
         layout = QVBoxLayout(self)
         layout.addLayout(self._build_header())
-        # kortet håller sig till vänster, så fälten inte växer över skärmen (TASK-82)
-        layout.addWidget(self._build_settings(), 0, Qt.AlignmentFlag.AlignLeft)
+        # korten håller sig till vänster, så fälten inte växer över skärmen (TASK-82)
+        cards = QHBoxLayout()
+        cards.addWidget(self._build_settings())
+        cards.addWidget(self._build_dataset_card())
+        cards.addStretch(1)
+        layout.addLayout(cards)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)
@@ -153,11 +157,8 @@ class TrainingView(QWidget):
         return header
 
     def _settings_sections(self) -> list:
-        """Träningsschemat och train/val-delningen (TASK-7, TASK-72)."""
-        split = TrainValSplitSection(self.settings)
-        # redovisningen i vyn följer andelen medan dialogen är öppen
-        split.ratio_changed.connect(self.refresh_dataset_info)
-        return [TrainingScheduleSection(self.settings), split]
+        """Träningsschemat; andelen train/val ställs in i Dataset-kortet (TASK-7, TASK-103)."""
+        return [TrainingScheduleSection(self.settings)]
 
     def _build_settings(self) -> FormCard:
         """Träningsinställningarna i ett kort med maxbredd (TASK-82)."""
@@ -167,10 +168,6 @@ class TrainingView(QWidget):
         self.refresh_models()
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         form.addRow("Basmodell:", self.model_combo)
-        self.dataset_info = QLabel("-")
-        # sammanställningen kan bli lång; den radbryts i stället för att klippas
-        self.dataset_info.setWordWrap(True)
-        form.addRow("Dataset:", self.dataset_info)
         self.epochs_spin = QSpinBox()
         self.epochs_spin.setRange(1, 1000)
         self.epochs_spin.setValue(100)
@@ -205,6 +202,7 @@ class TrainingView(QWidget):
         self.run_combo.addItem("Direkt", "direct")
         self.run_combo.addItem("Nattetid (schema)", "night")
         self.run_combo.addItem("Efter inaktivitet", "inactivity")
+        self.run_combo.currentIndexChanged.connect(self._update_start_label)
         form.addRow("Kör:", self.run_combo)
         self.overfitting_check = QCheckBox("Avbryt vid överträning")
         self.overfitting_check.setChecked(True)
@@ -214,6 +212,7 @@ class TrainingView(QWidget):
         form.addRow("Överträning:", self.overfitting_check)
         self.start_button = button(mnemonic("Starta träning", "R"), primary=True)
         self.start_button.clicked.connect(self._on_start)
+        self._update_start_label()
         self.abort_button = button(with_hint("Avbryt", "Esc"))
         self.abort_button.setEnabled(False)
         self.abort_button.clicked.connect(self._on_abort)
@@ -223,6 +222,48 @@ class TrainingView(QWidget):
         form.addRow(buttons)
         bind_shortcut(self, "Esc", self._on_abort)
         return card
+
+    def _build_dataset_card(self) -> FormCard:
+        """Datasetet träningen utgår från, med andelen train/val (TASK-103).
+
+        Kortet står till höger om träningsinställningarna, så storleken på
+        datasetet och delningen syns utan att öppna inställningsdialogen.
+        """
+        card = FormCard("Dataset")
+        # kortet delar bredd med träningsinställningarna, så raden blir jämn
+        card.setMinimumWidth(FORM_MAX_WIDTH)
+        form = card.form
+        self.dataset_info = QLabel("-")
+        # sammanställningen kan bli lång; den radbryts i stället för att klippas
+        self.dataset_info.setWordWrap(True)
+        form.addRow(self.dataset_info)
+        self.ratio_spin = QSpinBox()
+        self.ratio_spin.setRange(1, 99)
+        self.ratio_spin.setSuffix(" %")
+        self.ratio_spin.setValue(round(train_ratio(self.settings) * 100))
+        self.ratio_spin.valueChanged.connect(self._on_ratio_changed)
+        form.addRow("Andel till train:", self.ratio_spin)
+        hint = QLabel("Resten används till validering. Delningen sker per bildpar.")
+        hint.setStyleSheet("color: #888;")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        return card
+
+    def _on_ratio_changed(self, percent: int) -> None:
+        """Andelen sparas direkt och redovisningen räknas om (TASK-103)."""
+        self.settings.setValue(TRAIN_RATIO_KEY, percent)
+        self.refresh_dataset_info()
+
+    def _update_start_label(self, *_args) -> None:
+        """Knappen säger Schemalägg när jobbet köas i stället för att starta direkt (TASK-104).
+
+        Mnemoniken följer etiketten, så Alt+R och Alt+S pekar ut samma knapp i
+        det läge den står i.
+        """
+        if self.run_combo.currentData() == "direct":
+            self.start_button.setText(mnemonic("Starta träning", "R"))
+        else:
+            self.start_button.setText(mnemonic("Schemalägg träning", "S"))
 
     def _on_imgsz_changed(self, _value: int) -> None:
         """Ett eget val stannar kvar när datasetet ändras (TASK-80)."""

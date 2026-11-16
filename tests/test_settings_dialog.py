@@ -18,10 +18,10 @@ from xray_detector.ui.settings_dialog import (
     SettingsDialog,
     ThemeSection,
     TrainingScheduleSection,
-    TrainValSplitSection,
     settings_button,
     train_ratio,
 )
+from xray_detector.ui.style import FormCard
 from xray_detector.ui.theme import apply_theme, current_theme
 from xray_detector.ui.training_view import TrainingView
 
@@ -138,23 +138,34 @@ def test_training_settings_open_the_schedule(qapp, window, monkeypatch):
     assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
 
 
-def test_training_settings_open_the_train_val_split(qapp, window, monkeypatch):
-    """Andelen train/val ställs in i träningsvyns inställningar (TASK-72)."""
+def test_training_settings_only_open_the_schedule(qapp, window, monkeypatch):
+    """Andelen train/val flyttades till Dataset-kortet i vyn (TASK-103)."""
     dialog = _opened_dialog(monkeypatch, window.training_view.settings_button)
 
-    assert dialog.findChild(TrainValSplitSection) is not None
+    assert [type(section) for section in dialog.findChildren(FormCard)] == [
+        TrainingScheduleSection
+    ]
 
 
-def test_train_ratio_is_read_and_written(qapp, settings):
+def test_train_ratio_is_read_and_written(qapp, config, settings):
     assert train_ratio(settings) == 0.8
-    section = TrainValSplitSection(settings)
-    assert section.ratio.value() == 80
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    assert view.ratio_spin.value() == 80
 
-    section.ratio.setValue(50)
+    view.ratio_spin.setValue(50)
 
     assert settings.value(TRAIN_RATIO_KEY, type=int) == 50
     assert train_ratio(settings) == 0.5
-    assert TrainValSplitSection(settings).ratio.value() == 50
+
+
+def test_dataset_card_holds_the_size_and_the_train_val_ratio(qapp, config, settings):
+    """Dataset-kortet samlar storleken och andelen train/val (TASK-103)."""
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    card = view.ratio_spin.parentWidget()
+
+    assert isinstance(card, FormCard)
+    assert card.title() == "Dataset"
+    assert view.dataset_info.parentWidget() is card
 
 
 def test_train_ratio_keeps_a_group_on_each_side(qapp, settings):

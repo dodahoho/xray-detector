@@ -23,9 +23,13 @@ BBOX = [2, 3, 10, 12]
 
 
 def _frame() -> np.ndarray:
-    """Bild med en ljus rektangel på samma plats som annoteringen."""
-    frame = np.zeros((HEIGHT, WIDTH, 3), np.uint8)
-    frame[3:15, 2:12] = 255
+    """Bild med en mörk rektangel på samma plats som annoteringen.
+
+    Bakgrunden är vit som i röntgenbilderna, så en roterad bilds nya yta
+    smälter in i stället för att synas som en svart ram (TASK-105).
+    """
+    frame = np.full((HEIGHT, WIDTH, 3), 255, np.uint8)
+    frame[3:15, 2:12] = 0
     return frame
 
 
@@ -34,8 +38,8 @@ def _annotations() -> list[dict]:
 
 
 def _content_box(frame: np.ndarray) -> tuple[int, int, int, int]:
-    """Den ljusa rektangelns omslutande ruta som (x, y, w, h)."""
-    ys, xs = np.nonzero(frame[:, :, 0])
+    """Den mörka rektangelns omslutande ruta som (x, y, w, h)."""
+    ys, xs = np.nonzero(frame[:, :, 0] < 255)
     return xs.min(), ys.min(), xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
 
 
@@ -66,6 +70,14 @@ def test_rotation_widens_the_image_instead_of_cropping_it():
     assert rotated.shape[0] > HEIGHT and rotated.shape[1] > WIDTH
     x, y, w, h = annotations[0]["bbox"]
     assert 0 <= x and 0 <= y and x + w <= rotated.shape[1] and y + h <= rotated.shape[0]
+
+
+def test_rotation_fills_the_new_area_with_the_white_background():
+    """Den nya ytan matchar bildernas vita bakgrund i stället för att bli svart (TASK-105)."""
+    rotated, _moved = rotate(_frame(), _annotations(), 45)
+
+    assert rotated[0, 0].tolist() == [255, 255, 255]
+    assert rotated[-1, -1].tolist() == [255, 255, 255]
 
 
 def test_rotation_of_the_whole_image_fills_the_new_frame():
@@ -110,11 +122,11 @@ def test_scale_down_keeps_the_annotation_inside_the_image():
 
 
 def test_color_variation_changes_the_pixels_but_not_the_annotations():
-    adjusted, annotations = adjust_color(_frame(), _annotations(), 1.0, 40)
+    adjusted, annotations = adjust_color(_frame(), _annotations(), 1.0, -40)
 
     assert annotations[0]["bbox"] == BBOX
-    # pixeln utanför rektangeln är svart och ljusas upp av variationen
-    assert adjusted[30, 40, 0] > _frame()[30, 40, 0]
+    # pixeln utanför rektangeln är vit och mörknar av variationen
+    assert adjusted[30, 40, 0] < _frame()[30, 40, 0]
 
 
 def test_variation_plan_follows_the_settings():

@@ -11,6 +11,7 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
 from xray_detector.infrastructure.dataset_store.pending import save_pending
 from xray_detector.ui.dataset_view import (
+    BUTTON_GROUP_GAP,
     ORIGINALS_ONLY,
     SYNTHETIC_LABEL,
     SYNTHETIC_ONLY,
@@ -262,3 +263,21 @@ def test_type_filter_labels(qapp, config, service, settings):
     labels = [view.type_combo.itemText(index) for index in range(view.type_combo.count())]
 
     assert labels == ["Alla bilder", ORIGINALS_ONLY, SYNTHETIC_ONLY]
+
+
+def test_variation_buttons_form_their_own_group_on_the_right(
+    qapp, config, service, settings
+):
+    """Utöka/återställ ligger till höger med luft till exportknapparna (TASK-102)."""
+    view = _built(config, service, settings)
+    bar = view.layout().itemAt(0).layout()
+
+    # raden börjar med en stretch, så knapparna ligger till höger
+    assert bar.itemAt(0).spacerItem() is not None
+    assert bar.itemAt(1).widget() is view.variation_button
+    assert bar.itemAt(2).widget() is view.reset_button
+    # mellanrummet gör utöka/återställ till en egen knappgrupp
+    gap = bar.itemAt(3).spacerItem()
+    assert gap is not None
+    assert gap.sizeHint().width() == BUTTON_GROUP_GAP
+    assert bar.itemAt(4).widget() is view.export_coco_button
