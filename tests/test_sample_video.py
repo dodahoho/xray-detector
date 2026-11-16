@@ -32,7 +32,8 @@ def test_sample_video_meta():
         assert cap.get(cv2.CAP_PROP_FPS) == 30.0
         assert cap.get(cv2.CAP_PROP_FRAME_WIDTH) == 1280
         assert cap.get(cv2.CAP_PROP_FRAME_HEIGHT) == 720
-        assert cap.get(cv2.CAP_PROP_FRAME_COUNT) == 2250
+        # 6000 ramar vid 30 fps = 200 s, alltså de nuvarande demovideorna
+        assert cap.get(cv2.CAP_PROP_FRAME_COUNT) == 6000
         cap.release()
 
 

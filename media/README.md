@@ -8,7 +8,7 @@ saknas.
 | `xray_slideshow_side.mp4` | Ström 1 (sidovy) |
 | `xray_slideshow_top.mp4` | Ström 2 (toppvy) |
 
-Båda är 1280x720 @ 30 fps, 75 sekunder.
+Båda är 1280x720 @ 30 fps, 200 sekunder (6000 ramar).
 
 ## Köra appen utan UVC-kort
 
