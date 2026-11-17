@@ -249,6 +249,35 @@ def test_space_does_not_fire_on_inactive_tab(qapp, window):
     assert messages == []
 
 
+def test_space_captures_while_the_threshold_field_has_focus(qapp, window):
+    """Space fångar även när ett inmatningsfält har fokus (TASK-114)."""
+    messages = []
+    window.detection_view.error_occurred.connect(messages.append)
+    window.tabs.setCurrentIndex(0)
+    window.detection_view.conf_spin.setFocus()
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    qapp.processEvents()
+
+    assert messages == ["Ingen videokälla att fånga ifrån"]
+
+
+def test_space_captures_while_a_button_has_focus(qapp, window):
+    """Space hör till fångsten, inte till knappen som råkar ha fokus (TASK-114)."""
+    messages = []
+    window.detection_view.error_occurred.connect(messages.append)
+    window.tabs.setCurrentIndex(0)
+    window.detection_view.detection_button.setFocus()
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    qapp.processEvents()
+
+    assert messages == ["Ingen videokälla att fånga ifrån"]
+    assert window.detection_view.detection_enabled, "knappen aktiverades inte"
+
+
 def test_escape_cancels_annotation_view(qapp, window):
     cancelled = []
     window.annotation_view.cancelled.connect(lambda: cancelled.append(True))

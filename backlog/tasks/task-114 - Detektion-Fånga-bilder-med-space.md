@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T11:57:00Z'
-updated_date: '2026-11-17T12:14:00Z'
+updated_date: '2026-11-17T12:51:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -52,13 +52,13 @@ Space-tangenten ska vara kopplad till knappen Fånga
 <!-- SECTION:NOTES:BEGIN -->
 Space binds med bind_shortcut (WindowShortcut på DetectionView) till samma slot som knappen, så genvägen bara utlöses när detektionsvyn är den aktiva fliken. Etiketten blev '&Fånga bilder (Space)' enligt konventionen att genvägar som inte är mnemonik visas inom parentes.
 
-Verifiering: tests/test_shortcuts.py — test_space_captures_like_the_button (Space ger 'Ingen videokälla att fånga ifrån' utan källa), test_space_does_not_fire_on_inactive_tab (ingen fångst från Dataset-fliken), test_button_labels_show_underline_or_hint och test_shortcuts_do_not_collide_with_the_canvas uppdaterade. Hela sviten: 829 passed, 1 skipped.
+Space vinner också över vyens inmatningsfält: _CaptureKeyFilter avvisar ShortcutOverride för Space på de fält som kan ta fokus. Fältet QDoubleSpinBox accepterar annars tangenten eftersom tecknet kan skrivas in, och då hinner genvägen aldrig utlösas. Knappar och QComboBox släpper redan igenom Space till genvägen, så filtret behövs bara för textfälten. Filtret sitter på fälten i stället för på applikationen: ett applikationsfilter går igenom Python för varje händelse i hela appen och gjorde testsviten cirka 50 procent långsammare.
 
-Känd avvägning: Space tar över QComboBox standardtangent i detektionsvyn, så modellväljarens dropdown öppnas med Alt+Down eller F4 i stället. QDoubleSpinBox behåller Space.
+Verifiering: tests/test_shortcuts.py — test_space_captures_like_the_button, test_space_captures_while_the_threshold_field_has_focus, test_space_captures_while_a_button_has_focus (knappen aktiveras inte), test_space_does_not_fire_on_inactive_tab, samt uppdaterade test_button_labels_show_underline_or_hint och test_shortcuts_do_not_collide_with_the_canvas. Hela sviten: 831 passed, 1 skipped, 207 s (samma tid som före ändringen).
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
-Space utlöser nu samma fångst som knappen Fånga bilder. Genvägen binds som WindowShortcut på detektionsvyn, så den bara är aktiv när fliken är öppen, och etiketten visar '(Space)' enligt projektets konvention. README:s genvägstabell är uppdaterad. Verifierat med tre nya eller uppdaterade tester i tests/test_shortcuts.py och hela sviten (829 passed, 1 skipped). Avvägning: modellväljarens dropdown öppnas med Alt+Down/F4 i stället för Space.
+Space utlöser nu samma fångst som knappen Fånga bilder, oavsett vilket fält i detektionsvyn som har fokus. Genvägen binds som WindowShortcut på vyn, så den bara är aktiv när fliken är öppen, och etiketten visar '(Space)' enligt projektets konvention. Ett litet filter på vyens fält avvisar fältens ShortcutOverride för Space, så tröskelfältet inte tar över tangenten; knappar och modellväljaren släppte redan igenom den. README:s genvägstabell och avsnittet om WindowShortcut är uppdaterade. Verifierat med fem tester i tests/test_shortcuts.py och hela sviten (831 passed, 1 skipped, 207 s).
 <!-- SECTION:FINAL_SUMMARY:END -->

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -484,6 +484,25 @@ class StreamPanel(QFrame):
         )
 
 
+class _CaptureKeyFilter(QObject):
+    """Låter Space fånga även när ett inmatningsfält i vyn har fokus (TASK-114).
+
+    Ett textfält som QDoubleSpinBox accepterar ShortcutOverride för Space,
+    eftersom tecknet kan skrivas in i fältet, och då hinner genvägen aldrig
+    utlösas. Filtret avvisar överstyrningen innan fältet ser den, så Space
+    alltid betyder fånga i den här vyn. Det sitter på vyens fält i stället för
+    på applikationen, så bara deras händelser går genom Python.
+    """
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() != QEvent.Type.ShortcutOverride:
+            return False
+        if event.key() != Qt.Key.Key_Space:
+            return False
+        event.ignore()
+        return True
+
+
 class DetectionView(QWidget):
     capture_requested = Signal(object)
     error_occurred = Signal(str)
@@ -573,6 +592,11 @@ class DetectionView(QWidget):
         self.resource_timer.start()
         self._update_resources()
         self.busy = BusyIndicator(self)
+        # Space fångar även när ett fält i vyn har fokus (TASK-114)
+        self._capture_key_filter = _CaptureKeyFilter(self)
+        for field in self.findChildren(QWidget):
+            if field.focusPolicy() != Qt.FocusPolicy.NoFocus:
+                field.installEventFilter(self._capture_key_filter)
 
     def _update_resources(self) -> None:
         """Uppdaterar resursstaplarna med ett nytt ögonblicksvärde (TASK-31)."""
