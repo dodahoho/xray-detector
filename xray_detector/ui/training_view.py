@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from datetime import time as clock_time
 from pathlib import Path
 from time import time
 
@@ -25,8 +26,11 @@ from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.model_input import DEFAULT_SIZE, MAX_SIZE, MIN_SIZE, STEP
 from xray_detector.domain.training import (
+    NIGHT_END_KEY,
+    NIGHT_START_KEY,
     TrainConfig,
     default_batch,
+    format_clock,
     imgsz_for,
     rfdetr_resolution_error,
     trained_model_name,
@@ -310,6 +314,7 @@ class TrainingView(QWidget):
         self._batch_user_set = user
 
     def restore_settings(self) -> None:
+        self._migrate_night_window()
         saved = self.settings.value("training/base_model", type=str)
         if saved:
             index = self.model_combo.findData(saved)
@@ -332,6 +337,22 @@ class TrainingView(QWidget):
         self.overfitting_check.setChecked(
             self.settings.value("training/overfitting_guard", True, type=bool)
         )
+
+    def _migrate_night_window(self) -> None:
+        """Flyttar de gamla _hour-nycklarna till nattfönstrets "HH:MM"-nycklar (TASK-125).
+
+        Dialogen sparade timmen i en egen int-nyckel och tiden som "HH:00" i en
+        annan, så samma värde kunde glida isär. Nu finns bara "HH:MM"-nyckeln;
+        en sparad timme skrivs om en gång och den gamla nyckeln tas bort.
+        """
+        for key in (NIGHT_START_KEY, NIGHT_END_KEY):
+            hour_key = f"{key}_hour"
+            hour = self.settings.value(hour_key, type=int)
+            if hour is None:
+                continue
+            if not self.settings.contains(key):
+                self.settings.setValue(key, format_clock(clock_time(hour % 24, 0)))
+            self.settings.remove(hour_key)
 
     def save_settings(self) -> None:
         self.settings.setValue("training/base_model", self.model_combo.currentData())
@@ -432,8 +453,8 @@ class TrainingView(QWidget):
             config,
             run_mode,
             inactivity_minutes=int(self.settings.value("training/inactivity_minutes", 30, type=int)),
-            night_start=str(self.settings.value("training/night_start", "23:00")),
-            night_end=str(self.settings.value("training/night_end", "05:00")),
+            night_start=str(self.settings.value(NIGHT_START_KEY, "")),
+            night_end=str(self.settings.value(NIGHT_END_KEY, "")),
         )
 
     def _on_worker_created(self, worker) -> None:

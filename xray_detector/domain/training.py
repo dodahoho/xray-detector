@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import time
 from pathlib import Path
 
 from xray_detector.domain.model_input import DEFAULT_SIZE, round_size
@@ -11,6 +12,27 @@ RFDETR_RESOLUTION_DIVISOR = 32
 #: vid resolution 704 med batch 16, och CUDA-kontexten går inte att rädda efter
 #: det, så RF-DETR utgår från en mindre batch.
 DEFAULT_BATCH = {"yolo": 16, "rfdetr": 4}
+
+#: Nattfönstret: en inställningsnyckel per gräns med värdet "HH:MM", delad av
+#: träningsvyn, inställningsdialogen och schemaläggaren (TASK-125).
+NIGHT_START_KEY = "training/night_start"
+NIGHT_END_KEY = "training/night_end"
+NIGHT_START_DEFAULT = time(23, 0)
+NIGHT_END_DEFAULT = time(5, 0)
+
+
+def parse_clock(value: object, fallback: time) -> time:
+    """Tolkar "HH:MM" till en tid; ett otydbart värde ger fallback (TASK-125)."""
+    try:
+        hour, minute = str(value).strip().split(":")
+        return time(int(hour), int(minute))
+    except (ValueError, AttributeError):
+        return fallback
+
+
+def format_clock(value: time) -> str:
+    """Tid som "HH:MM", formatet nattfönstrets inställningar sparas i (TASK-125)."""
+    return value.strftime("%H:%M")
 
 
 def imgsz_for(width: int, height: int) -> int:

@@ -1,10 +1,15 @@
 import time
 from datetime import datetime
-from datetime import time as clock_time
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
-from xray_detector.domain.training import TrainConfig
+from xray_detector.domain.training import (
+    NIGHT_END_DEFAULT,
+    NIGHT_START_DEFAULT,
+    TrainConfig,
+    format_clock,
+    parse_clock,
+)
 from xray_detector.infrastructure.training.trainer import TrainingWorker
 
 
@@ -25,42 +30,34 @@ class TrainingScheduler(QObject):
         self.mode: str | None = None
         self.config: TrainConfig | None = None
         self.inactivity_minutes = 30
-        self.night_start = clock_time(23, 0)
-        self.night_end = clock_time(5, 0)
+        self.night_start = NIGHT_START_DEFAULT
+        self.night_end = NIGHT_END_DEFAULT
         self._last_activity = time.monotonic()
         self._timer = QTimer(self)
         self._timer.setInterval(self.POLL_INTERVAL_MS)
         self._timer.timeout.connect(self._check)
         self._timer.start()
 
-    @staticmethod
-    def _parse_clock(value: str, fallback: clock_time) -> clock_time:
-        try:
-            hour, minute = str(value).strip().split(":")
-            return clock_time(int(hour), int(minute))
-        except (ValueError, AttributeError):
-            return fallback
-
     def queue_job(
         self,
         config: TrainConfig,
         mode: str,
         inactivity_minutes: int = 30,
-        night_start: str = "23:00",
-        night_end: str = "05:00",
+        night_start: str = "",
+        night_end: str = "",
     ) -> None:
         if mode not in ("night", "inactivity"):
             raise ValueError(f"Oköat schema-läge: {mode}")
         self.config = config
         self.mode = mode
         self.inactivity_minutes = max(1, int(inactivity_minutes))
-        self.night_start = self._parse_clock(night_start, self.night_start)
-        self.night_end = self._parse_clock(night_end, self.night_end)
+        self.night_start = parse_clock(night_start, self.night_start)
+        self.night_end = parse_clock(night_end, self.night_end)
         self.status_changed.emit(self.queued_status())
 
     def queued_status(self) -> str:
         if self.mode == "night":
-            fönster = f"{self.night_start.strftime('%H:%M')}–{self.night_end.strftime('%H:%M')}"
+            fönster = f"{format_clock(self.night_start)}–{format_clock(self.night_end)}"
             return f"Träning köad till nattfönstret {fönster}"
         if self.mode == "inactivity":
             return f"Träning köad vid inaktivitet ({self.inactivity_minutes} min)"

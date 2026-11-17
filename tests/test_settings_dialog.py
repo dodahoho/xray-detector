@@ -1,5 +1,7 @@
 """Globala inställningar i fliken och egna inställningar per vy (TASK-43)."""
 
+from datetime import time
+
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings
@@ -221,9 +223,35 @@ def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, mo
     assert ratios == [0.5]
 
 
+def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatch):
+    """Träningsvyn köar nattfönstret med samma "HH:MM"-nycklar som dialogen (TASK-125)."""
+    service = DatasetService(config.dataset_dir)
+    service.set_classes(["kniv"])
+    service.add_samples([
+        AnnotatedImage(
+            np.full((30, 40, 3), 60, np.uint8),
+            [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+        )
+        for _ in range(2)
+    ])
+    settings.setValue("training/night_start", "01:15")
+    settings.setValue("training/night_end", "04:45")
+    view = TrainingView(config, service, settings)
+    monkeypatch.setattr(service, "export_yolo", lambda root, ratio: None)
+    monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
+    view.run_combo.setCurrentIndex(view.run_combo.findData("night"))
+
+    view._on_start()
+
+    scheduler = view.training_service.scheduler()
+    assert scheduler.has_queued()
+    assert scheduler.night_start == time(1, 15)
+    assert scheduler.night_end == time(4, 45)
+
+
 def test_training_schedule_is_read_and_written(qapp, settings):
-    settings.setValue("training/night_start_hour", 22)
-    settings.setValue("training/night_end_hour", 6)
+    settings.setValue("training/night_start", "22:00")
+    settings.setValue("training/night_end", "06:00")
     settings.setValue("training/inactivity_minutes", 45)
 
     section = TrainingScheduleSection(settings)
@@ -236,12 +264,46 @@ def test_training_schedule_is_read_and_written(qapp, settings):
     section.night_end.setValue(4)
     section.inactivity.setValue(15)
 
-    assert settings.value("training/night_start_hour", type=int) == 21
-    assert settings.value("training/night_end_hour", type=int) == 4
     assert settings.value("training/inactivity_minutes", type=int) == 15
-    # träningsvyn läser tiderna som "HH:00" när den köar ett jobb
+    # bara "HH:MM"-nyckeln används, av både dialogen och träningsvyn (TASK-125)
     assert settings.value("training/night_start") == "21:00"
     assert settings.value("training/night_end") == "04:00"
+    assert settings.value("training/night_start_hour") is None
+    assert settings.value("training/night_end_hour") is None
+
+
+def test_old_night_hour_keys_are_migrated_on_startup(qapp, config):
+    """En sparad timme från före TASK-125 blir kvar som "HH:MM" och nyckeln tas bort."""
+    settings = QSettings(str(config.data_dir / "settings.ini"), QSettings.Format.IniFormat)
+    settings.setValue("training/night_start_hour", 22)
+    settings.setValue("training/night_end_hour", 6)
+    settings.sync()
+
+    window = MainWindow(config)
+
+    assert window.settings.value("training/night_start") == "22:00"
+    assert window.settings.value("training/night_end") == "06:00"
+    assert window.settings.value("training/night_start_hour") is None
+    assert window.settings.value("training/night_end_hour") is None
+    window.detection_view.wait_for_background()
+    window.dataset_view.wait_for_refresh()
+    window.close()
+
+
+def test_migration_keeps_an_already_saved_clock(qapp, config):
+    """Finns båda nycklarna är "HH:MM"-nyckeln den som gäller."""
+    settings = QSettings(str(config.data_dir / "settings.ini"), QSettings.Format.IniFormat)
+    settings.setValue("training/night_start", "01:30")
+    settings.setValue("training/night_start_hour", 22)
+    settings.sync()
+
+    window = MainWindow(config)
+
+    assert window.settings.value("training/night_start") == "01:30"
+    assert window.settings.value("training/night_start_hour") is None
+    window.detection_view.wait_for_background()
+    window.dataset_view.wait_for_refresh()
+    window.close()
 
 
 def test_theme_is_changed_from_the_settings_tab(qapp, window):
@@ -255,7 +317,7 @@ def test_theme_is_changed_from_the_settings_tab(qapp, window):
 
 
 def test_dialog_closes_without_changing_anything(qapp, settings):
-    settings.setValue("training/night_start_hour", 22)
+    settings.setValue("training/night_start", "22:00")
     settings.setValue("training/inactivity_minutes", 45)
     before = {key: settings.value(key) for key in settings.allKeys()}
 

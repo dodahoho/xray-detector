@@ -5,6 +5,8 @@ knappen som öppnar den. Applikationens globala inställningar ligger i
 settings_view.py, som komponerar ThemeSection härifrån.
 """
 
+from datetime import time
+
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
@@ -24,6 +26,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.domain.training import (
+    NIGHT_END_DEFAULT,
+    NIGHT_END_KEY,
+    NIGHT_START_DEFAULT,
+    NIGHT_START_KEY,
+    format_clock,
+    parse_clock,
+)
 from xray_detector.ui.badge import (
     HIDE_FRAMES_KEY,
     SHOW_FRAMES_KEY,
@@ -95,7 +105,7 @@ class TrainingScheduleSection(FormCard):
         self.night_start = QSpinBox()
         self.night_start.setRange(0, 23)
         self.night_start.setValue(
-            int(settings.value("training/night_start_hour", 23, type=int))
+            parse_clock(settings.value(NIGHT_START_KEY), NIGHT_START_DEFAULT).hour
         )
         self.night_start.valueChanged.connect(
             lambda hour: self._save_clock(hour, is_start=True)
@@ -104,7 +114,7 @@ class TrainingScheduleSection(FormCard):
         self.night_end = QSpinBox()
         self.night_end.setRange(0, 23)
         self.night_end.setValue(
-            int(settings.value("training/night_end_hour", 5, type=int))
+            parse_clock(settings.value(NIGHT_END_KEY), NIGHT_END_DEFAULT).hour
         )
         self.night_end.valueChanged.connect(
             lambda hour: self._save_clock(hour, is_start=False)
@@ -121,9 +131,8 @@ class TrainingScheduleSection(FormCard):
         form.addRow(QLabel("Inaktivitet innan träning (min):"), self.inactivity)
 
     def _save_clock(self, hour: int, is_start: bool) -> None:
-        key = "training/night_start" if is_start else "training/night_end"
-        self.settings.setValue(f"{key}_hour", hour)
-        self.settings.setValue(key, f"{hour:02d}:00")
+        key = NIGHT_START_KEY if is_start else NIGHT_END_KEY
+        self.settings.setValue(key, format_clock(time(hour, 0)))
 
 
 class DatasetSortSection(FormCard):
