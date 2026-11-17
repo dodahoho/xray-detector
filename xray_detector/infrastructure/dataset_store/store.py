@@ -183,7 +183,16 @@ class DatasetStore:
     def _save_metadata(self, metadata: dict) -> None:
         metadata["info"]["updated"] = datetime.now(UTC).isoformat()
         metadata["info"]["num_images"] = len(metadata["images"])
+        metadata["info"]["num_objects"] = self._object_count(metadata["images"])
         atomic_write_json(self.metadata_path, metadata)
+
+    def _object_count(self, images: list[dict]) -> int:
+        """Antal annoteringar i labels/ för bilderna (TASK-126).
+
+        Räknas ur label-filerna i stället för att underhållas inkrementellt i
+        varje operation, så det sparade värdet alltid stämmer med datasetet.
+        """
+        return sum(len(read_labels(self._label_path(image["file_name"]))) for image in images)
 
     def _label_path(self, file_name: str) -> Path:
         return self.labels_dir / label_name(file_name)
@@ -282,7 +291,6 @@ class DatasetStore:
         stamp = captured or datetime.now(UTC).isoformat()
         names = self.classes()
         known = list(names)
-        objects = 0
         for sample in samples:
             image_name = f"img_{image_id:06d}.png"
             cv2.imwrite(str(self.images_dir / image_name), sample.frame)
@@ -307,11 +315,9 @@ class DatasetStore:
                     "captured": stamp,
                 }
             )
-            objects += len(rows)
             image_id += 1
         if names != known:
             write_data_yaml(self.data_yaml, names)
-        metadata["info"]["num_objects"] = metadata["info"].get("num_objects", 0) + objects
         self._save_metadata(metadata)
 
     def replace_samples(
@@ -337,11 +343,8 @@ class DatasetStore:
         self.labels_dir.mkdir(parents=True, exist_ok=True)
         names = self.classes()
         known = list(names)
-        replaced = 0
-        objects = 0
         for image, sample in zip(targets, samples, strict=True):
             label = self._label_path(image["file_name"])
-            replaced += len(read_labels(label))
             cv2.imwrite(str(self.images_dir / image["file_name"]), sample.frame)
             height, width = sample.frame.shape[:2]
             rows = [
@@ -354,14 +357,10 @@ class DatasetStore:
                 for annotation in sample.annotations
             ]
             write_labels(label, rows)
-            objects += len(rows)
             image["width"] = width
             image["height"] = height
         if names != known:
             write_data_yaml(self.data_yaml, names)
-        metadata["info"]["num_objects"] = max(
-            0, metadata["info"].get("num_objects", 0) - replaced + objects
-        )
         self._save_metadata(metadata)
 
     def add_variations(
@@ -392,7 +391,6 @@ class DatasetStore:
         group_id = max((img.get("group", 0) for img in metadata["images"]), default=0) + 1
         names = self.classes()
         known = list(names)
-        objects = 0
         added = 0
         rng = random.Random(seed)
         for key in sorted(groups, key=str):
@@ -436,13 +434,11 @@ class DatasetStore:
                             "variation": variations,
                         }
                     )
-                    objects += len(rows)
                     image_id += 1
                 group_id += 1
                 added += 1
         if names != known:
             write_data_yaml(self.data_yaml, names)
-        metadata["info"]["num_objects"] = metadata["info"].get("num_objects", 0) + objects
         self._save_metadata(metadata)
         return added
 
@@ -498,15 +494,9 @@ class DatasetStore:
         metadata["images"] = [
             image for image in metadata["images"] if image["id"] not in ids
         ]
-        objects = 0
         for image in removed:
-            label = self._label_path(image["file_name"])
-            objects += len(read_labels(label))
-            label.unlink(missing_ok=True)
+            self._label_path(image["file_name"]).unlink(missing_ok=True)
             (self.images_dir / image["file_name"]).unlink(missing_ok=True)
-        metadata["info"]["num_objects"] = max(
-            0, metadata["info"].get("num_objects", 0) - objects
-        )
         self._save_metadata(metadata)
 
     def load_dataset(self) -> dict:

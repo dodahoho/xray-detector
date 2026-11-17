@@ -6,7 +6,7 @@ import logging
 import numpy as np
 
 from xray_detector.application.dataset_service import DatasetService
-from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.domain.dataset import MODE_ALL, AnnotatedImage, VariationSettings
 
 
 def make_service(tmp_path) -> DatasetService:
@@ -269,3 +269,54 @@ def test_broken_metadata_is_replaced_by_the_next_save(tmp_path):
     dataset = svc.load_dataset()
     assert len(dataset["images"]) == 1
     assert dataset["info"]["num_images"] == 1
+
+
+def _label_rows(svc) -> int:
+    """Antal annoteringar som faktiskt ligger i labels/."""
+    return sum(
+        len(path.read_text(encoding="utf-8").splitlines())
+        for path in svc.store.labels_dir.glob("*.txt")
+    )
+
+
+def test_num_objects_is_counted_from_the_label_files(tmp_path):
+    """num_objects räknas i _save_metadata och följer labels/ genom alla operationer (TASK-126)."""
+    svc = make_service(tmp_path)
+    svc.add_samples([sample(), sample(200, "pistol")])
+    assert svc.metadata()["num_objects"] == _label_rows(svc) == 2
+
+    first = svc.load_dataset()["images"][0]
+    svc.replace_samples(
+        [first["id"]],
+        [
+            AnnotatedImage(
+                np.full((40, 50, 3), 90, dtype=np.uint8),
+                [
+                    {"class_name": "kniv", "bbox": [2, 3, 10, 12]},
+                    {"class_name": "kniv", "bbox": [12, 3, 20, 12]},
+                    {"class_name": "pistol", "bbox": [22, 3, 30, 12]},
+                ],
+            )
+        ],
+    )
+    assert svc.metadata()["num_objects"] == _label_rows(svc) == 4
+
+    svc.add_variations(VariationSettings(count=1, mode=MODE_ALL, flip_horizontal=True))
+    assert svc.metadata()["num_objects"] == _label_rows(svc)
+    assert svc.metadata()["num_objects"] > 4
+
+    svc.delete_images([first["id"]])
+    assert svc.metadata()["num_objects"] == _label_rows(svc)
+
+
+def test_num_objects_ignores_a_stale_stored_value(tmp_path):
+    """Ett gammalt värde i dataset.json skrivs över av det räknade (TASK-126)."""
+    svc = make_service(tmp_path)
+    svc.add_samples([sample()])
+    metadata = json.loads(svc.store.metadata_path.read_text(encoding="utf-8"))
+    metadata["info"]["num_objects"] = 99
+    svc.store.metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+
+    svc.add_samples([sample(200)])
+
+    assert svc.metadata()["num_objects"] == 2
