@@ -4,7 +4,6 @@ import time as time_module
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QSettings
 
 from tests.conftest import synthetic_frame
 from xray_detector.application.dataset_service import DatasetService
@@ -27,9 +26,6 @@ def service(tmp_path) -> DatasetService:
     return DatasetService(tmp_path / "datasets")
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _three_captures(service) -> None:

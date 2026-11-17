@@ -6,7 +6,6 @@ from datetime import datetime
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QLabel, QMessageBox
 
 from tests.conftest import synthetic_frame
@@ -18,6 +17,9 @@ from xray_detector.infrastructure.dataset_store.pending import (
     save_pending,
 )
 from xray_detector.ui.dataset_view import DatasetView, Thumbnail
+
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
 
 
 def _sample(fill: int = 60) -> AnnotatedImage:
@@ -32,9 +34,6 @@ def service(tmp_path) -> DatasetService:
     return DatasetService(tmp_path / "datasets")
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _header_text(view, group_id) -> str:

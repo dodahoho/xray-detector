@@ -5,6 +5,7 @@ import gc
 import cv2
 import numpy as np
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from xray_detector.domain.config import LOGS_DIR_ENV, AppConfig
@@ -56,6 +57,12 @@ def _isolated_logs_dir(tmp_path_factory):
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv(LOGS_DIR_ENV, str(logs))
         yield logs
+
+
+@pytest.fixture
+def settings(tmp_path) -> QSettings:
+    """Egen QSettings-fil per test, så inget läcker mellan testerna (TASK-154)."""
+    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 @pytest.fixture

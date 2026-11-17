@@ -13,6 +13,9 @@ from xray_detector.ui.style import (
     button,
 )
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture
 def window(qapp, tmp_path):

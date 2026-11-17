@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QDialog
 
 from tests.conftest import FakeDetector, synthetic_frame
@@ -20,6 +20,9 @@ from xray_detector.ui.detection_view import DetectionView
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.variation_dialog import VariationDialog
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 
 def _spin_until(qapp, predicate, timeout_s: float = 5.0) -> bool:
     """Kör händelseloopen tills villkoret är uppfyllt eller tiden tar slut."""
@@ -32,9 +35,6 @@ def _spin_until(qapp, predicate, timeout_s: float = 5.0) -> bool:
     return predicate()
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 @pytest.fixture

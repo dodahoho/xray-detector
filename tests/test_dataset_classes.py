@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QMessageBox
 
 from xray_detector.application.dataset_service import DatasetService
@@ -25,9 +24,6 @@ def service(tmp_path) -> DatasetService:
     return svc
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _answer(monkeypatch, button, messages: list[str] | None = None) -> None:

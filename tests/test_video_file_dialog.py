@@ -16,9 +16,6 @@ from xray_detector.ui.video_file_dialog import (
 MEDIA_DIR = PROJECT_ROOT / "media"
 
 
-@pytest.fixture
-def settings(tmp_path):
-    return QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
 
 
 @pytest.fixture

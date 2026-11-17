@@ -13,6 +13,9 @@ from xray_detector.domain.config import AppConfig
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.model_settings import ModelSection
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 
 class _FakeResponse:
     """Svar från urlopen utan nätverk."""

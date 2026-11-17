@@ -9,6 +9,9 @@ from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.main_window import MainWindow
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(autouse=True)
 def quiet_dialogs(monkeypatch):

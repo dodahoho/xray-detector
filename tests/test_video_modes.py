@@ -2,7 +2,6 @@
 
 import cv2
 import pytest
-from PySide6.QtCore import QSettings
 
 from xray_detector.domain.capture import VideoMode
 from xray_detector.infrastructure.video.devices import DeviceInfo, list_device_modes
@@ -28,9 +27,6 @@ def raw_formats(monkeypatch):
     monkeypatch.setattr(devices, "_windows_device_formats", lambda index: RAW_FORMATS)
 
 
-@pytest.fixture
-def settings(tmp_path):
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def test_modes_are_deduplicated_in_device_order(raw_formats):

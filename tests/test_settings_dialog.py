@@ -27,6 +27,9 @@ from xray_detector.ui.style import FormCard
 from xray_detector.ui.theme import apply_theme, current_theme
 from xray_detector.ui.training_view import TrainingView
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 VIEWS = ("detection_view", "annotation_view", "dataset_view", "training_view")
 
 
@@ -37,9 +40,6 @@ def reset_theme(qapp):
     apply_theme(qapp, "system")
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 @pytest.fixture

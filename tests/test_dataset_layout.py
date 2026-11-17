@@ -4,7 +4,7 @@ import json
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QRect, QSettings, QSize
+from PySide6.QtCore import QRect, QSize
 from PySide6.QtWidgets import QWidget
 
 from tests.conftest import synthetic_frame
@@ -32,9 +32,6 @@ def service(tmp_path) -> DatasetService:
     return DatasetService(tmp_path / "datasets")
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _built(config, service, settings) -> DatasetView:

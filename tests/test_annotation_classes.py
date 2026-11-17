@@ -1,6 +1,7 @@
 """Annoteringsvyns klasslista: datasetet är master och modellen erbjuds i en fråga (TASK-61, TASK-71)."""
 
 import numpy as np
+import pytest
 from PySide6.QtCore import QEvent, QPointF, QSettings, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QInputDialog, QMessageBox
@@ -12,6 +13,9 @@ from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.annotation_view import AnnotationView
+
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
 
 
 def make_view(tmp_path, model_classes=None, settings=None) -> tuple[AnnotationView, DatasetService]:

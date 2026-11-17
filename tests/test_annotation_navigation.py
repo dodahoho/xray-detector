@@ -9,6 +9,9 @@ from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.main_window import MainWindow
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 DETECTION_TAB = 0
 ANNOTATION_TAB = 1
 DATASET_TAB = 2

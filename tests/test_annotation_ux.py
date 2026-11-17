@@ -1,5 +1,6 @@
 """Annoterings-UX (TASK-14): zoom/pan, osparade ändringar, negativa exempel."""
 
+import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QCloseEvent, QMouseEvent
 from PySide6.QtTest import QTest
@@ -8,6 +9,9 @@ from PySide6.QtWidgets import QMessageBox, QPushButton
 from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.ui.annotation_view import AnnotationCanvas, AnnotationView, RectItem
+
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
 
 
 def mouse_down(canvas, x, y, button=Qt.MouseButton.MiddleButton):

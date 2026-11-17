@@ -1,7 +1,7 @@
 """Filtrering på objektklasser och datum i datasetvyn (TASK-67)."""
 
 import pytest
-from PySide6.QtCore import QDate, QSettings
+from PySide6.QtCore import QDate
 from PySide6.QtWidgets import QLabel
 
 from tests.conftest import synthetic_frame
@@ -24,9 +24,6 @@ def service(tmp_path) -> DatasetService:
     return DatasetService(tmp_path / "datasets")
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _built(config, service, settings) -> DatasetView:

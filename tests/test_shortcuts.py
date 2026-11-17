@@ -14,6 +14,9 @@ from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import SettingsDialog
 from xray_detector.ui.variation_dialog import VariationDialog
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 
 @pytest.fixture(autouse=True)
 def quiet_dialogs(monkeypatch):

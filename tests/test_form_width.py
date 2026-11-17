@@ -6,7 +6,6 @@ den faktiska bredden, eftersom det är layouten som ska hålla igen.
 """
 
 import pytest
-from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFormLayout
 
 from xray_detector.domain.config import AppConfig
@@ -18,6 +17,9 @@ from xray_detector.ui.settings_dialog import (
     TrainingScheduleSection,
 )
 from xray_detector.ui.style import FORM_MAX_WIDTH, LIST_MAX_WIDTH, FormCard
+
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
 
 WIDE_WINDOW = (1600, 900)
 
@@ -31,9 +33,6 @@ def config(tmp_path) -> AppConfig:
     return config
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 @pytest.fixture

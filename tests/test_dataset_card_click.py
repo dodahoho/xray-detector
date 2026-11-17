@@ -1,7 +1,7 @@
 """Hela kortet markerar fångsten i datasetvyn (TASK-65)."""
 
 import pytest
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
 from tests.conftest import synthetic_frame
@@ -23,9 +23,6 @@ def service(tmp_path) -> DatasetService:
     return DatasetService(tmp_path / "datasets")
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _built(config, service, settings) -> DatasetView:

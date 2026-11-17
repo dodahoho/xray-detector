@@ -1,6 +1,5 @@
 """Klassmärket högst upp i videofönstret (TASK-84)."""
 
-import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QColor, QImage, QPainter
 
@@ -37,9 +36,6 @@ def _detection(name="pistol", confidence=0.9, x1=8, y1=20, x2=40, y2=40):
     return Detection(x1, y1, x2, y2, name, confidence)
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _panel(qapp, settings, align_right=True) -> StreamPanel:

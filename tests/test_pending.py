@@ -1,5 +1,6 @@
 """Kraschsäker pending-kö (TASK-12)."""
 
+import pytest
 from PySide6.QtWidgets import QMessageBox
 
 from tests.conftest import synthetic_frame
@@ -10,6 +11,9 @@ from xray_detector.infrastructure.dataset_store.pending import (
     remove_pending,
     save_pending,
 )
+
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
 
 
 def frames_two():

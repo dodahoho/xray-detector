@@ -3,8 +3,6 @@
 import json
 
 import numpy as np
-import pytest
-from PySide6.QtCore import QSettings
 
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
@@ -19,9 +17,6 @@ def _sample(width: int, height: int, fill: int = 100) -> AnnotatedImage:
     return AnnotatedImage(frame, [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}])
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _view(config, settings) -> TrainingView:

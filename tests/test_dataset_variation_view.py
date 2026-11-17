@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QDate, QSettings, QSize
+from PySide6.QtCore import QDate, QSize
 from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
 
 from tests.conftest import synthetic_frame
@@ -52,9 +52,6 @@ def service(tmp_path) -> DatasetService:
     return svc
 
 
-@pytest.fixture
-def settings(tmp_path) -> QSettings:
-    return QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
 
 
 def _built(config, service, settings) -> DatasetView:

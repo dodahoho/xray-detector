@@ -7,6 +7,9 @@ import pytest
 
 from xray_detector.app import APP_USER_MODEL_ID, ICON_PATH, _set_app_user_model_id
 
+# testerna startar MainWindow och tar därför sekunder (TASK-154)
+pytestmark = pytest.mark.slow
+
 # Storlekarna aktivitetsfältet och Alt-Tab hämtar; saknas de ritar Windows
 # en nedskalad 256x256-bild i stället och ikonen blir suddig.
 TASKBAR_SIZES = {16, 32, 256}
