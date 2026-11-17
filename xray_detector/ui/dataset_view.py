@@ -56,7 +56,7 @@ DATE_FORMAT = "yyyy-MM-dd"
 HEADER_OBJECT_NAME = "captureHeader"
 # kortets egen marginal är 8, så 2 här ger den syntetiska ikonen 10 px luft
 # både upptill och till höger (TASK-120)
-HEADER_MARGINS = (6, 2, 2, 2)
+HEADER_MARGINS = (6, 2, 6, 2)
 TIME_BADGE_GAP = 6
 ALL_IMAGES = "Alla bilder"
 ORIGINALS_ONLY = "Endast original"
