@@ -55,10 +55,10 @@ def trained_model_name(
 ) -> str:
     """Visningsnamn för en tränad modell (TASK-108).
 
-    Mönstret är ``[basmodell] [datum] [ursprungsbildpar + syntetiska bilder]
-    [antal klasser]``, till exempel ``YOLO26 large 2026-11-15 13+29 bildpar
-    4 klasser``. Basmodellens namn är modellen den första träningen utgick
-    från, så en vidareträning på samma dataset bara byter datum.
+    Mönstret är ``[basmodell] [datum] [ursprungsbildpar + syntetiska bildpar]
+    bildpar [antal klasser]``, till exempel ``YOLO26 large 2026-11-15 13+29
+    bildpar 4 klasser``. Basmodellens namn är modellen den första träningen
+    utgick från, så en vidareträning på samma dataset bara byter datum.
     """
     klass = "klass" if classes == 1 else "klasser"
     return f"{base_name} {date} {pairs}+{synthetic} bildpar {classes} {klass}"

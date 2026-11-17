@@ -27,6 +27,11 @@ from xray_detector.infrastructure.dataset_store.yolo import (
 METADATA_NAME = "dataset.json"
 
 
+def _pair_count(images: list[dict]) -> int:
+    """Antal fångstgrupper (bildpar) i en lista bilder."""
+    return len({image.get("group") or image["id"] for image in images})
+
+
 def _migrate_versions(root: Path) -> None:
     """Flyttar upp den nyaste v<N>-katalogen till roten (TASK-57).
 
@@ -426,16 +431,17 @@ class DatasetStore:
         return self._load_metadata()["info"]
 
     def dataset_counts(self) -> tuple[int, int]:
-        """Antal ursprungsbildpar och antal syntetiska bilder (TASK-108).
+        """Antal ursprungsbildpar och antal syntetiska bildpar (TASK-108).
 
         Räknas på metadata, så siffrorna är desamma som delningen utgår från:
         en syntetisk bild hör till sitt ursprungs bildpar och lägger därför
-        inte till ett par.
+        inte till ett par. Varje variation blir en egen fångstgrupp, så de
+        syntetiska bildparen är antalet grupper bland de syntetiska bilderna.
         """
         images = self._load_metadata()["images"]
         originals = [image for image in images if not image.get("synthetic")]
-        pairs = len({image.get("group") or image["id"] for image in originals})
-        return pairs, len(images) - len(originals)
+        synthetic = [image for image in images if image.get("synthetic")]
+        return _pair_count(originals), _pair_count(synthetic)
 
     def image_sizes(self) -> list[tuple[int, int, int]]:
         """Datasetets bildupplösningar som (bredd, höjd, antal) (TASK-80).
