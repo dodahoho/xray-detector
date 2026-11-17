@@ -1,11 +1,11 @@
 ---
 id: TASK-121
 title: Utvärdera förenklingar och förbättringar i projektet
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T15:16:00Z'
-updated_date: '2026-11-17T18:21:00Z'
+updated_date: '2026-11-17T18:22:00Z'
 labels: []
 dependencies: []
 type: task
@@ -20,11 +20,11 @@ Utvärdera projektet och ge förslag på hur det (koden, strukturen, arkitekture
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -53,3 +53,22 @@ Rapporten är disponerad som P1 (fel/risker), P2 (duplicering), P3 (städning), 
 
 Ingen produktionskod ändrades – uppgiften var att utvärdera och dokumentera.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Utvärderingen ligger i review_vibe_deepseek41_flash.md (464 rader, 20 prioriterade åtgärder). Ingen produktionskod ändrades – uppgiften var att utvärdera och dokumentera.
+
+Vad rapporten kommer fram till:
+- Projektet är i gott skick: lagren finns, 862 tester passerar, och kommentarerna förklarar besluten. Det som håller tillbaka det är duplicering, för stora vyer och avsaknaden av en grind.
+- P1 (fel/risker): en trasig dataset.json kastar JSONDecodeError ur DatasetStore._load_metadata och kraschar appen vid start (reproducerat); nattfönstret har två nycklar som synkas för hand; num_objects underhålls inkrementellt på fyra ställen; main_window styr annoteringsfliken via magiskt tab-index 1 på tio ställen och anropar AnnotationView._on_save() utifrån.
+- P2 (duplicering): training_manifest.json läses av två moduler med var sin tolkning; data.yaml parsas två gånger där train_task-varianten är en delmängd som ger tom klasslista i manifestet; fångstgruppering finns i fyra varianter där tre räknar fel för syntetiska bilder; enhetsstatus, IoU, bildskrivning och färger är också duplicerade.
+- P3 (städning): 6 döda symboler, tests/prototype/ (spike från TASK-21 som fortfarande körs), runs/-rester i git, 38 MB video i git, README som refererar borttagna PLAN.md.
+- Verktyg: ruff är oconfigurerat (55 fel i default-läget), ingen CI finns, tidsstämplar blandar lokal tid och UTC.
+
+Rekommenderad ordning: sätt [tool.ruff] och en CI-workflow först (en dag), sedan P1-punkterna, sedan städningen. Avsnitt 10 anger vad som medvetet inte föreslås: ramverksbyte, datasetformatbyte och en stor UI-refaktorering utan CI.
+
+Verifiering: pytest 861 passed, 1 skipped in 270.41s. ruff default 55 fel / utökad 231. AST-skanning för döda symboler. Reproducerat startkraschen. Varje file:line-referens kontrollerad mot källan.
+
+Uppföljning: rapportens 20 punkter är inte skapade som Backlog-tasks – det kräver godkännande enligt projektets regler.
+<!-- SECTION:FINAL_SUMMARY:END -->
