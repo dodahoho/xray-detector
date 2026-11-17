@@ -1,9 +1,11 @@
 ---
 id: TASK-113
 title: Fel vid träning av rf-detr
-status: To Do
-assignee: []
+status: Done
+assignee:
+  - '@vibe'
 created_date: '2026-11-17T10:35:00Z'
+updated_date: '2026-11-17T10:45:00Z'
 labels: []
 dependencies: []
 type: bug
@@ -170,9 +172,39 @@ Träning avslutad (kod 1)
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. train_task.py: _use_utf8_output() kopplar om sys.stdout och sys.stderr till UTF-8, anropad först i main(). rfdetr ritar tabeller med rich Console(force_terminal=True), som skriver box-tecken som cp1252 inte kan koda när stdout är en pipe.
+2. Samma fix rättar mojibaken i träningsloggen: GUI:t läser processens stdout som UTF-8, men processen skrev cp1252, så 'Träning på enhet' blev 'Tr?ning p? enhet'.
+3. Tester: enhetstest att _use_utf8_output() kopplar om en ström, och ett subprocesstest som kör med PYTHONIOENCODING=cp1252 och skriver box-tecken utan att krascha.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Orsak: rfdetr ritar valideringstabellen med rich Console(force_terminal=True) (rfdetr/utilities/console.py). Med stdout kopplad till en pipe använder Python cp1252 på Windows, och richs legacy_windows_render skriver box-tecken som cp1252 inte kan koda → UnicodeEncodeError i rich/_win32_console.py write_text.
+
+Fix: train_task._use_utf8_output() kopplar om sys.stdout och sys.stderr till UTF-8 först i main(). Den tål strömmar utan reconfigure (t.ex. pytest-capsys) och sväljer OSError/ValueError.
+
+Samma fix rättar mojibaken i träningsloggen: TrainingWorker läser processens stdout med decode('utf-8', errors='replace'), men processen skrev cp1252, så 'Träning på enhet: cuda' blev 'Tr?ning p? enhet: cuda' och 'Körningskatalog' blev 'K?rningskatalog'.
+
+Verifierat med en riktig RF-DETR large-körning på GPU, 1 epok mot models/checkpoint_best_total.pth: valideringstabellen ritades utan krasch, TRAINING_DONE skrevs, exitkod 0, och 'Träning på enhet: cuda' / 'Körningskatalog:' syns korrekt i utmatningen. Två nya tester: ett subprocesstest med PYTHONIOENCODING=cp1252 som skriver box-tecken, och ett som kör helpern mot strömmar utan reconfigure. Hela sviten: 821 passed, 1 skipped.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+RF-DETR-träningen kraschar inte längre på UnicodeEncodeError. rfdetr ritar valideringstabellen med rich Console(force_terminal=True), och med stdout kopplad till en pipe använder Python cp1252 på Windows, vilket inte kan koda richs box-tecken. Träningsprocessen kopplar nu om sys.stdout och sys.stderr till UTF-8 först i main(), så tabellerna går att rita oavsett vilken konsol processen fick.
+
+Samma omkoppling rättar mojibaken i träningsloggen: GUI:t läser processens stdout som UTF-8, men processen skrev cp1252, så svenska tecken blev '?'. 'Träning på enhet: cuda' och 'Körningskatalog:' syns nu korrekt.
+
+Verifierat med en riktig RF-DETR large-körning på GPU, 1 epok mot models/checkpoint_best_total.pth: valideringstabellen ritades, TRAINING_DONE skrevs och exitkoden var 0. Två nya tester: ett subprocesstest som kör med PYTHONIOENCODING=cp1252 och skriver box-tecken, och ett som kör helpern mot strömmar utan reconfigure. Hela sviten: 821 passed, 1 skipped. Ruff: inga nya fynd.
+<!-- SECTION:FINAL_SUMMARY:END -->
