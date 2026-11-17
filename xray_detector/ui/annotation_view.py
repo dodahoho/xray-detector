@@ -20,6 +20,7 @@ from xray_detector.ui.colors import class_color
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import (
     bind_default_action,
+    bind_field_enter,
     bind_shortcut,
     mnemonic,
     with_hint,
@@ -453,9 +454,15 @@ class AnnotationView(QWidget):
         self.class_combo = QComboBox()
         self.class_combo.setEditable(True)
         self.class_combo.currentTextChanged.connect(self._on_class_changed)
+        # Enter i klassrutans textfält sparar klassnamnet i stället för
+        # annoteringen, som knappen + gör (TASK-116)
+        bind_field_enter(self.class_combo, self._on_add_class)
+        bind_field_enter(self.class_combo.lineEdit(), self._on_add_class)
         bar.addWidget(self.class_combo)
         self.add_class_button = button("+", width=ICON_BUTTON_WIDTH)
-        self.add_class_button.setToolTip("Lägg till klassen som är angiven i rutan (Ctrl++)")
+        self.add_class_button.setToolTip(
+            "Lägg till klassen som är angiven i rutan (Ctrl++ eller Enter)"
+        )
         self.add_class_button.clicked.connect(self._on_add_class)
         bar.addWidget(self.add_class_button)
         self.remove_class_button = button("−", width=ICON_BUTTON_WIDTH)

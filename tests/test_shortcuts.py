@@ -406,6 +406,26 @@ def test_enter_saves_the_annotation(qapp, window, monkeypatch):
     assert window.tabs.currentIndex() == 0
 
 
+def test_enter_in_the_class_field_saves_the_class_name(qapp, window):
+    """Enter i klassrutans textfält sparar klassnamnet, inte annoteringen (TASK-116)."""
+    window.detection_view.capture_requested.emit(
+        [StreamFrame("left", synthetic_frame(), [], "kamera")]
+    )
+    qapp.processEvents()
+    combo = window.annotation_view.class_combo
+    combo.setEditText("ny_klass")
+    combo.lineEdit().setFocus()
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert combo.findText("ny_klass") >= 0
+    assert window.dataset_service.classes() == ["ny_klass"]
+    assert window.dataset_service.image_pair_count() == 0
+    assert window.tabs.currentIndex() == 1
+
+
 def test_enter_does_not_save_a_pair_that_is_already_in_the_dataset(qapp, window):
     """Enter följer knappens läge, så ett sparat bildpar sparas inte om (TASK-116)."""
     window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])

@@ -7,16 +7,19 @@ etiketten, visas i stället inom parentes.
 Enter, Esc och Del/Backspace betyder samma sak i varje vy (TASK-116): Enter kör
 vyens standardåtgärd, Esc avbryter och Del/Backspace tar bort det markerade.
 Tangenterna ligger här, så en vy som får en standardåtgärd binder samma tangenter
-som de andra.
+som de andra. Ett fält som har en egen Enter-åtgärd, som klassrutan i
+annoteringsvyn, behåller tangenten med bind_field_enter.
 """
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 
 #: Enter, både huvudtangenten och den på det numeriska tangentbordet
 DEFAULT_KEYS = ("Return", "Enter")
 #: Del och Backspace tar bort det markerade
 DELETE_KEYS = ("Del", "Backspace")
+#: Tangentkoderna som hör till DEFAULT_KEYS
+ENTER_CODES = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
 
 
 def mnemonic(label: str, letter: str) -> str:
@@ -61,3 +64,38 @@ def bind_delete(widget, slot) -> list[QShortcut]:
     fortsätter att sudda i stället för att ta bort det markerade.
     """
     return [bind_shortcut(widget, key, slot) for key in DELETE_KEYS]
+
+
+class _FieldEnterFilter(QObject):
+    """Låter Enter i ett fält köra fältets egen åtgärd (TASK-116).
+
+    Vyns Enter-genväg är en WindowShortcut och vinner annars över fältet. Filtret
+    accepterar fältets ShortcutOverride för Enter, så genvägen inte utlöses, och
+    kör i stället sloten på tangenttryckningen.
+    """
+
+    def __init__(self, slot, parent=None) -> None:
+        super().__init__(parent)
+        self.slot = slot
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.ShortcutOverride:
+            if event.key() in ENTER_CODES:
+                event.accept()
+                return True
+            return False
+        if event.type() == QEvent.Type.KeyPress and event.key() in ENTER_CODES:
+            self.slot()
+            return True
+        return False
+
+
+def bind_field_enter(field, slot) -> QObject:
+    """Enter i fältet kör fältets egen åtgärd i stället för vyens (TASK-116).
+
+    Används där Enter betyder något annat än vyens standardåtgärd, som att spara
+    klassnamnet i annoteringsvyns klassruta.
+    """
+    handler = _FieldEnterFilter(slot, field)
+    field.installEventFilter(handler)
+    return handler
