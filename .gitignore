@@ -224,6 +224,9 @@ data/
 models/
 models/trained/
 logs/
+# ultralytics skriver träningskörningar och datasetexporter här
+runs/
+exports/
 *.pt
 *.onnx
 
