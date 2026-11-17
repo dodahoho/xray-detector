@@ -23,6 +23,21 @@ uv run ruff check .
 uv run ruff check --fix .
 ```
 
+## Tester och CI
+
+Testsviten körs med pytest:
+
+```bash
+uv run pytest -q
+uv run pytest -q -n auto
+```
+
+`-n auto` fördelar filerna över alla kärnor med [pytest-xdist](https://pytest-xdist.readthedocs.io/) och tar sviten från cirka 270 s till under 90 s. Markören `slow` är registrerad i `pyproject.toml` för tester som startar `MainWindow`, så `uv run pytest -m "not slow"` kan köra sviten utan dem.
+
+Vid push och pull request kör GitHub Actions `.github/workflows/ci.yml` `ruff check` och hela sviten med `-n auto` på en Ubuntu-runner. Testerna ritar i Qt utan skärm, så workflowen sätter `QT_QPA_PLATFORM=offscreen` och installerar de systembibliotek PySide6 och OpenCV länkar mot.
+
+Körs sviten med `QT_QPA_PLATFORM=offscreen` på Windows måste Qt hitta ett teckensnitt, annars blir textmåtten fel och märkestesterna fallerar. CI löser det med `fonts-dejavu-core`; lokalt räcker det att köra sviten utan variabeln.
+
 ## Köra
 
 Kräver Python 3.11+ och [uv](https://docs.astral.sh/uv/). CUDA-rekommenderas för detektion och träning.

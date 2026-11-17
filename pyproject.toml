@@ -45,10 +45,14 @@ packages = ["xray_detector"]
 dev = [
     "ruff>=0.6",
     "pytest>=8.0",
+    "pytest-xdist>=3.6",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: test som startar MainWindow och därför tar sekunder i stället för millisekunder",
+]
 
 [tool.ruff]
 line-length = 100
