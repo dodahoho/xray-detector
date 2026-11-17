@@ -322,9 +322,6 @@ class TrainingView(QWidget):
         saved = self.settings.value("training/base_model", type=str)
         if saved:
             index = self.model_combo.findData(saved)
-            if index < 0:
-                # Äldre versioner sparade viktfilens namn, t.ex. yolo26m.pt
-                index = self.model_combo.findData(Path(saved).stem)
             if index >= 0:
                 self.model_combo.setCurrentIndex(index)
         value = self.settings.value("training/epochs", 100, type=int)

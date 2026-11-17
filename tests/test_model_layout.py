@@ -36,6 +36,7 @@ def _write_run(
         "base_weights": base_weights,
         "weights_relative": weights_relative,
         "classes": ["kniv", "pistol"],
+        "name": f"Tränad {run}",
     }
     if family is not None:
         manifest["family"] = family
@@ -197,15 +198,6 @@ def test_trained_models_use_manifest_family(tmp_path):
     assert [spec.family for spec in specs] == ["rfdetr"]
 
 
-def test_trained_models_without_family_are_yolo(tmp_path):
-    """Manifest skrivna före TASK-48 saknar familj och är alltid YOLO (AC 5)."""
-    trained = tmp_path / "trained"
-    _write_run(trained, "v3", family=None)
-
-    specs = trained_models(trained)
-    assert [spec.family for spec in specs] == ["yolo"]
-
-
 def test_trained_snapshots_use_their_own_detector(monkeypatch, tmp_path):
     """YOLO- och RF-DETR-snapshots laddas med var sin detektor (AC 3, 4)."""
     import sys
@@ -315,39 +307,6 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
 # --- Gammal placering (AC 8) ---
 
 
-def test_legacy_models_dir_is_reported_at_startup(tmp_path):
-    from types import SimpleNamespace
-
-    from xray_detector.app import _warn_about_legacy_models
-
-    config = _config(tmp_path)
-    legacy = config.data_dir / "models"
-    (legacy / "v1").mkdir(parents=True)
-
-    messages = []
-    log = SimpleNamespace(warning=lambda message, *args: messages.append(message % args))
-    _warn_about_legacy_models(config, log)
-
-    assert len(messages) == 1
-    assert str(legacy) in messages[0]
-    assert str(config.trained_dir) in messages[0]
-
-
-def test_empty_legacy_models_dir_is_silent(tmp_path):
-    from types import SimpleNamespace
-
-    from xray_detector.app import _warn_about_legacy_models
-
-    config = _config(tmp_path)
-    (config.data_dir / "models").mkdir(parents=True)
-
-    messages = []
-    log = SimpleNamespace(warning=lambda message, *args: messages.append(message % args))
-    _warn_about_legacy_models(config, log)
-
-    assert messages == []
-
-
 # --- Namngivning av tränad modell (TASK-108) ---
 
 
@@ -380,17 +339,6 @@ def test_trained_models_use_the_name_from_the_manifest(tmp_path):
 
     assert spec.label == "YOLO26 large 2026-11-15 13+29 bildpar 4 klasser"
     assert spec.base_name == "YOLO26 large"
-
-
-def test_trained_models_without_a_name_keep_the_old_label(tmp_path):
-    """Manifest skrivna före TASK-108 saknar name och får den gamla etiketten."""
-    trained = tmp_path / "trained"
-    _write_run(trained, "v3")
-
-    spec = trained_models(trained)[0]
-
-    assert spec.label.startswith("Tränad v3")
-    assert spec.base_name == ""
 
 
 def test_the_catalog_does_not_write_base_name_to_models_json(tmp_path):

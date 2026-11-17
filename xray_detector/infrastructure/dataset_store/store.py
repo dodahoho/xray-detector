@@ -1,7 +1,6 @@
 import json
 import logging
 import random
-import shutil
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -48,79 +47,6 @@ def _warn_broken_metadata(path: Path, reason: object) -> None:
     )
 
 
-def _migrate_versions(root: Path) -> None:
-    """Flyttar upp den nyaste v<N>-katalogen till roten (TASK-57).
-
-    Datasetversionerna togs bort, så det dataset som låg under den högsta
-    versionen blir det enda datasetet. Äldre versioner lämnas orörda.
-    """
-    if (root / METADATA_NAME).exists() or (root / "images").exists():
-        return
-    versions = sorted(
-        (
-            path
-            for path in root.iterdir()
-            if path.is_dir() and path.name.startswith("v") and path.name[1:].isdigit()
-        ),
-        key=lambda path: int(path.name[1:]),
-    )
-    if not versions:
-        return
-    newest = versions[-1]
-    for name in (METADATA_NAME, "images"):
-        source = newest / name
-        if source.exists():
-            shutil.move(str(source), str(root / name))
-    shutil.rmtree(newest, ignore_errors=True)
-
-
-def _migrate_coco(root: Path) -> None:
-    """Konverterar ett COCO-dataset till YOLO på plats (TASK-78).
-
-    Ett dataset.json med annotations/categories skrivs om till enbart
-    metadata: annoteringarna flyttas till labels/ och klasserna till
-    data.yaml. dataset.json skrivs sist, så en avbruten migrering bara görs
-    om nästa gång i stället för att lämna datasetet halvkonverterat.
-    """
-    path = root / METADATA_NAME
-    if not path.exists():
-        return
-    try:
-        with open(path, encoding="utf-8") as file:
-            coco = json.load(file)
-    except (OSError, ValueError):
-        return
-    if "annotations" not in coco and "categories" not in coco:
-        return
-    categories = sorted(coco.get("categories", []), key=lambda item: item["id"])
-    names = [str(category["name"]) for category in categories]
-    index_of = {
-        category["id"]: index for index, category in enumerate(categories)
-    }
-    labels_dir = root / "labels"
-    labels_dir.mkdir(parents=True, exist_ok=True)
-    by_image: dict[int, list[dict]] = {}
-    for annotation in coco.get("annotations", []):
-        by_image.setdefault(annotation["image_id"], []).append(annotation)
-    images = []
-    for image in coco.get("images", []):
-        width = int(image.get("width") or 0)
-        height = int(image.get("height") or 0)
-        rows = []
-        if width and height:
-            for annotation in by_image.get(image["id"], []):
-                index = index_of.get(annotation["category_id"])
-                if index is not None:
-                    rows.append(from_pixels(index, annotation["bbox"], width, height))
-        write_labels(labels_dir / label_name(image["file_name"]), rows)
-        images.append(image)
-    write_data_yaml(root / DATA_YAML, names)
-    info = dict(coco.get("info", {}))
-    info["num_images"] = len(images)
-    info["num_objects"] = len(coco.get("annotations", []))
-    atomic_write_json(path, {"info": info, "images": images})
-
-
 class DatasetStore:
     """YOLO-dataset på en katalog: data.yaml, images/ och labels/.
 
@@ -132,8 +58,6 @@ class DatasetStore:
     def __init__(self, root: Path) -> None:
         self.root = root
         self.root.mkdir(parents=True, exist_ok=True)
-        _migrate_versions(self.root)
-        _migrate_coco(self.root)
 
     @property
     def images_dir(self) -> Path:

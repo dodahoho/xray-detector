@@ -128,19 +128,20 @@ def _read_run(trained_dir: Path, manifest_path: Path) -> TrainingRun | None:
     try:
         with open(manifest_path, encoding="utf-8") as file:
             manifest = json_load(file)
-        weights = manifest_path.parent / manifest.get("weights_relative", "")
+        weights = manifest_path.parent / manifest["weights_relative"]
         if not weights.is_file():
             return None
         run_dir = manifest_path.parent
         run_id = run_dir.relative_to(trained_dir).as_posix()
-    except (OSError, ValueError):
+        family = str(manifest["family"])
+    except (OSError, ValueError, KeyError):
         return None
     started = manifest.get("started") or manifest.get("date")
     finished = manifest.get("finished")
     return TrainingRun(
         run_id=run_id,
         run_dir=run_dir,
-        family=str(manifest.get("family") or "yolo"),
+        family=family,
         base_weights=str(manifest.get("base_weights") or ""),
         weights=weights,
         epochs=int(manifest.get("epochs") or 0),

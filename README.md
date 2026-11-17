@@ -172,4 +172,3 @@ Vid start loggar appen vilken `config.yaml` som användes och vilka värden som 
 
 Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/` och loggarna under `~/.xray-detector/logs/`. De katalogerna skrivs inte längre; flytta i så fall modellerna till `models/trained/` för att få dem i väljaren. Gamla loggar kan flyttas till `logs/` eller tas bort.
 
-Dataset som sparades som `datasets/v1`, `datasets/v2` och så vidare flyttas automatiskt upp till `datasets/` vid start; den nyaste versionen blir då datasetet.

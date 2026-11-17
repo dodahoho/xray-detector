@@ -246,20 +246,16 @@ def trained_models(trained_dir: Path) -> list[ModelSpec]:
         try:
             with open(manifest_path, encoding="utf-8") as file:
                 manifest = json_load(file)
-            weights = manifest_path.parent / manifest.get("weights_relative", "")
+            weights = manifest_path.parent / manifest["weights_relative"]
             if not weights.exists():
                 continue
             run_dir = manifest_path.parent.relative_to(trained_dir).as_posix()
-        except (OSError, ValueError):
+            # name och family skrivs av träningen; ett manifest utan dem är
+            # ofullständigt och hoppas över i stället för att gissa (TASK-134)
+            label = str(manifest["name"])
+            family = str(manifest["family"])
+        except (OSError, ValueError, KeyError):
             continue
-        base = Path(manifest.get("base_weights", "modell")).stem
-        classes = ", ".join(manifest.get("classes", []))
-        # manifest utan name är skrivna före TASK-108 och får den gamla etiketten
-        label = manifest.get("name") or (
-            f"Tränad {run_dir} ({base})" + (f" [{classes}]" if classes else "")
-        )
-        # manifest utan familj är skrivna före TASK-48 och är alltid YOLO
-        family = str(manifest.get("family") or "yolo")
         specs.append(
             ModelSpec(
                 key=f"{TRAINED_KEY_PREFIX}{run_dir}",
