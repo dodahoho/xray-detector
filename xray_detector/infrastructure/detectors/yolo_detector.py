@@ -58,7 +58,7 @@ class YoloDetector(BaseDetector):
             return cuda_device_label()
         return "CPU (CUDA ej tillgänglig)"
 
-    def detect(self, frame: np.ndarray) -> list[Detection]:
+    def _detect(self, frame: np.ndarray) -> list[Detection]:
         result = self.model.predict(
             frame,
             conf=self.confidence_threshold,

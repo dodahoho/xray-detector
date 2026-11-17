@@ -19,7 +19,7 @@ class FakeDetector(BaseDetector):
         super().__init__(name="fake", class_names=[class_name])
         self.class_name = class_name
 
-    def detect(self, frame: np.ndarray) -> list[Detection]:
+    def _detect(self, frame: np.ndarray) -> list[Detection]:
         height, width = frame.shape[:2]
         w = max(4, width // 4)
         h = max(4, height // 4)

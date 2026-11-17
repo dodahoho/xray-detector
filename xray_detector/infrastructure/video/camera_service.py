@@ -23,7 +23,6 @@ class StreamWorker(QThread):
         self._detector: BaseDetector | None = None
         self._detections: list[Detection] = []
         self._smoother = DetectionSmoother()
-        self._running = True
         self._sequence = 0
         self._fps_window_start = time.perf_counter()
         self._fps_window_count = 0
@@ -53,7 +52,7 @@ class StreamWorker(QThread):
 
     def run(self) -> None:
         try:
-            if not self._running:
+            if self.isInterruptionRequested():
                 return
             self.source.open()
             if not self.source.is_open():
@@ -63,14 +62,16 @@ class StreamWorker(QThread):
                 self.source_lost.emit(self.source_id)
                 return
             detections: list[Detection]
-            while self._running:
+            while not self.isInterruptionRequested():
                 frame = self.source.read()
                 if frame is None:
+                    # Källan är slut eller borta: loopen avslutas i stället för
+                    # att signalera source_lost var 500:e ms i evighet (TASK-128).
+                    # Panelen begär en ny källa när den vill återansluta.
                     self._smoother.reset()
                     self._detections = []
                     self.source_lost.emit(self.source_id)
-                    self.msleep(500)
-                    continue
+                    return
                 # Ramen skickas direkt: detektionens varierande körtid får inte
                 # förskjuta visningen (TASK-37). Overlayn visar därför senaste
                 # ramens detektioner, alltså en ram efter bilden.
@@ -101,7 +102,7 @@ class StreamWorker(QThread):
             self.source.close()
 
     def stop(self) -> None:
-        self._running = False
+        self.requestInterruption()
         if not self.wait(5000):
             self.terminate()
             self.wait(2000)

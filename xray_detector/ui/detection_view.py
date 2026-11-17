@@ -478,9 +478,11 @@ class StreamPanel(QFrame):
     def _to_qimage(frame: np.ndarray) -> QImage:
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         height, width, channels = rgb.shape
+        # .copy() ger en egen buffer: QImage pekar annars på rgb, som frigörs
+        # när funktionen returnerar (TASK-128).
         return QImage(
             rgb.data, width, height, channels * width, QImage.Format.Format_RGB888
-        )
+        ).copy()
 
 
 class _CaptureKeyFilter(QObject):

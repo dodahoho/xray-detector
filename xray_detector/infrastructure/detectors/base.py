@@ -1,3 +1,4 @@
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 
@@ -46,24 +47,41 @@ class BaseDetector(ABC):
         self.class_names = class_names
         self.enabled_classes: set[str] | None = None
         self.confidence_threshold = 0.4
+        # Samma detektor delas av två strömtrådar och styrs från GUI-tråden, så
+        # både modellanropet och de två inställningarna går genom ett lås
+        # (TASK-128). RLock eftersom detect() anropar filter_detections().
+        self._lock = threading.RLock()
 
     def set_confidence_threshold(self, value: float) -> None:
         """Ändrar tröskeln utan att modellen laddas om (TASK-36)."""
-        self.confidence_threshold = value
+        with self._lock:
+            self.confidence_threshold = value
 
     def set_enabled_classes(self, class_names: Iterable[str] | None) -> None:
         """Klasserna som ska visas; None betyder alla (TASK-53)."""
-        self.enabled_classes = None if class_names is None else set(class_names)
+        with self._lock:
+            self.enabled_classes = None if class_names is None else set(class_names)
 
     def filter_detections(self, detections: list[Detection]) -> list[Detection]:
         """Tar bort klasser som användaren valt bort i detektionsvyn (TASK-53)."""
-        if self.enabled_classes is None:
-            return detections
-        return [
-            detection
-            for detection in detections
-            if detection.class_name in self.enabled_classes
-        ]
+        with self._lock:
+            if self.enabled_classes is None:
+                return detections
+            return [
+                detection
+                for detection in detections
+                if detection.class_name in self.enabled_classes
+            ]
+
+    def detect(self, frame: np.ndarray) -> list[Detection]:
+        """Kör modellen under lås, ett anrop i taget (TASK-128).
+
+        Ultralytics och rfdetr är inte trådsäkra på samma instans, och två
+        strömtrådar delar en detektor. Anropen serialiseras därför här i
+        stället för att varje anropare behöva komma ihåg ett lås.
+        """
+        with self._lock:
+            return self._detect(frame)
 
     @abstractmethod
-    def detect(self, frame: np.ndarray) -> list[Detection]: ...
+    def _detect(self, frame: np.ndarray) -> list[Detection]: ...

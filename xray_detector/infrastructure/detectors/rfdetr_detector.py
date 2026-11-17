@@ -119,7 +119,7 @@ class RfDetrDetector(BaseDetector):
         with contextlib.suppress(Exception):
             self.model.inference(dtype=torch.float16)
 
-    def detect(self, frame: np.ndarray) -> list[Detection]:
+    def _detect(self, frame: np.ndarray) -> list[Detection]:
         # rfdetr vantar RGB; ramarna fran OpenCV ar BGR
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = self.model.predict(rgb, threshold=self.confidence_threshold)
