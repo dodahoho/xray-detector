@@ -54,7 +54,9 @@ ALL_CLASSES = "Alla klasser"
 NO_MATCHES = "Inga bilder matchar filtret."
 DATE_FORMAT = "yyyy-MM-dd"
 HEADER_OBJECT_NAME = "captureHeader"
-HEADER_MARGINS = (6, 2, 6, 2)
+# kortets egen marginal är 8, så 2 här ger den syntetiska ikonen 10 px luft
+# både upptill och till höger (TASK-120)
+HEADER_MARGINS = (6, 2, 2, 2)
 TIME_BADGE_GAP = 6
 ALL_IMAGES = "Alla bilder"
 ORIGINALS_ONLY = "Endast original"
@@ -64,8 +66,8 @@ IMAGE_TYPES = (
     ("original", ORIGINALS_ONLY),
     ("synthetic", SYNTHETIC_ONLY),
 )
-SYNTHETIC_COLOR = "#b48ce8"
-SYNTHETIC_LABEL = "Syntetisk"
+# ikonen finns färdig i rätt storlek, så korten slipper skala om den (TASK-120)
+SYNTHETIC_ICON_PATH = Path(__file__).parent / "assets" / "generated-20.png"
 # luften mellan utöka/återställ och exportknapparna, så grupperna syns var för sig
 BUTTON_GROUP_GAP = 24
 
@@ -225,20 +227,17 @@ def _badge(name: str, parent: QWidget) -> QLabel:
     return badge
 
 
-def _synthetic_badge(variation: dict | list, parent: QWidget) -> QLabel:
-    """Märke som visar att bildparet är syntetiskt genererat (TASK-88).
+def _synthetic_icon(variation: dict | list, parent: QWidget) -> QLabel:
+    """Ikon som visar att bildparet är syntetiskt genererat (TASK-88, TASK-120).
 
     Tooltipen anger vilka variationer som skapade paret, så en rotation går att
     skilja från en spegling utan att öppna datasetets metadata. En bild kan bära
     flera variationer samtidigt (TASK-106).
     """
-    badge = QLabel(SYNTHETIC_LABEL, parent)
-    badge.setStyleSheet(
-        f"QLabel {{ background: {SYNTHETIC_COLOR}; color: #111; "
-        "border-radius: 6px; padding: 1px 6px; font-weight: bold; }"
-    )
-    badge.setToolTip(f"Syntetisk variation: {describe(variation)}")
-    return badge
+    icon = QLabel(parent)
+    icon.setPixmap(QPixmap(str(SYNTHETIC_ICON_PATH)))
+    icon.setToolTip(f"Syntetisk variation: {describe(variation)}")
+    return icon
 
 
 def _capture_header(
@@ -248,12 +247,14 @@ def _capture_header(
     classes: tuple[str, ...] = (),
     synthetic: dict | list | None = None,
 ) -> tuple[QWidget, QLabel]:
-    """Rubrikrad med tid, syntetisk-märke och klassmärken (TASK-66, TASK-68, TASK-88).
+    """Rubrikrad med tid, klassmärken och den syntetiska ikonen (TASK-66, TASK-68, TASK-88).
 
     Raden bär färgen och bakgrunden, så markeringen täcker både tiden och
     märkena. Texten är densamma i alla lägen, så märkena hamnar strax efter
     tidsangivelsen och kortet behåller sin storlek när fångsten markeras.
-    Märkena får extra luft mot tiden men sitter tätt ihop inbördes.
+    Märkena får extra luft mot tiden men sitter tätt ihop inbördes. Den
+    syntetiska ikonen ligger sist i raden, alltså i kortets övre högra hörn
+    (TASK-120).
     """
     row = QFrame(parent)
     row.setObjectName(HEADER_OBJECT_NAME)
@@ -266,13 +267,13 @@ def _capture_header(
     label = QLabel(text, row)
     label.setStyleSheet(_header_text_style(color))
     layout.addWidget(label)
-    if classes or synthetic is not None:
+    if classes:
         layout.addSpacing(TIME_BADGE_GAP)
-    if synthetic is not None:
-        layout.addWidget(_synthetic_badge(synthetic, row))
     for name in classes:
         layout.addWidget(_badge(name, row))
     layout.addStretch(1)
+    if synthetic is not None:
+        layout.addWidget(_synthetic_icon(synthetic, row))
     return row, label
 
 

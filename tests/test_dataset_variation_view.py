@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QDate, QSettings
+from PySide6.QtCore import QDate, QSettings, QSize
 from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
 
 from tests.conftest import synthetic_frame
@@ -17,8 +17,9 @@ from xray_detector.domain.dataset import (
 from xray_detector.infrastructure.dataset_store.pending import save_pending
 from xray_detector.ui.dataset_view import (
     BUTTON_GROUP_GAP,
+    HEADER_MARGINS,
     ORIGINALS_ONLY,
-    SYNTHETIC_LABEL,
+    SYNTHETIC_ICON_PATH,
     SYNTHETIC_ONLY,
     DatasetView,
 )
@@ -63,32 +64,61 @@ def _built(config, service, settings) -> DatasetView:
     return view
 
 
-def _header_labels(view, group_id) -> list[str]:
+def _header_icons(view, group_id) -> list[QLabel]:
+    """Ikonerna i rubrikraden; klassmärkena bär text i stället för en pixmap."""
     header, _frame = view._group_headers[group_id]
-    return [label.text() for label in header.parentWidget().findChildren(QLabel)]
+    return [
+        label
+        for label in header.parentWidget().findChildren(QLabel)
+        if not label.pixmap().isNull()
+    ]
 
 
 def _select_type(view, key) -> None:
     view.type_combo.setCurrentIndex(view.type_combo.findData(key))
 
 
-def test_synthetic_pair_shows_a_badge(qapp, config, service, settings):
+def test_synthetic_pair_shows_the_icon(qapp, config, service, settings):
     view = _built(config, service, settings)
 
-    assert SYNTHETIC_LABEL in _header_labels(view, ROTATION_GROUP)
-    assert SYNTHETIC_LABEL in _header_labels(view, FLIP_GROUP)
-    assert SYNTHETIC_LABEL not in _header_labels(view, ORIGINAL_GROUP)
+    assert len(_header_icons(view, ROTATION_GROUP)) == 1
+    assert len(_header_icons(view, FLIP_GROUP)) == 1
+    assert _header_icons(view, ORIGINAL_GROUP) == []
 
 
-def test_synthetic_badge_explains_the_variation(qapp, config, service, settings):
+def test_synthetic_icon_is_used_in_a_prepared_size(qapp, config, service, settings):
+    """Ikonen ligger färdig i rätt storlek, så korten inte skalar den (TASK-120)."""
     view = _built(config, service, settings)
 
-    header, _frame = view._group_headers[ROTATION_GROUP]
-    tooltips = [
-        label.toolTip() for label in header.parentWidget().findChildren(QLabel)
-    ]
+    icon = _header_icons(view, ROTATION_GROUP)[0]
 
-    assert any("rotation" in tooltip for tooltip in tooltips)
+    assert SYNTHETIC_ICON_PATH.is_file()
+    assert icon.pixmap().size() == QSize(20, 20)
+
+
+def test_synthetic_icon_sits_in_the_cards_top_right_corner(
+    qapp, config, service, settings
+):
+    """Ikonen ligger sist i rubrikraden, alltså i kortets övre högra hörn (TASK-120)."""
+    view = _built(config, service, settings)
+    header, card = view._group_headers[ROTATION_GROUP]
+    row = header.parentWidget()
+    row.resize(400, row.sizeHint().height())
+    row.layout().activate()
+
+    icon = _header_icons(view, ROTATION_GROUP)[0]
+
+    assert row is card.layout().itemAt(0).widget()
+    assert icon.x() + icon.width() == row.width() - HEADER_MARGINS[2]
+    assert icon.y() == HEADER_MARGINS[1]
+
+
+def test_synthetic_icon_explains_the_variation(qapp, config, service, settings):
+    view = _built(config, service, settings)
+
+    icon = _header_icons(view, ROTATION_GROUP)[0]
+
+    assert "rotation" in icon.toolTip()
 
 
 def test_type_filter_shows_only_the_originals(qapp, config, service, settings):
@@ -291,7 +321,7 @@ def test_variation_buttons_form_their_own_group_on_the_right(
     assert bar.itemAt(4).widget() is view.export_coco_button
 
 
-def test_synthetic_badge_lists_every_variation(qapp, config, tmp_path, settings):
+def test_synthetic_icon_lists_every_variation(qapp, config, tmp_path, settings):
     """En bild med flera variationer visar alla i tooltipen (TASK-106)."""
     service = DatasetService(tmp_path / "datasets")
     service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
@@ -309,9 +339,6 @@ def test_synthetic_badge_lists_every_variation(qapp, config, tmp_path, settings)
     )
     view = _built(config, service, settings)
 
-    header, _frame = view._group_headers[ROTATION_GROUP]
-    tooltips = [
-        label.toolTip() for label in header.parentWidget().findChildren(QLabel)
-    ]
+    icon = _header_icons(view, ROTATION_GROUP)[0]
 
-    assert any("rotation" in tip and "storlek" in tip for tip in tooltips)
+    assert "rotation" in icon.toolTip() and "storlek" in icon.toolTip()
