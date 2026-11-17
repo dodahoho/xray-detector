@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 
 from xray_detector.application.training_history import TrainingRun
+from xray_detector.domain.dataset import group_images
 from xray_detector.infrastructure.dataset_store.export import (
     SPLIT_RATIO,
     SPLIT_SEED,
@@ -71,11 +72,8 @@ def view_labels(images: list[dict]) -> dict[int, str]:
     samma scen sedd från var sitt håll. Platsen i gruppen är därför bildens vy,
     och en modell som faller på en vy syns bara när talen delas upp.
     """
-    groups: dict[object, list[dict]] = {}
-    for image in images:
-        groups.setdefault(image.get("group") or image["id"], []).append(image)
     labels: dict[int, str] = {}
-    for members in groups.values():
+    for members in group_images(images).values():
         for index, image in enumerate(sorted(members, key=lambda item: item["id"])):
             labels[image["id"]] = f"vy {index + 1}"
     return labels

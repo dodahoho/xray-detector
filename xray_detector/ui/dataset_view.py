@@ -23,6 +23,7 @@ from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
+from xray_detector.domain.dataset import capture_group
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.dataset_store.augment import describe
 from xray_detector.ui.busy_indicator import BusyIndicator
@@ -660,12 +661,13 @@ class DatasetView(QWidget):
         """Antalet fångstgrupper av den ena eller andra typen i det lästa datasetet."""
         if self._dataset is None:
             return 0
-        groups = {
-            image.get("group") or image["id"]
-            for image in self._dataset["images"]
-            if bool(image.get("synthetic")) is synthetic
-        }
-        return len(groups)
+        return len(
+            {
+                capture_group(image)
+                for image in self._dataset["images"]
+                if bool(image.get("synthetic")) is synthetic
+            }
+        )
 
     def _build(self, data: dict) -> None:
         """Ritar listan i GUI-tråden från det arbetstråden läste (TASK-40)."""

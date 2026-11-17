@@ -13,6 +13,44 @@ MODES = {
 }
 
 
+def capture_group(image: dict) -> object:
+    """Fångstgruppen en bild hör till: grupp-id, annars bildens eget id (TASK-137)."""
+    return image.get("group") or image["id"]
+
+
+def root_image(image: dict, by_id: dict[int, dict]) -> dict:
+    """Ursprungsbilden för en syntetisk bild; bilden själv när den är ett original.
+
+    ``source`` pekar på bilden variationen skapades från, och en variation görs
+    alltid på ett original. Kedjan följs därför bara så länge källan finns med,
+    så en bild vars ursprung saknas i listan behåller sin egen grupp (TASK-111).
+    """
+    seen: set[int] = set()
+    current = image
+    while current.get("synthetic"):
+        source = by_id.get(current.get("source"))
+        if source is None or current["id"] in seen:
+            break
+        seen.add(current["id"])
+        current = source
+    return current
+
+
+def group_images(images: list[dict]) -> dict[object, list[dict]]:
+    """Bilderna grupperade per fångstgrupp (bildpar).
+
+    En syntetisk bild hamnar i sin ursprungsbilds grupp, så en utökning av ett
+    bildpar aldrig kan läcka mellan train och val (TASK-111). Grupperingen
+    definieras här och används av lagringen, exporten, utvärderingen och
+    datasetvyn, så de räknar bildpar på samma sätt (TASK-137).
+    """
+    by_id = {image["id"]: image for image in images}
+    groups: dict[object, list[dict]] = {}
+    for image in images:
+        groups.setdefault(capture_group(root_image(image, by_id)), []).append(image)
+    return groups
+
+
 @dataclass
 class AnnotatedImage:
     frame: np.ndarray

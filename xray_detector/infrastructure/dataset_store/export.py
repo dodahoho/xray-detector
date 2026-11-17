@@ -3,6 +3,7 @@ import shutil
 from datetime import UTC, datetime
 from pathlib import Path
 
+from xray_detector.domain.dataset import group_images
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.infrastructure.dataset_store.yolo import label_name, write_data_yaml
@@ -11,41 +12,6 @@ SPLIT_RATIO = 0.8
 SPLIT_SEED = 42
 #: RF-DETR:s test-del får en egen grupp först när datasetet har minst tre (TASK-93).
 MIN_GROUPS_FOR_TEST = 3
-
-
-def _group_key(image: dict) -> object:
-    return image.get("group") or image["id"]
-
-
-def _root_image(image: dict, by_id: dict[int, dict]) -> dict:
-    """Ursprungsbilden för en syntetisk bild; bilden själv när den är ett original.
-
-    ``source`` pekar på bilden variationen skapades från, och en variation görs
-    alltid på ett original. Kedjan följs därför bara så länge källan finns med,
-    så en bild vars ursprung saknas i listan behåller sin egen grupp (TASK-111).
-    """
-    seen: set[int] = set()
-    current = image
-    while current.get("synthetic"):
-        source = by_id.get(current.get("source"))
-        if source is None or current["id"] in seen:
-            break
-        seen.add(current["id"])
-        current = source
-    return current
-
-
-def _groups(images: list[dict]) -> dict[object, list[dict]]:
-    """Bilderna grupperade per fångstgrupp (bildpar).
-
-    En syntetisk bild hamnar i sin ursprungsbilds grupp, så en utökning av ett
-    bildpar aldrig kan läcka mellan train och val (TASK-111).
-    """
-    by_id = {image["id"]: image for image in images}
-    groups: dict[object, list[dict]] = {}
-    for image in images:
-        groups.setdefault(_group_key(_root_image(image, by_id)), []).append(image)
-    return groups
 
 
 def _signature(images: list[dict]) -> frozenset[str]:
@@ -168,7 +134,7 @@ def _three_way_targets(total: int, ratio: float) -> dict[str, int]:
 def _split(
     images: list[dict], targets: dict[str, int], seed: int
 ) -> dict[str, list[dict]]:
-    groups = _groups(images)
+    groups = group_images(images)
     order = _stratified_order(groups, seed)
     assigned = _assign(order, targets)
     return {
@@ -216,7 +182,7 @@ def group_count(images: list[dict]) -> int:
     En syntetisk bild räknas i sin ursprungsbilds grupp, så siffran är antalet
     ursprungspar och inte antalet kort i datasetvyn (TASK-111).
     """
-    return len(_groups(images))
+    return len(group_images(images))
 
 
 def _fresh_dir(path: Path) -> Path:

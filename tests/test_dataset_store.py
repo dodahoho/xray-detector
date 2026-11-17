@@ -305,3 +305,25 @@ def test_a_broken_data_yaml_gives_no_classes(tmp_path):
     path.write_text("names: [oterminerad\n", encoding="utf-8")
 
     assert read_classes(path) == []
+
+
+def test_capture_grouping_is_shared_by_every_reader(tmp_path):
+    """Samma gruppering används av lagring, export, utvärdering och vy (TASK-137)."""
+    from xray_detector.application.evaluation import view_labels
+    from xray_detector.domain.dataset import capture_group, group_images
+    from xray_detector.infrastructure.dataset_store.export import group_count
+
+    images = [
+        {"id": 1, "group": 7, "annotations": []},
+        {"id": 2, "group": 7, "annotations": []},
+        {"id": 3, "group": 8, "annotations": []},
+        # en variation hör till sin ursprungsbilds grupp, inte sin egen
+        {"id": 4, "group": 9, "synthetic": True, "source": 1, "annotations": []},
+    ]
+
+    assert capture_group(images[0]) == 7
+    assert capture_group({"id": 5}) == 5
+    assert group_count(images) == 2
+    assert set(group_images(images)) == {7, 8}
+    # variationen blir tredje vyn i ursprungsgruppen, inte en egen grupp
+    assert view_labels(images)[4] == "vy 3"

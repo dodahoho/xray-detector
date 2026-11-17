@@ -7,7 +7,11 @@ from pathlib import Path
 
 import cv2
 
-from xray_detector.domain.dataset import AnnotatedImage, VariationSettings
+from xray_detector.domain.dataset import (
+    AnnotatedImage,
+    VariationSettings,
+    capture_group,
+)
 from xray_detector.infrastructure.dataset_store.augment import (
     apply_variations,
     variation_plan,
@@ -29,7 +33,7 @@ METADATA_NAME = "dataset.json"
 
 def _pair_count(images: list[dict]) -> int:
     """Antal fångstgrupper (bildpar) i en lista bilder."""
-    return len({image.get("group") or image["id"] for image in images})
+    return len({capture_group(image) for image in images})
 
 
 def _is_metadata(payload: object) -> bool:
