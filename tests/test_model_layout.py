@@ -11,7 +11,9 @@ from xray_detector.application.app_config import apply_yaml_overrides
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.model_registry import (
     MODEL_SPECS,
+    available_models,
     base_models,
+    is_trained,
     trained_models,
 )
 from xray_detector.domain.config import PROJECT_ROOT, AppConfig
@@ -131,6 +133,19 @@ def test_base_and_trained_weights_do_not_collide(tmp_path):
     assert not {spec.weights for spec in base} & {spec.weights for spec in trained}
     for spec in trained:
         assert Path(spec.weights).is_relative_to(config.trained_dir)
+
+
+def test_available_models_combine_base_and_trained(tmp_path):
+    """En lista för hela appen: basmodellerna först, sedan de egentränade."""
+    config = _config(tmp_path)
+    _write_run(config.trained_dir, "v3")
+
+    specs = available_models(config.models_dir, config.trained_dir)
+
+    assert [spec.key for spec in specs] == [
+        spec.key for spec in MODEL_SPECS
+    ] + ["trained-v3"]
+    assert [is_trained(spec) for spec in specs] == [False] * len(MODEL_SPECS) + [True]
 
 
 # --- Modellfamilj i manifestet (TASK-48) ---

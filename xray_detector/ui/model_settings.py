@@ -1,9 +1,12 @@
-"""Modellistan i de globala inställningarna (TASK-81).
+"""Modellistan i de globala inställningarna (TASK-81, TASK-115).
 
-Sektionen listar modellerna som väljarna i detektions- och träningsvyn bygger
-sina listor ur, och låter användaren lägga till en viktfil från disk eller en
-adress, byta visningsnamn och ta bort en modell. Ändringarna skrivs direkt till
+Sektionen listar modellerna som väljarna i detektionsvyn bygger sina listor ur,
+och låter användaren lägga till en viktfil från disk eller en adress, byta
+visningsnamn och ta bort en modell. Ändringarna skrivs direkt till
 models/models.json, så vyerna kan bygga om sina väljare på en gång.
+
+Egentränade modeller listas också, men är skrivskyddade: de hittas genom sina
+träningsmanifest under models/trained/ och försvinner när körningen gör det.
 """
 
 from pathlib import Path
@@ -21,7 +24,12 @@ from PySide6.QtWidgets import (
 )
 
 from xray_detector.application.background_task import BackgroundTask
-from xray_detector.application.model_registry import ModelCatalog
+from xray_detector.application.model_registry import (
+    ModelCatalog,
+    ModelSpec,
+    available_models,
+    is_trained,
+)
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import LIST_MAX_WIDTH, button
 
@@ -29,6 +37,10 @@ WEIGHT_FILTER = "Modellvikter (*.pt *.pth)"
 FAMILY_LABELS = {"yolo": "YOLO", "rfdetr": "RF-DETR"}
 LIST_MAX_HEIGHT = 220
 MUTED_COLOR = "#888"
+TRAINED_HINT = (
+    "Egentränad modell: den hittas genom sin träningskörning och kan därför "
+    "inte bytas namn på eller tas bort här."
+)
 # dialogen har ingen egen hjälptext, så instruktionen står i etiketten
 URL_HINT = (
     "Adress till viktfilen. Den måste sluta på .pt (YOLO)\n"
@@ -47,14 +59,27 @@ class ModelSection(QGroupBox):
     är avstängda under tiden. Borttagningen rör bara listan: viktfilen ligger
     kvar i models/, så en modell som togs bort av misstag går att lägga till
     igen utan att laddas ner på nytt.
+
+    Listan är densamma som detektionsvyns väljare bygger på (TASK-115), så
+    egentränade modeller syns här också. De ägs av sina träningsmanifest och
+    kan därför inte bytas namn på eller tas bort här.
     """
 
     models_changed = Signal()
 
-    def __init__(self, models_dir: Path, parent=None) -> None:
+    def __init__(
+        self, models_dir: Path, trained_dir: Path | None = None, parent=None
+    ) -> None:
         super().__init__("Modeller", parent)
         self.setMaximumWidth(LIST_MAX_WIDTH)
         self.catalog = ModelCatalog(models_dir)
+        # samma standard som AppConfig.trained_dir
+        self.trained_dir = (
+            Path(trained_dir)
+            if trained_dir is not None
+            else self.catalog.models_dir / "trained"
+        )
+        self._specs: dict[str, ModelSpec] = {}
         self._task: BackgroundTask | None = None
         self._busy = False
         layout = QVBoxLayout(self)
@@ -62,6 +87,11 @@ class ModelSection(QGroupBox):
         self.list.setMaximumHeight(LIST_MAX_HEIGHT)
         self.list.currentRowChanged.connect(self._update_buttons)
         layout.addWidget(self.list)
+        self.trained_hint = QLabel(TRAINED_HINT)
+        self.trained_hint.setWordWrap(True)
+        self.trained_hint.setStyleSheet(f"color: {MUTED_COLOR};")
+        self.trained_hint.setVisible(False)
+        layout.addWidget(self.trained_hint)
         row = QHBoxLayout()
         self.add_file_button = button(mnemonic("Lägg till från fil...", "f"))
         self.add_file_button.clicked.connect(self._on_add_file)
@@ -90,16 +120,22 @@ class ModelSection(QGroupBox):
         current = self.current_key()
         self.list.blockSignals(True)
         self.list.clear()
-        for spec in self.catalog.specs():
+        self._specs = {}
+        for spec in available_models(self.catalog.models_dir, self.trained_dir):
             item = QListWidgetItem(spec.label)
             item.setData(Qt.ItemDataRole.UserRole, spec.key)
-            item.setToolTip(
-                f"{FAMILY_LABELS.get(spec.family, spec.family)}: {spec.weights}"
-            )
+            item.setToolTip(self._tooltip(spec))
             self.list.addItem(item)
+            self._specs[spec.key] = spec
         self.list.blockSignals(False)
         self._select(current)
         self._update_buttons()
+
+    @staticmethod
+    def _tooltip(spec: ModelSpec) -> str:
+        """Familj och viktfil; en egentränad modell märks ut som sådan."""
+        text = f"{FAMILY_LABELS.get(spec.family, spec.family)}: {spec.weights}"
+        return f"{text}\nEgentränad modell" if is_trained(spec) else text
 
     def current_key(self) -> str | None:
         item = self.list.currentItem()
@@ -119,9 +155,12 @@ class ModelSection(QGroupBox):
             self.list.setCurrentRow(0)
 
     def _update_buttons(self, *_args) -> None:
-        has_selection = self.current_key() is not None
+        spec = self._current_spec()
+        # en egentränad modell ägs av sitt manifest, så den är skrivskyddad här
+        editable = spec is not None and not is_trained(spec)
         for widget in (self.rename_button, self.remove_button):
-            widget.setEnabled(has_selection and not self._busy)
+            widget.setEnabled(editable and not self._busy)
+        self.trained_hint.setVisible(spec is not None and is_trained(spec))
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -168,7 +207,7 @@ class ModelSection(QGroupBox):
 
     def _on_rename(self) -> None:
         spec = self._current_spec()
-        if spec is None:
+        if spec is None or is_trained(spec):
             return
         label, ok = QInputDialog.getText(
             self, "Byt visningsnamn", "Visningsnamn:", text=spec.label
@@ -183,15 +222,13 @@ class ModelSection(QGroupBox):
 
     def _on_remove(self) -> None:
         spec = self._current_spec()
-        if spec is None:
+        if spec is None or is_trained(spec):
             return
         self.catalog.remove(spec.key)
         self.refresh()
         self.status.setText(f"Borttagen ur listan: {spec.label}")
         self.models_changed.emit()
 
-    def _current_spec(self):
+    def _current_spec(self) -> ModelSpec | None:
         key = self.current_key()
-        if key is None:
-            return None
-        return next((spec for spec in self.catalog.specs() if spec.key == key), None)
+        return None if key is None else self._specs.get(key)

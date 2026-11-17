@@ -1,8 +1,11 @@
-"""Modellsektionen i de globala inställningarna (TASK-81)."""
+"""Modellsektionen i de globala inställningarna (TASK-81, TASK-115)."""
 
+import json
 import urllib.request
+from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFileDialog, QInputDialog
 
 from xray_detector.application.model_registry import MODEL_SPECS
@@ -49,6 +52,48 @@ def window(qapp, config):
 @pytest.fixture
 def section(qapp, config) -> ModelSection:
     return ModelSection(config.models_dir)
+
+
+def _write_run(trained_dir: Path, run: str = "v3") -> Path:
+    """Skapar en träningskörning med manifest och vikter, som train_task gör."""
+    run_dir = trained_dir / run
+    weights = run_dir / "yolo26m" / "weights" / "best.pt"
+    weights.parent.mkdir(parents=True, exist_ok=True)
+    weights.write_bytes(b"vikter")
+    manifest = {
+        "base_weights": "yolo26m.pt",
+        "weights_relative": "yolo26m/weights/best.pt",
+        "classes": ["kniv"],
+        "family": "yolo",
+        "name": "Vår tränade modell",
+    }
+    (run_dir / "training_manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    return weights
+
+
+@pytest.fixture
+def trained_config(config) -> AppConfig:
+    """Konfiguration med en genomförd träningskörning under models/trained/."""
+    _write_run(config.trained_dir)
+    return config
+
+
+@pytest.fixture
+def trained_window(qapp, trained_config):
+    window = MainWindow(trained_config)
+    yield window
+    window.detection_view.wait_for_background()
+    window.dataset_view.wait_for_refresh()
+    window.close()
+
+
+def _keys(section: ModelSection) -> list[str]:
+    return [
+        section.list.item(row).data(Qt.ItemDataRole.UserRole)
+        for row in range(section.list.count())
+    ]
 
 
 def _choose_file(monkeypatch, path) -> None:
@@ -197,3 +242,51 @@ def test_removed_model_leaves_both_model_combos(window):
     ):
         keys = [combo.itemData(row) for row in range(combo.count())]
         assert removed not in keys
+
+
+# --- Egentränade modeller (TASK-115) ---
+
+
+def test_trained_models_are_listed_in_the_settings_tab(qapp, trained_config):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+
+    assert _keys(section) == [spec.key for spec in MODEL_SPECS] + ["trained-v3"]
+    assert section.list.item(section.list.count() - 1).text() == "Vår tränade modell"
+
+
+def test_trained_model_is_read_only_in_the_settings_tab(qapp, trained_config):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+    section.list.setCurrentRow(section.list.count() - 1)
+
+    assert section.current_key() == "trained-v3"
+    assert not section.rename_button.isEnabled()
+    assert not section.remove_button.isEnabled()
+    assert section.trained_hint.isVisibleTo(section)
+
+
+def test_base_model_is_editable_again_after_a_trained_one(qapp, trained_config):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+    section.list.setCurrentRow(section.list.count() - 1)
+    section.list.setCurrentRow(0)
+
+    assert section.rename_button.isEnabled()
+    assert section.remove_button.isEnabled()
+    assert not section.trained_hint.isVisibleTo(section)
+
+
+def test_removing_a_base_model_keeps_the_trained_models(qapp, trained_config):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+    section.list.setCurrentRow(0)
+
+    section.remove_button.click()
+
+    assert _keys(section) == [spec.key for spec in MODEL_SPECS[1:]] + ["trained-v3"]
+
+
+def test_settings_list_and_detection_combo_show_the_same_models(trained_window):
+    """Samma lista överallt: väljaren och inställningarna visar samma modeller."""
+    section = trained_window.settings_view.model_section
+    combo = trained_window.detection_view.model_combo
+
+    assert _keys(section) == [combo.itemData(row) for row in range(combo.count())]
+    assert "trained-v3" in _keys(section)

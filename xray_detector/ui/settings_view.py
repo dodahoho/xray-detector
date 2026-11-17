@@ -22,7 +22,7 @@ class SettingsView(QWidget):
         self.config = config
         self.settings = settings
         self.theme_section = ThemeSection(settings)
-        self.model_section = ModelSection(config.models_dir)
+        self.model_section = ModelSection(config.models_dir, config.trained_dir)
         # väljarna i detektions- och träningsvyn bygger om sina listor (TASK-81)
         self.model_section.models_changed.connect(self.models_changed)
         layout = QVBoxLayout(self)

@@ -18,6 +18,8 @@ from xray_detector.infrastructure.detectors.base import BaseDetector
 
 CATALOG_NAME = "models.json"
 CATALOG_VERSION = 1
+#: nyckelprefix för en egentränad modell; träningskörningens manifest äger den
+TRAINED_KEY_PREFIX = "trained-"
 # viktfilens ändelse avgör vilken detektor som laddar den
 FAMILY_BY_SUFFIX = {".pt": "yolo", ".pth": "rfdetr"}
 FAMILIES = tuple(FAMILY_BY_SUFFIX.values())
@@ -267,7 +269,7 @@ def trained_models(trained_dir: Path) -> list[ModelSpec]:
         family = str(manifest.get("family") or "yolo")
         specs.append(
             ModelSpec(
-                key=f"trained-{run_dir}",
+                key=f"{TRAINED_KEY_PREFIX}{run_dir}",
                 label=label,
                 family=family,
                 weights=str(weights),
@@ -275,6 +277,20 @@ def trained_models(trained_dir: Path) -> list[ModelSpec]:
             )
         )
     return specs
+
+
+def is_trained(spec: ModelSpec) -> bool:
+    """En egentränad modell ägs av sitt träningsmanifest, inte av models.json."""
+    return spec.key.startswith(TRAINED_KEY_PREFIX)
+
+
+def available_models(models_dir: Path, trained_dir: Path) -> list[ModelSpec]:
+    """Alla modeller appen kan använda: basmodellerna plus de egentränade (TASK-115).
+
+    Detektionsvyns väljare och modellistan i de globala inställningarna bygger
+    sina listor härifrån, så de visar samma modeller.
+    """
+    return [*base_models(models_dir), *trained_models(trained_dir)]
 
 
 def device_status() -> tuple[str, str]:
