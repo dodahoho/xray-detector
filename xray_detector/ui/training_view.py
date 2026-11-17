@@ -35,6 +35,7 @@ from xray_detector.domain.training import (
     rfdetr_resolution_error,
     trained_model_name,
 )
+from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.settings_dialog import (
     TRAIN_RATIO_KEY,
     TrainingScheduleSection,
@@ -101,7 +102,7 @@ class TrainingView(QWidget):
         layout.addWidget(self.epoch_label)
         # förloppet inom epoken; tomt när ingen träning rapporterar (TASK-96)
         self.epoch_progress_label = QLabel("")
-        self.epoch_progress_label.setStyleSheet("color: #888;")
+        self.epoch_progress_label.setStyleSheet(f"color: {MUTED_TEXT};")
         layout.addWidget(self.epoch_progress_label)
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(1000)
@@ -203,7 +204,7 @@ class TrainingView(QWidget):
         form.addRow("Bildstorlek (längsta sidan):", self.imgsz_spin)
         # upplösningarna får en egen rad, annars klipps listan i ett smalt kort
         self.imgsz_info = QLabel("-")
-        self.imgsz_info.setStyleSheet("color: #888;")
+        self.imgsz_info.setStyleSheet(f"color: {MUTED_TEXT};")
         self.imgsz_info.setWordWrap(True)
         form.addRow(self.imgsz_info)
         self.batch_spin = QSpinBox()
@@ -262,7 +263,7 @@ class TrainingView(QWidget):
         self.ratio_spin.valueChanged.connect(self._on_ratio_changed)
         form.addRow("Andel till train:", self.ratio_spin)
         hint = QLabel("Resten används till validering. Delningen sker per bildpar.")
-        hint.setStyleSheet("color: #888;")
+        hint.setStyleSheet(f"color: {MUTED_TEXT};")
         hint.setWordWrap(True)
         form.addRow(hint)
         return card

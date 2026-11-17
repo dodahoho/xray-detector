@@ -41,11 +41,11 @@ from xray_detector.ui.badge import (
     badge_delays,
     badge_swap_frames,
 )
+from xray_detector.ui.colors import ERROR_COLOR, GEAR_COLOR, MUTED_TEXT
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import FormCard, apply_metrics, button
 from xray_detector.ui.theme import THEMES, apply_theme, current_theme
 
-GEAR_COLOR = "#8a8a8a"
 SORT_KEY = "dataset/sort_order"
 SORT_NEWEST = "newest"
 SORT_OLDEST = "oldest"
@@ -200,7 +200,7 @@ class BadgeSection(FormCard):
             "klasser med nästan samma sannolikhet inte byter plats ofta."
         )
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #888;")
+        hint.setStyleSheet(f"color: {MUTED_TEXT};")
         form.addRow(hint)
 
     def _on_show_changed(self, frames: int) -> None:
@@ -261,7 +261,7 @@ class ClassFilterSection(QGroupBox):
         )
         layout.addWidget(self.scroll)
         self.warning = QLabel(NO_CLASSES)
-        self.warning.setStyleSheet("color: #c33;")
+        self.warning.setStyleSheet(f"color: {ERROR_COLOR};")
         layout.addWidget(self.warning)
         self._update_toggle_text()
         self._update_warning()

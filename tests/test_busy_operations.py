@@ -165,7 +165,7 @@ def test_device_check_runs_off_the_gui_thread(qapp, detection_view, monkeypatch)
     def slow_status():
         threads.append(threading.get_ident())
         release.wait(5)
-        return "Enhet: CUDA (testkort)", "#2a8"
+        return "Enhet: CUDA (testkort)"
 
     monkeypatch.setattr(model_registry, "device_status", slow_status)
     try:
@@ -189,7 +189,7 @@ def test_main_window_opens_before_the_device_check_finishes(qapp, config, monkey
     def slow_status():
         threads.append(threading.get_ident())
         release.wait(5)
-        return "Enhet: CUDA (testkort)", "#2a8"
+        return "Enhet: CUDA (testkort)"
 
     monkeypatch.setattr(model_registry, "device_status", slow_status)
     try:

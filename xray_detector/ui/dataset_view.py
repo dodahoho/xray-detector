@@ -27,7 +27,21 @@ from xray_detector.domain.dataset import capture_group
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.dataset_store.augment import describe
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.colors import class_color
+from xray_detector.ui.colors import (
+    BORDER,
+    CARD_BORDER,
+    HEADER_BACKGROUND,
+    IDLE_BACKGROUND,
+    IDLE_BORDER,
+    MUTED_TEXT,
+    PENDING_COLOR,
+    SELECTED_BACKGROUND,
+    SELECTED_BORDER,
+    SUBTLE_TEXT,
+    TEXT_DARK,
+    TEXT_LIGHT,
+    class_color,
+)
 from xray_detector.ui.settings_dialog import (
     SORT_NEWEST,
     DatasetSortSection,
@@ -46,10 +60,6 @@ from xray_detector.ui.variation_dialog import VariationDialog
 
 THUMB_HEIGHT = 170
 THUMB_BORDER = 3
-SELECTED_BORDER = "#4da3ff"
-SELECTED_BACKGROUND = "#1d3b57"
-IDLE_BORDER = "#555"
-IDLE_BACKGROUND = "#2b2b2b"
 UNKNOWN_DATE = "Okänt datum"
 ALL_CLASSES = "Alla klasser"
 NO_MATCHES = "Inga bilder matchar filtret."
@@ -219,7 +229,7 @@ def _card_style(color: str, dashed: bool = False) -> str:
 def _badge(name: str, parent: QWidget) -> QLabel:
     """Klassmärke i rubrikraden, färgat med klassens färg (TASK-66)."""
     color = class_color(name)
-    text_color = "#111" if color.lightness() > 140 else "#fff"
+    text_color = TEXT_DARK if color.lightness() > 140 else TEXT_LIGHT
     badge = QLabel(name, parent)
     badge.setStyleSheet(
         f"QLabel {{ background: {color.name()}; color: {text_color}; "
@@ -850,10 +860,10 @@ class DatasetView(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
         heading = QLabel(title)
-        color = "#e5a52a" if pending else "#aaa"
+        color = PENDING_COLOR if pending else SUBTLE_TEXT
         heading.setStyleSheet(
             f"font-weight: bold; color: {color}; "
-            "border-bottom: 1px solid #444; padding-bottom: 2px;"
+            f"border-bottom: 1px solid {BORDER}; padding-bottom: 2px;"
         )
         layout.addWidget(heading)
         cards = QWidget()
@@ -890,10 +900,10 @@ class DatasetView(QWidget):
         time_label = stamp[11:] if stamp else f"Fångst {key}"
         card = CaptureCard(key)
         card.setFrameShape(QFrame.Shape.Box)
-        card.setStyleSheet(_card_style("#666"))
+        card.setStyleSheet(_card_style(CARD_BORDER))
         card.clicked.connect(self._on_card_clicked)
         header, header_label = _capture_header(
-            time_label, "#888", card, classes, variation
+            time_label, MUTED_TEXT, card, classes, variation
         )
         self._group_headers[key] = (header_label, card)
         inner = QVBoxLayout(card)
@@ -951,9 +961,9 @@ class DatasetView(QWidget):
             )
             card = CaptureCard(capture.group_id)
             card.setFrameShape(QFrame.Shape.Box)
-            card.setStyleSheet(_card_style("#e5a52a", dashed=True))
+            card.setStyleSheet(_card_style(PENDING_COLOR, dashed=True))
             card.clicked.connect(self._on_card_clicked)
-            header, header_label = _capture_header(title, "#e5a52a", card, classes)
+            header, header_label = _capture_header(title, PENDING_COLOR, card, classes)
             self._group_headers[capture.group_id] = (header_label, card)
             inner = QVBoxLayout(card)
             inner.setContentsMargins(8, 8, 8, 8)
@@ -1018,17 +1028,17 @@ class DatasetView(QWidget):
         selected = any(thumb.selected for thumb in members)
         pending = any(thumb.pending for thumb in members)
         if selected:
-            row.setStyleSheet(_header_style("#10202e", SELECTED_BORDER))
-            header.setStyleSheet(_header_text_style("#10202e"))
+            row.setStyleSheet(_header_style(HEADER_BACKGROUND, SELECTED_BORDER))
+            header.setStyleSheet(_header_text_style(HEADER_BACKGROUND))
             frame.setStyleSheet(_card_style(SELECTED_BORDER))
         elif pending:
-            row.setStyleSheet(_header_style("#e5a52a"))
-            header.setStyleSheet(_header_text_style("#e5a52a"))
-            frame.setStyleSheet(_card_style("#e5a52a", dashed=True))
+            row.setStyleSheet(_header_style(PENDING_COLOR))
+            header.setStyleSheet(_header_text_style(PENDING_COLOR))
+            frame.setStyleSheet(_card_style(PENDING_COLOR, dashed=True))
         else:
-            row.setStyleSheet(_header_style("#888"))
-            header.setStyleSheet(_header_text_style("#888"))
-            frame.setStyleSheet(_card_style("#666"))
+            row.setStyleSheet(_header_style(MUTED_TEXT))
+            header.setStyleSheet(_header_text_style(MUTED_TEXT))
+            frame.setStyleSheet(_card_style(CARD_BORDER))
 
     def _selected_groups(self) -> list:
         """Fångstgrupperna som har minst en markerad bild, i listordning (TASK-73)."""

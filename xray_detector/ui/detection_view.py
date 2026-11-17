@@ -34,7 +34,13 @@ from xray_detector.ui.badge import (
     draw_badges,
 )
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.colors import class_color
+from xray_detector.ui.colors import (
+    ERROR_COLOR,
+    MUTED_TEXT,
+    PANEL_BACKGROUND,
+    class_color,
+    device_color,
+)
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
     BadgeSection,
@@ -134,7 +140,7 @@ class ResourceMeter(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
         self.title = QLabel(title)
-        self.title.setStyleSheet("color: #888;")
+        self.title.setStyleSheet(f"color: {MUTED_TEXT};")
         self.bar = QProgressBar()
         self.bar.setRange(0, 100)
         self.bar.setTextVisible(False)
@@ -213,7 +219,9 @@ class StreamPanel(QFrame):
         lost_layout = QVBoxLayout(self.lost_widget)
         lost_layout.addStretch(1)
         self.lost_label = QLabel(S_LOST)
-        self.lost_label.setStyleSheet("color: #c33; font-size: 16px; font-weight: bold;")
+        self.lost_label.setStyleSheet(
+            f"color: {ERROR_COLOR}; font-size: 16px; font-weight: bold;"
+        )
         self.lost_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.retry_button = button(mnemonic(S_RETRY, retry_letter))
         self.retry_button.clicked.connect(self._on_retry)
@@ -374,7 +382,9 @@ class StreamPanel(QFrame):
     def _show_message(self, text: str) -> None:
         """Visar en text i stället för bilden och släpper senaste ramen."""
         self.display.setText(text)
-        self.display.setStyleSheet("color: #888; font-size: 24px; background: #222;")
+        self.display.setStyleSheet(
+            f"color: {MUTED_TEXT}; font-size: 24px; background: {PANEL_BACKGROUND};"
+        )
         self.display.show()
         self.lost_widget.hide()
         self.fps_label.clear()
@@ -884,10 +894,11 @@ class DetectionView(QWidget):
         self._device_task = task
         task.start()
 
-    def _apply_device_status(self, status: tuple[str, str]) -> None:
-        text, color = status
+    def _apply_device_status(self, text: str) -> None:
         self.device_label.setText(text)
-        self.device_label.setStyleSheet(f"font-weight: bold; color: {color};")
+        self.device_label.setStyleSheet(
+            f"font-weight: bold; color: {device_color(text)};"
+        )
 
     def wait_for_background(self, timeout_ms: int = 10000) -> None:
         """Väntar in modelladdning och enhetskontroll (tester och stängning)."""

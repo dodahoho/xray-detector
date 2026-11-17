@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from xray_detector.domain.dataset import MODE_PER_TYPE, MODES, VariationSettings
 from xray_detector.infrastructure.dataset_store.augment import MAX_SCALE, MIN_SCALE
+from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.style import FormCard, apply_metrics
 
 MAX_COUNT = 20
@@ -95,7 +96,7 @@ class VariationDialog(QDialog):
         scope.form.addRow(QLabel("Kombination:"), self.mode_combo)
         mode_hint = QLabel(MODE_HINT)
         mode_hint.setWordWrap(True)
-        mode_hint.setStyleSheet("color: #888;")
+        mode_hint.setStyleSheet(f"color: {MUTED_TEXT};")
         scope.form.addRow(mode_hint)
         # antalet är ett underval till kombinationen: det gäller bara när en
         # bild får flera typer, inte när varje typ ger en egen bild (TASK-117)
@@ -143,7 +144,7 @@ class VariationDialog(QDialog):
             "bildpar. De kan tas bort igen med Återställ till original."
         )
         hint.setWordWrap(True)
-        hint.setStyleSheet("color: #888;")
+        hint.setStyleSheet(f"color: {MUTED_TEXT};")
         layout.addWidget(hint)
 
         buttons = QDialogButtonBox()

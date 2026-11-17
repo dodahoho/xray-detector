@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from xray_detector.application.training_history import training_runs
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
-from xray_detector.infrastructure.detectors.base import BaseDetector
+from xray_detector.infrastructure.detectors.base import BaseDetector, cuda_device_label
 
 CATALOG_NAME = "models.json"
 CATALOG_VERSION = 1
@@ -278,13 +278,10 @@ def available_models(models_dir: Path, trained_dir: Path) -> list[ModelSpec]:
     return [*base_models(models_dir), *trained_models(trained_dir)]
 
 
-def device_status() -> tuple[str, str]:
-    """Returnerar (statusText, CSS-färg) för enhetsindikatorn i GUI:t."""
-    try:
-        import torch
+def device_status() -> str:
+    """Enhetsraden i detektionsvyn, byggd på cuda_device_label (TASK-139).
 
-        if torch.cuda.is_available():
-            return f"Enhet: CUDA ({torch.cuda.get_device_name(0)})", "#2a8"
-        return "Enhet: CPU (CUDA ej tillgänglig)", "#c33"
-    except ImportError:
-        return "Enhet: PyTorch saknas", "#c33"
+    Färgen hör till vyn och sätts av ui/colors.device_color, så den här
+    modulen slipper känna till CSS.
+    """
+    return f"Enhet: {cuda_device_label()}"

@@ -17,6 +17,33 @@ import hashlib
 
 from PySide6.QtGui import QColor
 
+#: Färger för text, ramar och ytor i vyerna. De låg tidigare som literaler i
+#: varje vy, så samma grå nyans kunde betyda olika saker på olika ställen
+#: (TASK-139). Nya ytor ska hämta sin färg härifrån.
+TEXT_DARK = "#111"
+TEXT_LIGHT = "#fff"
+MUTED_TEXT = "#888"
+SUBTLE_TEXT = "#aaa"
+BORDER = "#444"
+IDLE_BORDER = "#555"
+CARD_BORDER = "#666"
+GEAR_COLOR = "#8a8a8a"
+SELECTED_BORDER = "#4da3ff"
+SELECTED_BACKGROUND = "#1d3b57"
+IDLE_BACKGROUND = "#2b2b2b"
+HEADER_BACKGROUND = "#10202e"
+PENDING_COLOR = "#e5a52a"
+ERROR_COLOR = "#c33"
+PANEL_BACKGROUND = "#222"
+#: Enhetsraden i detektionsvyn: grönt när CUDA används, rött annars.
+DEVICE_CUDA_COLOR = "#2a8"
+DEVICE_CPU_COLOR = "#c33"
+
+
+def device_color(label: str) -> str:
+    """Färgen för enhetsraden ur etiketten cuda_device_label ger (TASK-139)."""
+    return DEVICE_CUDA_COLOR if label.startswith("Enhet: CUDA") else DEVICE_CPU_COLOR
+
 CLASS_COLORS = [
     QColor("#f54141"),
     QColor("#f58341"),

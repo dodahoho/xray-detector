@@ -35,6 +35,7 @@ from xray_detector.application.model_registry import (
     trained_run_id,
 )
 from xray_detector.application.training_history import delete_run
+from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import LIST_MAX_WIDTH, button
 from xray_detector.ui.training_history import is_active_run
@@ -42,7 +43,7 @@ from xray_detector.ui.training_history import is_active_run
 WEIGHT_FILTER = "Modellvikter (*.pt *.pth)"
 FAMILY_LABELS = {"yolo": "YOLO", "rfdetr": "RF-DETR"}
 LIST_MAX_HEIGHT = 220
-MUTED_COLOR = "#888"
+MUTED_COLOR = MUTED_TEXT
 TRAINED_HINT = (
     "Egentränad modell: namnet sätts vid träningen och kan därför inte bytas "
     "här. Ta bort raderar även träningsfilerna."

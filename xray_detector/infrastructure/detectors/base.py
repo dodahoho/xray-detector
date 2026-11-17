@@ -22,8 +22,15 @@ def class_names_from(names, source: str) -> list[str]:
 
 
 def cuda_device_label() -> str:
-    """Enhetsbeskrivning för logg och GUI (TASK-101)."""
-    import torch
+    """Enhetsbeskrivning för logg och GUI (TASK-101, TASK-139).
+
+    Enda stället som avgör om CUDA används: detektionsvyns enhetsrad och
+    loggerna bygger båda på den här strängen.
+    """
+    try:
+        import torch
+    except ImportError:
+        return "PyTorch saknas"
 
     if not torch.cuda.is_available():
         return "CPU (CUDA ej tillgänglig)"

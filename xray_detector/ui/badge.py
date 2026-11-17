@@ -20,7 +20,7 @@ from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QFont, QPainter
 
 from xray_detector.domain.detection import Detection
-from xray_detector.ui.colors import class_color
+from xray_detector.ui.colors import TEXT_DARK, TEXT_LIGHT, class_color
 
 SHOW_FRAMES_KEY = "detection/badge_show_frames"
 HIDE_FRAMES_KEY = "detection/badge_hide_frames"
@@ -33,8 +33,8 @@ BADGE_PADDING = 6
 BADGE_RADIUS = 6
 BADGE_GAP = 4
 BADGE_POINT_SIZE = 12
-DARK_TEXT = "#111"
-LIGHT_TEXT = "#fff"
+DARK_TEXT = TEXT_DARK
+LIGHT_TEXT = TEXT_LIGHT
 
 
 def badge_delays(settings) -> tuple[int, int]:

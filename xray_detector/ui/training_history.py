@@ -34,6 +34,7 @@ from xray_detector.application.training_history import (
     training_runs,
 )
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
 
@@ -117,7 +118,7 @@ class TrainingHistoryView(QWidget):
         layout.addWidget(self.details)
         self.evaluation_label = QLabel(NOT_EVALUATED)
         self.evaluation_label.setWordWrap(True)
-        self.evaluation_label.setStyleSheet("color: #888;")
+        self.evaluation_label.setStyleSheet(f"color: {MUTED_TEXT};")
         layout.addWidget(self.evaluation_label)
         buttons = QHBoxLayout()
         self.split_combo = QComboBox()
