@@ -1,16 +1,18 @@
-"""Tangentbordsgenvägar med synliga mnemonik (TASK-41)."""
+"""Tangentbordsgenvägar med synliga mnemonik (TASK-41, TASK-116)."""
 
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QMessageBox, QPushButton
+from PySide6.QtWidgets import QDialog, QMessageBox, QPushButton
 
 from tests.conftest import synthetic_frame
+from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import SettingsDialog
+from xray_detector.ui.variation_dialog import VariationDialog
 
 
 @pytest.fixture(autouse=True)
@@ -86,9 +88,9 @@ def test_button_labels_show_underline_or_hint(window):
     assert detection.detection_button.text() == "Detekti&on av"
     assert detection.left.retry_button.text() == "Försök i&gen"
     assert detection.right.retry_button.text() == "Försök ige&n"
-    assert annotation.save_button.text() == "S&para till dataset"
+    assert annotation.save_button.text() == "S&para till dataset (Enter)"
     assert annotation.cancel_button.text() == "Avbryt (Esc)"
-    assert window.dataset_view.delete_button.text() == "Ta &bort markerade"
+    assert window.dataset_view.delete_button.text() == "Ta &bort markerade (Del)"
     assert training.start_button.text() == "Sta&rta träning"
     assert training.abort_button.text() == "Avbryt (Esc)"
     assert window.dataset_view.export_coco_button.text() == "&Exportera COCO"
@@ -370,4 +372,162 @@ def test_class_list_shortcuts(qapp, window, monkeypatch):
 def test_shortcuts_do_not_collide_with_the_canvas(window):
     sequences = {shortcut.key().toString() for shortcut in window.findChildren(QShortcut)}
 
-    assert sequences == {"F11", "Esc", "Ctrl++", "Ctrl+-", "Space"}
+    assert sequences == {
+        "F11",
+        "Esc",
+        "Ctrl++",
+        "Ctrl+-",
+        "Space",
+        "Return",
+        "Enter",
+        "Del",
+        "Backspace",
+    }
+
+
+def test_enter_saves_the_annotation(qapp, window, monkeypatch):
+    """Enter sparar annoteringen som Spara till dataset-knappen (TASK-116)."""
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes),
+    )
+    window.detection_view.capture_requested.emit(
+        [StreamFrame("left", synthetic_frame(), [], "kamera")]
+    )
+    qapp.processEvents()
+    assert window.tabs.currentIndex() == 1
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    window.annotation_view.wait_for_save()
+    qapp.processEvents()
+
+    assert window.dataset_service.image_pair_count() == 1
+    assert window.tabs.currentIndex() == 0
+
+
+def test_enter_does_not_save_a_pair_that_is_already_in_the_dataset(qapp, window):
+    """Enter följer knappens läge, så ett sparat bildpar sparas inte om (TASK-116)."""
+    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    view = window.dataset_view
+    view.refresh()
+    view.wait_for_refresh()
+    view._on_thumb_double_clicked(view._thumbs[0])
+    qapp.processEvents()
+    assert not window.annotation_view.save_button.isEnabled()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert window.dataset_service.image_pair_count() == 1
+
+
+def test_enter_opens_the_selected_pair(qapp, window):
+    """Enter öppnar det markerade bildparet för annotering (TASK-116)."""
+    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    view = window.dataset_view
+    view.refresh()
+    view.wait_for_refresh()
+    view._on_thumb_clicked(view._thumbs[0])
+    window.tabs.setCurrentIndex(2)
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert window.tabs.currentIndex() == 1
+    assert window.annotation_view.canvases[0].image is not None
+
+
+def test_enter_without_a_selection_opens_nothing(qapp, window):
+    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    view = window.dataset_view
+    view.refresh()
+    view.wait_for_refresh()
+    window.tabs.setCurrentIndex(2)
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert window.tabs.currentIndex() == 2
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Delete, Qt.Key.Key_Backspace])
+def test_delete_key_removes_the_selected_pairs(qapp, window, monkeypatch, key):
+    """Del och Backspace tar bort markerade bildpar som knappen (TASK-116)."""
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes),
+    )
+    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    view = window.dataset_view
+    view.refresh()
+    view.wait_for_refresh()
+    view._on_thumb_clicked(view._thumbs[0])
+    window.tabs.setCurrentIndex(2)
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), key)
+    view.wait_for_refresh()
+    qapp.processEvents()
+
+    assert window.dataset_service.image_pair_count() == 0
+
+
+def test_enter_in_a_field_confirms_the_field(qapp, window):
+    """Enter i ett fält bekräftar fältet; träningsvyn har ingen Enter-genväg (TASK-116).
+
+    Bara annoterings- och datasetvyn har en standardåtgärd för Enter. I de andra
+    vyerna ska Enter fortsätta att bekräfta fältet man skriver i, så ett
+    epokfält inte startar en träning.
+    """
+    messages = []
+    window.training_view.status_changed.connect(messages.append)
+    window.tabs.setCurrentIndex(3)
+    window.training_view.epochs_spin.setFocus()
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert messages == []
+
+
+def test_enter_closes_the_settings_dialog(qapp):
+    """Enter väljer dialogens standardknapp, Stäng (TASK-116)."""
+    dialog = SettingsDialog("Inställningar – Test", [])
+    dialog.show()
+    qapp.processEvents()
+
+    QTest.keyClick(dialog, Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert not dialog.isVisible()
+    assert dialog.result() == QDialog.DialogCode.Rejected
+
+
+def test_enter_extends_in_the_variation_dialog(qapp):
+    """Enter väljer Utöka, som är dialogens standardknapp (TASK-116)."""
+    dialog = VariationDialog(3)
+    dialog.rotation.setChecked(True)
+    dialog.show()
+    qapp.processEvents()
+
+    QTest.keyClick(dialog, Qt.Key.Key_Return)
+    qapp.processEvents()
+
+    assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_escape_cancels_the_variation_dialog(qapp):
+    dialog = VariationDialog(3)
+    dialog.rotation.setChecked(True)
+    dialog.show()
+    qapp.processEvents()
+
+    QTest.keyClick(dialog, Qt.Key.Key_Escape)
+    qapp.processEvents()
+
+    assert dialog.result() == QDialog.DialogCode.Rejected

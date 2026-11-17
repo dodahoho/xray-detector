@@ -303,6 +303,13 @@ class SettingsDialog(QDialog):
         close = buttons.button(QDialogButtonBox.StandardButton.Close)
         close.setText("Stäng")
         apply_metrics(close)
+        # Stäng är dialogens standardknapp, så Enter stänger den (TASK-116). Utan
+        # detta blir sektionernas första knapp standardknapp och Enter utför då
+        # dess åtgärd i stället, som att markera alla klasser.
+        close.setDefault(True)
+        for widget in self.findChildren(QPushButton):
+            if widget is not close:
+                widget.setAutoDefault(False)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 

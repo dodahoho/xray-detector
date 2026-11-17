@@ -34,7 +34,12 @@ from xray_detector.ui.settings_dialog import (
     sort_order,
     train_ratio,
 )
-from xray_detector.ui.shortcuts import mnemonic
+from xray_detector.ui.shortcuts import (
+    bind_default_action,
+    bind_delete,
+    mnemonic,
+    with_hint,
+)
 from xray_detector.ui.style import button
 from xray_detector.ui.variation_dialog import VariationDialog
 
@@ -463,6 +468,9 @@ class DatasetView(QWidget):
         layout.addWidget(self.scroll, 1)
 
         self.busy = BusyIndicator(self)
+        # Enter öppnar det markerade bildparet och Del tar bort det (TASK-116)
+        bind_default_action(self, self._on_open_selected)
+        bind_delete(self, self._on_delete)
         self.refresh()
 
     def _settings_sections(self) -> list:
@@ -1029,8 +1037,20 @@ class DatasetView(QWidget):
         """Antalet markerade bildpar; bilderna hanteras alltid i par (TASK-73)."""
         count = len(self._selected_groups())
         label = f"Ta bort markerade ({count})" if count else "Ta bort markerade"
-        self.delete_button.setText(mnemonic(label, "B"))
+        self.delete_button.setText(with_hint(mnemonic(label, "B"), "Del"))
         self.delete_button.setEnabled(count > 0)
+
+    def _on_open_selected(self) -> None:
+        """Enter öppnar det markerade bildparet för annotering (TASK-116).
+
+        Samma väg som dubbelklicket. Bara ett markerat bildpar öppnas: Enter ska
+        inte välja bland flera, och utan markering finns inget att öppna.
+        """
+        groups = self._selected_groups()
+        if len(groups) != 1:
+            return
+        thumb = next(thumb for thumb in self._thumbs if thumb.group_id == groups[0])
+        self._on_thumb_double_clicked(thumb)
 
     def _on_thumb_double_clicked(self, thumb: Thumbnail) -> None:
         if thumb.pending:

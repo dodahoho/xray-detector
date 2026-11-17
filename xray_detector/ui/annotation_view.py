@@ -18,7 +18,12 @@ from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
 from xray_detector.ui.settings_dialog import settings_button
-from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
+from xray_detector.ui.shortcuts import (
+    bind_default_action,
+    bind_shortcut,
+    mnemonic,
+    with_hint,
+)
 from xray_detector.ui.style import ICON_BUTTON_WIDTH, button
 
 HANDLE_SIZE = 8
@@ -458,7 +463,9 @@ class AnnotationView(QWidget):
         self.remove_class_button.clicked.connect(self._on_remove_class)
         bar.addWidget(self.remove_class_button)
         bar.addStretch(1)
-        self.save_button = button(mnemonic("Spara till dataset", "P"), primary=True)
+        self.save_button = button(
+            with_hint(mnemonic("Spara till dataset", "P"), "Enter"), primary=True
+        )
         self.save_button.clicked.connect(self._on_save)
         bar.addWidget(self.save_button)
         self.cancel_button = button(with_hint("Avbryt", "Esc"))
@@ -479,6 +486,8 @@ class AnnotationView(QWidget):
         layout.addLayout(panels, 1)
         self.busy = BusyIndicator(self)
         bind_shortcut(self, "Esc", self.cancelled.emit)
+        # Enter sparar som knappen, så annoteringen går att spara från tangentbordet (TASK-116)
+        bind_default_action(self, self._on_default_action)
         bind_shortcut(self, "Ctrl++", self._on_add_class)
         bind_shortcut(self, "Ctrl+-", self._on_remove_class)
         self.refresh_classes()
@@ -686,6 +695,15 @@ class AnnotationView(QWidget):
         datasetet än och kan sparas direkt.
         """
         self.save_button.setEnabled(not self._save_requires_change or self.is_dirty())
+
+    def _on_default_action(self) -> None:
+        """Enter sparar annoteringen, som ett klick på Spara till dataset (TASK-116).
+
+        Knappen är avstängd när bildparet redan ligger i datasetet utan ändring,
+        och Enter ska inte göra det som knappen inte får göra (TASK-62).
+        """
+        if self.save_button.isEnabled():
+            self._on_save()
 
     def _on_save(self) -> None:
         if self._save_task is not None:
