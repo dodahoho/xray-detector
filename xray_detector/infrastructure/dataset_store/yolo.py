@@ -9,9 +9,10 @@ mot bildens bredd och höjd. Klassindexet är klassens plats i data.yaml:s
 names-lista, så listan och label-filerna måste ändras tillsammans.
 """
 
-import ast
 import json
 from pathlib import Path
+
+import yaml
 
 DATA_YAML = "data.yaml"
 
@@ -21,46 +22,20 @@ def read_classes(path: Path) -> list[str]:
 
     Både listformen (``names: ['a', 'b']``) och dictformen
     (``names: {0: 'a', 1: 'b'}``, som ultralytics skriver) läses, så en fil
-    som verktyget har skrivit om går att läsa tillbaka.
+    som verktyget har skrivit om går att läsa tillbaka. Filen tolkas med
+    yaml.safe_load, så listposter på egna rader och radslutskommentarer
+    fungerar som i vilken YAML-fil som helst (TASK-136).
     """
     try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
-    except OSError:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
         return []
-    for index, line in enumerate(lines):
-        if not line.startswith("names:"):
-            continue
-        raw = line.removeprefix("names:").strip()
-        if raw:
-            return _parse_names(raw)
-        return _parse_indented_names(lines[index + 1 :])
-    return []
-
-
-def _parse_names(raw: str) -> list[str]:
-    try:
-        names = ast.literal_eval(raw)
-    except (ValueError, SyntaxError):
-        return []
+    names = data.get("names") if isinstance(data, dict) else None
     if isinstance(names, dict):
         return [str(names[key]) for key in sorted(names)]
     if isinstance(names, (list, tuple)):
         return [str(name) for name in names]
     return []
-
-
-def _parse_indented_names(lines: list[str]) -> list[str]:
-    """Dictformen över flera rader: names:\\n  0: a\\n  1: b."""
-    names: dict[int, str] = {}
-    for line in lines:
-        if not line.strip() or not line.startswith((" ", "\t")):
-            break
-        key, _, value = line.strip().partition(":")
-        try:
-            names[int(key)] = value.strip().strip("'\"")
-        except ValueError:
-            break
-    return [names[key] for key in sorted(names)]
 
 
 def write_data_yaml(

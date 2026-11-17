@@ -264,3 +264,44 @@ def test_num_objects_ignores_a_stale_stored_value(tmp_path):
     svc.add_samples([sample(200)])
 
     assert svc.metadata()["num_objects"] == 2
+
+
+def test_data_yaml_with_a_multiline_names_dict_is_read(tmp_path):
+    """Ultralytics dictform över flera rader läses med yaml.safe_load (TASK-136)."""
+    from xray_detector.infrastructure.dataset_store.yolo import read_classes
+
+    path = tmp_path / "data.yaml"
+    path.write_text(
+        """path: /data
+train: images
+val: images
+nc: 3
+names:
+  0: kniv
+  1: pistol   # vanligast
+  2: 'cigaretter'
+""",
+        encoding="utf-8",
+    )
+
+    assert read_classes(path) == ["kniv", "pistol", "cigaretter"]
+
+
+def test_data_yaml_with_a_list_of_names_is_read(tmp_path):
+    """Listformen, som write_data_yaml skriver, läses tillbaka (TASK-136)."""
+    from xray_detector.infrastructure.dataset_store.yolo import read_classes, write_data_yaml
+
+    path = tmp_path / "data.yaml"
+    write_data_yaml(path, ["kniv", "pistol"])
+
+    assert read_classes(path) == ["kniv", "pistol"]
+
+
+def test_a_broken_data_yaml_gives_no_classes(tmp_path):
+    """En trasig data.yaml ger en tom klasslista i stället för ett undantag (TASK-136)."""
+    from xray_detector.infrastructure.dataset_store.yolo import read_classes
+
+    path = tmp_path / "data.yaml"
+    path.write_text("names: [oterminerad\n", encoding="utf-8")
+
+    assert read_classes(path) == []

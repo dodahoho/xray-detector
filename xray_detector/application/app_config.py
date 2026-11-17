@@ -7,10 +7,13 @@ Tredjepartens varningar och loggrader leds in i samma fil, sa loggfilen
 visar det som annars bara syntes i konsolen.
 """
 
+import contextlib
 import logging
 import os
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+
+import yaml
 
 from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 
@@ -43,44 +46,39 @@ NOISY_LEVEL = logging.WARNING
 
 
 def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
-    """Tillämpar klasser/trösklar från en enkel YAML-fil.
+    """Tillämpar trösklar och kataloger från en config.yaml.
 
-    Endast en liten, väldefinierad delmängd nycklar stöds:
-      classes: [a, b, c]
-      default_model: yolo26m
-      confidence_threshold: 0.4
-      data_dir: /sökväg
-      models_dir: /sökväg (relativ tolkas mot projektroten)
-      logs_dir: /sökväg (relativ tolkas mot projektroten)
+    Filen tolkas med yaml.safe_load, så listor, citattecken och kommentarer
+    hanteras som YAML i stället för av en egen strängparser (TASK-136).
+    Nycklarna som stöds är default_model, confidence_threshold samt data_dir,
+    models_dir och logs_dir; models_dir och logs_dir tolkas relativa mot
+    projektroten.
 
     Returnerar True om filen fanns och kunde tolkas.
     """
     if not yaml_path.exists():
         return False
     try:
-        lines = yaml_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
+        values = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
         return False
-
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith("#") or ":" not in line:
+    if values is None:
+        values = {}
+    if not isinstance(values, dict):
+        return False
+    if values.get("default_model"):
+        config.default_model = str(values["default_model"])
+    if values.get("confidence_threshold") is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            config.confidence_threshold = float(values["confidence_threshold"])
+    for key in ("data_dir", "models_dir", "logs_dir"):
+        raw = values.get(key)
+        if not raw:
             continue
-        key, _, raw = line.partition(":")
-        key = key.strip()
-        raw = raw.strip()
-        if key == "default_model" and raw:
-            config.default_model = str(raw).strip("'\"")
-        elif key == "confidence_threshold" and raw:
-            try:
-                config.confidence_threshold = float(raw)
-            except ValueError:
-                continue
-        elif key in ("data_dir", "models_dir", "logs_dir") and raw:
-            path = Path(str(raw).strip("'\""))
-            if key in ("models_dir", "logs_dir") and not path.is_absolute():
-                path = PROJECT_ROOT / path
-            setattr(config, key, path)
+        path = Path(str(raw))
+        if key in ("models_dir", "logs_dir") and not path.is_absolute():
+            path = PROJECT_ROOT / path
+        setattr(config, key, path)
     return True
 
 

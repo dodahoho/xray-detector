@@ -3894,6 +3894,7 @@ dependencies = [
     { name = "psutil" },
     { name = "pygrabber", marker = "sys_platform == 'win32'" },
     { name = "pyside6" },
+    { name = "pyyaml" },
     { name = "ultralytics" },
 ]
 
@@ -3920,6 +3921,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=5.9" },
     { name = "pygrabber", marker = "sys_platform == 'win32'", specifier = ">=0.2" },
     { name = "pyside6", specifier = ">=6.7" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "rfdetr", extras = ["train"], marker = "extra == 'rfdetr'", specifier = ">=1.7" },
     { name = "torch", marker = "extra == 'cu128'", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "extra == 'cu128'", specifier = ">=0.22", index = "https://download.pytorch.org/whl/cu128" },

@@ -1,5 +1,4 @@
 import argparse
-import ast
 import csv
 import inspect
 import sys
@@ -9,6 +8,7 @@ from json import load as json_load
 from pathlib import Path
 
 from xray_detector.domain.training import default_batch, rfdetr_resolution_error
+from xray_detector.infrastructure.dataset_store.yolo import read_classes
 from xray_detector.infrastructure.training.epoch_metrics import (
     EpochReporter,
     abort_line,
@@ -77,16 +77,8 @@ def _read_data_classes(dataset: Path) -> list[str]:
             return [str(category["name"]) for category in categories]
         except (OSError, ValueError):
             return []
-    try:
-        for line in dataset.read_text(encoding="utf-8").splitlines():
-            if line.startswith("names:"):
-                names = ast.literal_eval(line.removeprefix("names:").strip())
-                if isinstance(names, dict):
-                    names = [names[key] for key in sorted(names)]
-                return [str(name) for name in names]
-    except (OSError, ValueError, SyntaxError):
-        pass
-    return []
+    # samma läsare som datasetvyn, så manifestet och vyn alltid är överens
+    return read_classes(dataset)
 
 
 def _read_metrics(results_csv: Path) -> dict[str, float]:

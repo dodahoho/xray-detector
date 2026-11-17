@@ -1,13 +1,14 @@
 """Konfigfil och loggning (TASK-15)."""
 
 import logging
+from pathlib import Path
 
 from xray_detector.application.app_config import (
     apply_yaml_overrides,
     load_config_with_yaml,
     setup_logging,
 )
-from xray_detector.domain.config import AppConfig
+from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 
 
 def test_yaml_overrides_model_and_threshold(tmp_path):
@@ -66,3 +67,47 @@ def test_setup_logging_rotates_to_file(tmp_path):
     setup_logging(tmp_path / "logs")
     rotating = [h for h in logging.getLogger().handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
     assert len(rotating) == 1
+
+
+def test_yaml_with_list_items_on_their_own_lines_and_comments(tmp_path):
+    """Standard-YAML med radslutskommentarer tolkas av yaml.safe_load (TASK-136)."""
+    config = AppConfig()
+    yaml = tmp_path / "config.yaml"
+    yaml.write_text(
+        """# inställningar
+default_model: yolo26s   # snabbast
+confidence_threshold: 0.55
+data_dir: /tmp/xray
+models_dir: models
+logs_dir: logs
+""",
+        encoding="utf-8",
+    )
+
+    assert apply_yaml_overrides(config, yaml)
+
+    assert config.default_model == "yolo26s"
+    assert config.confidence_threshold == 0.55
+    assert config.data_dir == Path("/tmp/xray")
+    assert config.models_dir == PROJECT_ROOT / "models"
+    assert config.logs_dir == PROJECT_ROOT / "logs"
+
+
+def test_a_broken_yaml_file_is_ignored(tmp_path):
+    """En fil som inte är giltig YAML lämnar konfigurationen orörd (TASK-136)."""
+    config = AppConfig()
+    yaml = tmp_path / "config.yaml"
+    yaml.write_text("default_model: [oterminerad\n", encoding="utf-8")
+
+    assert not apply_yaml_overrides(config, yaml)
+    assert config.default_model == "yolo26m"
+
+
+def test_an_empty_yaml_file_is_accepted(tmp_path):
+    """En tom config.yaml räknas som läst, så sökordningen stannar där (TASK-136)."""
+    config = AppConfig()
+    yaml = tmp_path / "config.yaml"
+    yaml.write_text("", encoding="utf-8")
+
+    assert apply_yaml_overrides(config, yaml)
+    assert config.default_model == "yolo26m"

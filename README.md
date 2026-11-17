@@ -164,6 +164,8 @@ models_dir: /sökväg/till/models   # relativ sökväg tolkas mot projektroten
 logs_dir: /sökväg/till/logs       # relativ sökväg tolkas mot projektroten
 ```
 
+Filen tolkas med `yaml.safe_load`, så kommentarer, citattecken och listor fungerar som i vilken YAML-fil som helst. Samma läsare används för datasetets `data.yaml`, så klasslistan i vyn och i träningsmanifestet kan inte gå isär.
+
 Loggfilerna roteras vid 1 MB och sparas i fem backupfiler (`app.log.1`–`app.log.5`). Rotationen och formatet delas av alla loggtyper, så en ny loggtyp under `logs/` är bara ett nytt namn i `log_path(logs_dir, namn)` – ingen ny kod för katalog eller rotation behövs. Varje rad inleds med tidsstämpel och process-id, så rader från appen och från en träningsprocess går att skilja åt: `2026-11-16 21:44:50,600 [20980] INFO xray: ...`.
 
 Apploggen fångar även det som annars bara syntes i konsolen. Python-varningar från torch, transformers och rfdetr loggas under loggern `py.warnings`, och rfdetr:s egna loggrar (`rf-detr`, `rfdetr.*`) leds in i filen i stället för att stanna i stderr. Loggerns namn i raden skiljer tredjepartens rader från appens `xray`-rader. Renodlat brus, som `comtypes` INFO-rader, hålls kvar på WARNING och hamnar därför inte i filen.
