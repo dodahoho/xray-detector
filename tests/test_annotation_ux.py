@@ -1,11 +1,9 @@
 """Annoterings-UX (TASK-14): zoom/pan, osparade ändringar, negativa exempel."""
 
-import numpy as np
-import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QCloseEvent, QMouseEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
+from PySide6.QtWidgets import QMessageBox, QPushButton
 
 from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
@@ -93,9 +91,10 @@ def test_canvas_reset_view(qapp):
 
 
 def _make_view(qapp, tmp_path):
+    from PySide6.QtCore import QSettings
+
     from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
-    from PySide6.QtCore import QSettings
 
     config = AppConfig()
     config.data_dir = tmp_path

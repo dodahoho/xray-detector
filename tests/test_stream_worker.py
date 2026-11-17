@@ -94,8 +94,9 @@ def test_stream_worker_measures_fps(qapp, video_file):
 
 
 def test_stream_frame_defaults_backward_compatible():
-    from xray_detector.domain.capture import StreamFrame as SF
     import numpy as np
+
+    from xray_detector.domain.capture import StreamFrame as SF
 
     frame = SF(source_id="x", frame=np.zeros((4, 4, 3), np.uint8), detections=[], source_label="l")
     assert frame.sequence == 0
@@ -103,10 +104,9 @@ def test_stream_frame_defaults_backward_compatible():
 
 
 def test_panel_title_shows_only_fps(qapp):
-    from PySide6.QtCore import Signal
-    from xray_detector.ui.detection_view import StreamPanel
-    from xray_detector.domain.capture import StreamFrame
     from tests.conftest import synthetic_frame
+    from xray_detector.domain.capture import StreamFrame
+    from xray_detector.ui.detection_view import StreamPanel
 
     panel = StreamPanel("left")
     panel._show_no_source()

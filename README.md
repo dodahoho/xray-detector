@@ -16,6 +16,13 @@ $ backlog browser
 $ groma web
 ```
 
+Kodkvaliteten kontrolleras med [ruff](https://docs.astral.sh/ruff/), konfigurerad i `pyproject.toml` under `[tool.ruff]`. Grinden är `ruff check` och ska gå igenom utan fel innan en ändring committas:
+
+```bash
+uv run ruff check .
+uv run ruff check --fix .
+```
+
 ## Köra
 
 Kräver Python 3.11+ och [uv](https://docs.astral.sh/uv/). CUDA-rekommenderas för detektion och träning.

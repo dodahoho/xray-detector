@@ -334,5 +334,5 @@ class EpochReporter(threading.Thread):
             return
         try:
             self.on_epoch(metrics)
-        except Exception as exc:  # noqa: BLE001 - träningen får inte stanna här
+        except Exception as exc:  # träningen får inte stanna här
             print(f"Varning: epokeventet kunde inte hanteras: {exc}", flush=True)

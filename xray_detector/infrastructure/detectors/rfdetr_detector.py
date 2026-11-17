@@ -1,3 +1,4 @@
+import contextlib
 from pathlib import Path
 
 import cv2
@@ -115,10 +116,8 @@ class RfDetrDetector(BaseDetector):
 
         if not torch.cuda.is_available():
             return
-        try:
+        with contextlib.suppress(Exception):
             self.model.inference(dtype=torch.float16)
-        except Exception:
-            pass
 
     def detect(self, frame: np.ndarray) -> list[Detection]:
         # rfdetr vantar RGB; ramarna fran OpenCV ar BGR

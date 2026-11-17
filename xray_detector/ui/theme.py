@@ -1,3 +1,5 @@
+import contextlib
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 
@@ -48,10 +50,8 @@ def light_palette() -> QPalette:
 
 def _apply_scheme(app) -> None:
     scheme = getattr(Qt.ColorScheme, "Unknown", None)
-    try:
+    with contextlib.suppress(AttributeError):
         scheme = app.styleHints().colorScheme()
-    except AttributeError:
-        pass
     if scheme == Qt.ColorScheme.Dark:
         app.setPalette(dark_palette())
     else:

@@ -37,8 +37,6 @@ def test_pygrabber_failure_falls_back(monkeypatch):
 
 @pytest.fixture
 def panel(qapp, monkeypatch):
-    import xray_detector.ui.detection_view as dv
-
     monkeypatch.setattr(
         "xray_detector.infrastructure.video.devices._windows_device_names",
         lambda: {0: "Logitech C920", 1: "Elgato Cam Link"},

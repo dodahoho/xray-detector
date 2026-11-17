@@ -3,9 +3,9 @@
 from datetime import datetime, time
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
-from xray_detector.application.training_service import TrainingScheduler, TrainingService
+from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.training import TrainConfig
 
 
@@ -43,7 +43,7 @@ def test_night_window_same_day(qapp):
 
 
 def test_queued_night_job_waits_for_window(qapp, tmp_path):
-    scheduler, service, workers = make_scheduler(qapp)
+    scheduler, _, workers = make_scheduler(qapp)
     # övertydligt omöjligt fönster: 1 minut fran nu+i1 timme
     now = datetime.now()
     far_away = f"{(now.hour + 1) % 24:02d}:59"
@@ -93,13 +93,11 @@ def test_queued_status_messages(qapp, tmp_path):
 def test_training_view_queue_flow(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(QMessageBox, "question",
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
-    from xray_detector.domain.config import AppConfig
-    from xray_detector.ui.main_window import MainWindow
-    from xray_detector.ui.training_view import TrainingView
-    from xray_detector.domain.dataset import AnnotatedImage
     import numpy as np
 
-    from xray_detector.application.dataset_service import DatasetService
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.domain.dataset import AnnotatedImage
+    from xray_detector.ui.main_window import MainWindow
 
     config = AppConfig()
     config.data_dir = tmp_path

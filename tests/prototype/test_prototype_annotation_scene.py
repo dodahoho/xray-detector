@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from PySide6.QtCore import QPointF, QRectF
 from PySide6.QtGui import QPixmap
 
-from prototype.annotation_scene import AnnotationScene, AnnotationView, BoxItem, MIN_BOX
+from prototype.annotation_scene import MIN_BOX, AnnotationScene, AnnotationView, BoxItem
 
 
 def _scene_with_background(qapp):
@@ -79,7 +79,7 @@ def test_annotations_export(qapp):
 def test_view_zoom_keeps_scene_data(qapp):
     scene = _scene_with_background(qapp)
     view = AnnotationView(scene)
-    box = scene.add_box(QRectF(5, 5, 20, 10), "kniv")
+    scene.add_box(QRectF(5, 5, 20, 10), "kniv")
     before = view.transform().m11()
     view.scale(2.5, 2.5)
     assert view.transform().m11() > before

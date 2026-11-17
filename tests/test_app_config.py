@@ -1,9 +1,6 @@
 """Konfigfil och loggning (TASK-15)."""
 
 import logging
-from pathlib import Path
-
-import pytest
 
 from xray_detector.application.app_config import (
     apply_yaml_overrides,

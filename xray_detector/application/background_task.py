@@ -52,7 +52,7 @@ class BackgroundTask(QObject):
     def _run(self) -> None:
         try:
             result = self._work()
-        except Exception as exc:  # noqa: BLE001 - felet ska bli ett meddelande
+        except Exception as exc:  # felet ska bli ett meddelande
             self.failed.emit(str(exc))
         else:
             self.succeeded.emit(result)

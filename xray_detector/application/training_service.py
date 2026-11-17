@@ -1,5 +1,6 @@
 import time
-from datetime import datetime, time as clock_time
+from datetime import datetime
+from datetime import time as clock_time
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
@@ -104,7 +105,7 @@ class TrainingScheduler(QObject):
             return
         if not self.condition_met():
             return
-        config, mode = self.config, self.mode
+        config = self.config
         self.mode = None
         self.config = None
         self.status_changed.emit("Schemalagt villkor uppfyllt – startar träning")

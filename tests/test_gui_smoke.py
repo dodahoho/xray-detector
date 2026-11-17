@@ -74,8 +74,6 @@ def test_export_buttons_live_in_the_dataset_tab(qapp, app_config):
 
 
 def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
-    import numpy as np
-
     window = MainWindow(app_config)
     frames = [StreamFrame(source_id="left", frame=synthetic_frame(fill=200),
                           detections=[], source_label="kamera")]

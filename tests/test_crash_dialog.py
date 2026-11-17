@@ -3,6 +3,7 @@
 import logging
 import sys
 from types import SimpleNamespace
+from typing import ClassVar
 
 from PySide6.QtWidgets import QApplication
 
@@ -17,7 +18,7 @@ class FakeMessageBox:
     """Spelar QMessageBox sa dialogen kan testas utan att blockera."""
 
     Icon = SimpleNamespace(Critical="critical")
-    shown = []
+    shown: ClassVar[list] = []
 
     def __init__(self):
         self.calls = {}

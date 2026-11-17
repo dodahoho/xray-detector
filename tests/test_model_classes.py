@@ -94,7 +94,7 @@ def test_yolo_without_class_names_gives_a_clear_error(monkeypatch):
 
     from xray_detector.infrastructure.detectors.yolo_detector import YoloDetector
 
-    with pytest.raises(ValueError, match="Kunde inte läsa klassnamnen ur vikter.pt"):
+    with pytest.raises(ValueError, match=r"Kunde inte läsa klassnamnen ur vikter\.pt"):
         YoloDetector("vikter.pt", 0.4)
 
 

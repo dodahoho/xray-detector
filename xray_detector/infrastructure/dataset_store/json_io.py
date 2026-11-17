@@ -7,6 +7,7 @@ os.replace(), som är atomärt på samma volume: antingen den gamla eller
 den nya kompletta filen finns kvar.
 """
 
+import contextlib
 import json
 import os
 import tempfile
@@ -24,8 +25,6 @@ def atomic_write_json(path: Path, payload, indent: int = 2) -> None:
             os.fsync(file.fileno())
         os.replace(tmp_name, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(tmp_name)
-        except OSError:
-            pass
         raise

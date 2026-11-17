@@ -70,8 +70,8 @@ def test_file_source_paces_to_30fps():
 
 @requires_media
 def test_stream_worker_with_real_video(qapp, fake_detector):
-    from xray_detector.infrastructure.video.camera_service import StreamWorker
     from tests.test_stream_worker import wait_for
+    from xray_detector.infrastructure.video.camera_service import StreamWorker
 
     worker = StreamWorker("left", FileSource(SIDE))
     received = []

@@ -39,7 +39,7 @@ def _content(path) -> str:
 def test_warning_during_run_lands_in_app_log_with_timestamp(app_log):
     with warnings.catch_warnings():
         warnings.simplefilter("always")
-        warnings.warn("tredjepartsvarning 4711")
+        warnings.warn("tredjepartsvarning 4711", stacklevel=2)
 
     content = _content(app_log)
     assert "tredjepartsvarning 4711" in content

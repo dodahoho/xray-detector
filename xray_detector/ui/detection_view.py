@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen, QPixmap
+from PySide6.QtGui import QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -34,6 +34,7 @@ from xray_detector.ui.badge import (
     draw_badges,
 )
 from xray_detector.ui.busy_indicator import BusyIndicator
+from xray_detector.ui.colors import class_color
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
     BadgeSection,
@@ -67,8 +68,6 @@ CLASSES_OFF_PREFIX = "detection/classes_off"
 # punktstorleken är dubbelt så stor som tidigare för att synas (TASK-84)
 LABEL_POINT_SIZE = 20
 LABEL_GAP = 4
-
-from xray_detector.ui.colors import class_color
 
 
 def _fraction(value: int | None, total: int | None) -> float | None:
@@ -228,10 +227,10 @@ class StreamPanel(QFrame):
     def _on_source_changed(self, *_args) -> None:
         data = self.source_combo.currentData() or "none"
         kind, _, value = data.partition(":")
-        if value:
-            value = int(value) if kind == "uvc" else value
-        else:
+        if not value:
             value = None
+        elif kind == "uvc":
+            value = int(value)
         if kind == "none":
             self._active = ("none", None)
             self._set_mode_controls_visible(False)
@@ -895,10 +894,9 @@ class DetectionView(QWidget):
                 task.wait(timeout_ms)
 
     def _on_capture(self) -> None:
-        captures: list[StreamFrame] = []
-        for panel in (self.left, self.right):
-            if panel.latest is not None:
-                captures.append(panel.latest)
+        captures: list[StreamFrame] = [
+            panel.latest for panel in (self.left, self.right) if panel.latest is not None
+        ]
         if not captures:
             self.error_occurred.emit("Ingen videokälla att fånga ifrån")
             return

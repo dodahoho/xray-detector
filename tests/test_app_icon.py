@@ -25,7 +25,7 @@ def _ico_sizes(path) -> set[int]:
 
 def test_icon_file_has_the_sizes_windows_asks_for():
     assert ICON_PATH.is_file()
-    assert TASKBAR_SIZES <= _ico_sizes(ICON_PATH)
+    assert _ico_sizes(ICON_PATH) >= TASKBAR_SIZES
 
 
 def test_qicon_loads_the_icon_file(qapp):
@@ -33,7 +33,7 @@ def test_qicon_loads_the_icon_file(qapp):
 
     icon = QIcon(str(ICON_PATH))
     assert not icon.isNull()
-    assert TASKBAR_SIZES <= {size.width() for size in icon.availableSizes()}
+    assert {size.width() for size in icon.availableSizes()} >= TASKBAR_SIZES
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="AppUserModelID finns bara på Windows")

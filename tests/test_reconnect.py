@@ -1,7 +1,5 @@
 """Ateranslutningsknapp perstrompanel (TASK-19)."""
 
-from types import SimpleNamespace
-
 import pytest
 
 from xray_detector.ui.detection_view import StreamPanel
@@ -75,18 +73,18 @@ def test_retry_without_source_keeps_message(panel):
 
 
 def test_detection_view_routes_source_lost_to_panel(qapp):
-    from xray_detector.domain.config import AppConfig
-    from xray_detector.ui.detection_view import DetectionView
-    from PySide6.QtCore import QSettings
-
     import tempfile
     from pathlib import Path
+
+    from PySide6.QtCore import QSettings
+
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.detection_view import DetectionView
 
     tmp = Path(tempfile.mkdtemp())
     config = AppConfig()
     config.data_dir = tmp
     config.ensure_dirs()
     view = DetectionView(config, QSettings(str(tmp / "s.ini"), QSettings.Format.IniFormat))
-    monkey_target = SimpleNamespace(_lost_attempts=0)
     view._on_source_lost("left")
     assert view.left._lost_attempts == 1

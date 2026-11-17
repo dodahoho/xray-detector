@@ -64,6 +64,7 @@ class DetectionSmoother:
                 for new, old in zip(
                     (detection.x1, detection.y1, detection.x2, detection.y2),
                     track.box,
+                    strict=True,
                 )
             ]
             track.confidence = detection.confidence

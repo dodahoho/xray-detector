@@ -300,11 +300,13 @@ class AnnotationCanvas(QWidget):
             painter.drawRect(self._drag_rect)
 
     def keyPressEvent(self, event) -> None:
-        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
-            if self.selected is not None:
-                self.delete_selected()
-                event.accept()
-                return
+        if (
+            event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace)
+            and self.selected is not None
+        ):
+            self.delete_selected()
+            event.accept()
+            return
         super().keyPressEvent(event)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -388,21 +390,26 @@ class AnnotationCanvas(QWidget):
             self.update()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if self._mode == "draw" and self._drag_rect is not None and self.image is not None:
-            if self._drag_rect.width() >= 4 and self._drag_rect.height() >= 4:
-                top_left = self._to_image(self._drag_rect.topLeft() - self._image_origin())
-                bottom_right = self._to_image(self._drag_rect.bottomRight() - self._image_origin())
-                item = RectItem(
-                    top_left.x(),
-                    top_left.y(),
-                    bottom_right.x(),
-                    bottom_right.y(),
-                    self.class_name or "objekt",
-                )
-                self.rects.append(item)
-                self.selected = item
-                self._mark_dirty()
-                self.selection_changed.emit(item)
+        if (
+            self._mode == "draw"
+            and self._drag_rect is not None
+            and self.image is not None
+            and self._drag_rect.width() >= 4
+            and self._drag_rect.height() >= 4
+        ):
+            top_left = self._to_image(self._drag_rect.topLeft() - self._image_origin())
+            bottom_right = self._to_image(self._drag_rect.bottomRight() - self._image_origin())
+            item = RectItem(
+                top_left.x(),
+                top_left.y(),
+                bottom_right.x(),
+                bottom_right.y(),
+                self.class_name or "objekt",
+            )
+            self.rects.append(item)
+            self.selected = item
+            self._mark_dirty()
+            self.selection_changed.emit(item)
         if self._mode in ("move", "resize") and self.selected is not None:
             self._mark_dirty()
         if self._mode == "pan":
@@ -651,7 +658,7 @@ class AnnotationView(QWidget):
         ]
         for canvas in self.canvases:
             canvas.set_class_name(self.class_combo.currentText())
-        for canvas, capture in zip(self.canvases, captures):
+        for canvas, capture in zip(self.canvases, captures, strict=False):
             canvas.load_frame(capture, self.class_combo.currentText())
         for canvas in self.canvases[len(captures):]:
             canvas.image = None

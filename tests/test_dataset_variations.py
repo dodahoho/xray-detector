@@ -76,7 +76,7 @@ def test_rotation_widens_the_image_instead_of_cropping_it():
 
     assert rotated.shape[0] > HEIGHT and rotated.shape[1] > WIDTH
     x, y, w, h = annotations[0]["bbox"]
-    assert 0 <= x and 0 <= y and x + w <= rotated.shape[1] and y + h <= rotated.shape[0]
+    assert x >= 0 and y >= 0 and x + w <= rotated.shape[1] and y + h <= rotated.shape[0]
 
 
 def test_rotation_fills_the_new_area_with_the_white_background():

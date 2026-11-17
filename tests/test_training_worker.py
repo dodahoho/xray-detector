@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import QSettings
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QMessageBox
 
 from xray_detector.domain.training import TrainConfig
 

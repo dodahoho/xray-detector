@@ -1,6 +1,5 @@
 """Kraschsäker pending-kö (TASK-12)."""
 
-import numpy as np
 from PySide6.QtWidgets import QMessageBox
 
 from tests.conftest import synthetic_frame

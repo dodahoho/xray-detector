@@ -147,7 +147,7 @@ def test_add_local_takes_the_family_from_the_suffix(tmp_path):
 def test_add_local_rejects_an_unknown_weight_type(tmp_path):
     catalog = _catalog(tmp_path)
 
-    with pytest.raises(ValueError, match="Okänd vikttyp: modell.onnx"):
+    with pytest.raises(ValueError, match=r"Okänd vikttyp: modell\.onnx"):
         catalog.add_local(_weights(tmp_path, "modell.onnx"))
 
 

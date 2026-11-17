@@ -309,7 +309,7 @@ class DatasetStore:
         known = list(names)
         replaced = 0
         objects = 0
-        for image, sample in zip(targets, samples):
+        for image, sample in zip(targets, samples, strict=True):
             label = self._label_path(image["file_name"])
             replaced += len(read_labels(label))
             cv2.imwrite(str(self.images_dir / image["file_name"]), sample.frame)
