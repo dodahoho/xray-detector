@@ -1,7 +1,7 @@
 ---
 id: TASK-116
 title: Tangentbordsstyrning generellt
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T12:30:00Z'
@@ -37,7 +37,7 @@ Inför detta generellt i applikatonen, fråga vid oklarheter
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
