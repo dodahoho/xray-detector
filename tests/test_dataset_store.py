@@ -1,6 +1,7 @@
 """Enhetstester för datasetlagringen: spara, radera, grupper och metadata."""
 
 import json
+import logging
 
 import numpy as np
 
@@ -231,3 +232,40 @@ def test_replace_samples_falls_back_to_delete_and_add_on_a_count_mismatch(tmp_pa
     assert len(images) == 1
     assert len(images[0]["annotations"]) == 1
     assert svc.metadata()["num_objects"] == 1
+
+
+def test_broken_metadata_gives_an_empty_dataset_and_a_warning(tmp_path, caplog):
+    """En trasig dataset.json ska inte krascha appen (TASK-124)."""
+    svc = make_service(tmp_path)
+    svc.store.metadata_path.write_text("{ inte json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="xray"):
+        dataset = svc.load_dataset()
+
+    assert dataset["images"] == []
+    assert dataset["info"]["num_images"] == 0
+    assert "dataset.json går inte att läsa" in caplog.text
+
+
+def test_metadata_without_images_is_treated_as_broken(tmp_path, caplog):
+    """Giltig JSON med fel form ska ge tomt dataset i stället för KeyError (TASK-124)."""
+    svc = make_service(tmp_path)
+    svc.store.metadata_path.write_text('{"info": {}}', encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="xray"):
+        dataset = svc.load_dataset()
+
+    assert dataset["images"] == []
+    assert "saknar info eller images" in caplog.text
+
+
+def test_broken_metadata_is_replaced_by_the_next_save(tmp_path):
+    """Nästa skrivning ska ersätta den trasiga filen i stället för att lägga till (TASK-124)."""
+    svc = make_service(tmp_path)
+    svc.store.metadata_path.write_text("{ inte json", encoding="utf-8")
+
+    svc.add_samples([sample()])
+
+    dataset = svc.load_dataset()
+    assert len(dataset["images"]) == 1
+    assert dataset["info"]["num_images"] == 1

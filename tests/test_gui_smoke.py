@@ -103,3 +103,18 @@ def _close_event():
     from PySide6.QtGui import QCloseEvent
 
     return QCloseEvent()
+
+
+def test_window_starts_with_a_broken_dataset_json(qapp, app_config, caplog):
+    """En trasig dataset.json får inte hindra fönstret från att visas (TASK-124)."""
+    import logging
+
+    app_config.dataset_dir.mkdir(parents=True, exist_ok=True)
+    (app_config.dataset_dir / "dataset.json").write_text("{ inte json", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="xray"):
+        window = MainWindow(app_config)
+
+    assert window.dataset_service.load_dataset()["images"] == []
+    assert "dataset.json går inte att läsa" in caplog.text
+    window.closeEvent(_close_event())

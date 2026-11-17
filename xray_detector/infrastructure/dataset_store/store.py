@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import shutil
 from collections import Counter
@@ -30,6 +31,21 @@ METADATA_NAME = "dataset.json"
 def _pair_count(images: list[dict]) -> int:
     """Antal fångstgrupper (bildpar) i en lista bilder."""
     return len({image.get("group") or image["id"] for image in images})
+
+
+def _is_metadata(payload: object) -> bool:
+    """Om det inlästa värdet har den form _save_metadata skriver."""
+    return (
+        isinstance(payload, dict)
+        and isinstance(payload.get("info"), dict)
+        and isinstance(payload.get("images"), list)
+    )
+
+
+def _warn_broken_metadata(path: Path, reason: object) -> None:
+    logging.getLogger("xray").warning(
+        "%s går inte att läsa (%s); datasetet startar tomt", path.name, reason
+    )
 
 
 def _migrate_versions(root: Path) -> None:
@@ -136,9 +152,23 @@ class DatasetStore:
         return self.root / METADATA_NAME
 
     def _load_metadata(self) -> dict:
+        """Läser dataset.json; en trasig fil ger ett tomt dataset och en varning.
+
+        Skrivningen är atomisk, men filen kan ändå bli oläsbar av ett avbrott
+        eller en manuell redigering. Ett tomt dataset låter appen starta och
+        nästa skrivning ersätter filen, i stället för att felet propagerar upp
+        genom MainWindow.__init__ så att fönstret aldrig visas (TASK-124).
+        """
         if self.metadata_path.exists():
-            with open(self.metadata_path, encoding="utf-8") as file:
-                return json.load(file)
+            try:
+                with open(self.metadata_path, encoding="utf-8") as file:
+                    metadata = json.load(file)
+            except (OSError, ValueError) as error:
+                _warn_broken_metadata(self.metadata_path, error)
+            else:
+                if _is_metadata(metadata):
+                    return metadata
+                _warn_broken_metadata(self.metadata_path, "saknar info eller images")
         now = datetime.now(UTC).isoformat()
         return {
             "info": {
