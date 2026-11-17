@@ -1,7 +1,7 @@
 ---
 id: TASK-122
 title: Konfigurera ruff i pyproject.toml och kör ruff check --fix
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:50:00Z'
@@ -67,7 +67,7 @@ Utvärderingarna (review_vibe_deepseek41_flash.md §5.1, utvärdering_argon.md �
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -95,3 +95,15 @@ Verifiering: ruff check . = All checks passed (0 fel), även via uv run ruff che
 
 Utanför scope, noterat: ruff format --check skulle formatera om 87 filer. Formatering ingår inte i tasken och är inte aktiverad som grind.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Lade till ruff-konfiguration i pyproject.toml: [tool.ruff] med line-length = 100 och target-version = "py311", [tool.ruff.lint] med select = E,F,I,UP,B,SIM,C4,PERF,RUF samt ignore = E501,PLC0415. Utöver taskbeskrivningen begränsades RUF001 med allowed-confusables = ["–", "×", "−"] eftersom de 24 träffarna bara var svensk typografi i strängar; regeln är kvar aktiv för övriga konfunderbara tecken.
+
+ruff check --fix tog bort 30 fel automatiskt (F401, I001, SIM300, RUF100). De 19 kvarvarande åtgärdades för hand: E402 (class_color-importen till toppnivå), F841 x3, SIM102 x2, SIM105 x3 (contextlib.suppress), SIM108 x1, B905 x3 (strict=True där längderna är garanterat lika, strict=False i annotation_view.py där antalet canvases kan överstiga antalet captures), B028, RUF012 (ClassVar), RUF059 och RUF043 x2. Två noqa: BLE001 togs bort av RUF100; de förklarande kommentarerna behölls som vanliga kommentarer. README.md fick ett kort avsnitt under Utveckla om ruff-grinden.
+
+Verifiering: ruff check . = All checks passed (0 fel), även via uv run ruff check . ; ruff check --show-settings bekräftar line_length = 100 och target 3.11 från repots pyproject.toml; python -m pytest -q = 861 passed, 1 skipped in 243.35s (skippen är rfdetr-testet som hoppar över när rfdetr är installerat). Committat som b06dddf.
+
+Risker och uppföljningar: ruff format är inte aktiverad som grind (87 filer skulle formateras om) och ingår inte i tasken. B905 med strict=True i store.py och smoothing.py kan nu ge ValueError vid längdmissförhållande, vilket är avsiktligt och skyddat av befintliga längdkontroller. CI-jobbet i TASK-123 kan nu använda ruff check direkt.
+<!-- SECTION:FINAL_SUMMARY:END -->
