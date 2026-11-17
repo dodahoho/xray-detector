@@ -127,14 +127,18 @@ class TrainingView(QWidget):
         self.refresh_dataset_info()
 
     def refresh_models(self) -> None:
-        """Bygger om basmodellistan ur katalogen och behåller valet (TASK-81)."""
-        from xray_detector.application.model_registry import base_models
+        """Bygger om basmodellistan och behåller valet (TASK-81, TASK-130).
+
+        Egentränade modeller är också valbara, så en tidigare träning kan
+        vidaretränas från sina bästa vikter.
+        """
+        from xray_detector.application.model_registry import available_models
 
         current = self.model_combo.currentData()
         self.model_combo.blockSignals(True)
         self.model_combo.clear()
         self._specs = {}
-        for spec in base_models(self.config.models_dir):
+        for spec in available_models(self.config.models_dir, self.config.trained_dir):
             self.model_combo.addItem(spec.label, spec.key)
             self._specs[spec.key] = spec
         self._disable_missing_rfdetr()

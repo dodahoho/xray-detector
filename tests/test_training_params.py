@@ -505,3 +505,77 @@ def test_the_training_process_keeps_working_without_reconfigure(monkeypatch):
     monkeypatch.setattr(train_task.sys, "stderr", object())
 
     train_task._use_utf8_output()
+
+
+def test_trained_models_are_selectable_as_base_model(qapp, tmp_path):
+    """En egentränad modell går att vidareträna från träningsvyn (TASK-130)."""
+    from PySide6.QtCore import QSettings
+
+    from xray_detector.application.dataset_service import DatasetService
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.training_view import TrainingView
+
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    run_dir = config.trained_dir / "v3"
+    weights = run_dir / "yolo26m" / "weights" / "best.pt"
+    weights.parent.mkdir(parents=True, exist_ok=True)
+    weights.write_bytes(b"vikter")
+    (run_dir / "training_manifest.json").write_text(
+        json.dumps(
+            {
+                "base_weights": "yolo26m.pt",
+                "weights_relative": "yolo26m/weights/best.pt",
+                "classes": ["kniv"],
+                "family": "yolo",
+                "name": "Vår tränade modell",
+            }
+        ),
+        encoding="utf-8",
+    )
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+
+    keys = [view.model_combo.itemData(row) for row in range(view.model_combo.count())]
+
+    assert "trained-v3" in keys
+    assert view.model_combo.itemText(keys.index("trained-v3")) == "Vår tränade modell"
+    assert view._specs["trained-v3"].weights == str(weights)
+
+
+def test_a_trained_model_stays_selected_after_a_refresh(qapp, tmp_path):
+    """Valet av en egentränad basmodell överlever refresh_models (TASK-130)."""
+    from PySide6.QtCore import QSettings
+
+    from xray_detector.application.dataset_service import DatasetService
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.training_view import TrainingView
+
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    run_dir = config.trained_dir / "v3"
+    weights = run_dir / "yolo26m" / "weights" / "best.pt"
+    weights.parent.mkdir(parents=True, exist_ok=True)
+    weights.write_bytes(b"vikter")
+    (run_dir / "training_manifest.json").write_text(
+        json.dumps(
+            {
+                "base_weights": "yolo26m.pt",
+                "weights_relative": "yolo26m/weights/best.pt",
+                "classes": ["kniv"],
+                "family": "yolo",
+                "name": "Vår tränade modell",
+            }
+        ),
+        encoding="utf-8",
+    )
+    settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    settings.setValue("training/base_model", "trained-v3")
+    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+
+    view.restore_settings()
+    view.refresh_models()
+
+    assert view.model_combo.currentData() == "trained-v3"
