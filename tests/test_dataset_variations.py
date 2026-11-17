@@ -136,8 +136,8 @@ def test_color_variation_changes_the_pixels_but_not_the_annotations():
     assert adjusted[30, 40, 0] < _frame()[30, 40, 0]
 
 
-def test_plan_gives_one_type_per_image_in_per_type_mode():
-    """En bild per variationstyp: en typ i taget, cykliskt över de valda (TASK-106)."""
+def test_plan_gives_one_image_per_active_type_in_per_type_mode():
+    """En bild per variationstyp: en bild per vald typ, oavsett antalet (TASK-117)."""
     settings = VariationSettings(
         count=5,
         mode=MODE_PER_TYPE,
@@ -145,19 +145,18 @@ def test_plan_gives_one_type_per_image_in_per_type_mode():
         rotation_degrees=30,
         flip_horizontal=True,
         scale=True,
-        scale_percent=50,
+        scale_up_percent=50,
+        scale_down_percent=50,
     )
 
     plan = variation_plan(settings, random.Random(1))
 
-    assert len(plan) == 5
-    assert [len(variations) for variations in plan] == [1] * 5
+    assert len(plan) == 3
+    assert [len(variations) for variations in plan] == [1, 1, 1]
     assert [variations[0]["type"] for variations in plan] == [
         "rotation",
         "flip",
         "scale",
-        "rotation",
-        "flip",
     ]
 
 
@@ -169,7 +168,8 @@ def test_plan_gives_every_type_in_each_image_in_all_mode():
         rotation_degrees=30,
         flip_vertical=True,
         scale=True,
-        scale_percent=50,
+        scale_up_percent=50,
+        scale_down_percent=50,
         color=True,
         color_percent=20,
     )
@@ -199,7 +199,8 @@ def test_plan_picks_a_random_subset_in_random_mode():
         rotation_degrees=30,
         flip_horizontal=True,
         scale=True,
-        scale_percent=50,
+        scale_up_percent=50,
+        scale_down_percent=50,
     )
 
     plan = variation_plan(settings, random.Random(4))
@@ -216,7 +217,10 @@ def test_plan_is_empty_without_an_active_type():
 
 
 def test_plan_is_empty_without_a_count():
-    assert variation_plan(VariationSettings(rotation=True), random.Random(1)) == []
+    """Antalet gäller bara när en bild får flera typer (TASK-117)."""
+    settings = VariationSettings(mode=MODE_ALL, rotation=True)
+
+    assert variation_plan(settings, random.Random(1)) == []
 
 
 def test_variation_plan_is_reproducible_with_a_seed():
@@ -232,7 +236,7 @@ def test_variation_plan_is_reproducible_with_a_seed():
 
 def test_scale_is_clamped_so_the_image_never_disappears():
     settings = VariationSettings(
-        count=20, mode=MODE_ALL, scale=True, scale_percent=100
+        count=20, mode=MODE_ALL, scale=True, scale_down_percent=100
     )
 
     plan = variation_plan(settings, random.Random(3))
@@ -242,6 +246,23 @@ def test_scale_is_clamped_so_the_image_never_disappears():
         for variations in plan
         for variation in variations
     )
+
+
+def test_scale_grows_and_shrinks_within_their_own_limits():
+    """Ökningen och minskningen har egna gränser (TASK-117)."""
+    settings = VariationSettings(
+        count=50,
+        mode=MODE_ALL,
+        scale=True,
+        scale_up_percent=200,
+        scale_down_percent=20,
+    )
+
+    plan = variation_plan(settings, random.Random(2))
+
+    factors = [variations[0]["factor"] for variations in plan]
+    assert all(0.8 <= factor <= 3.0 for factor in factors)
+    assert max(factors) > 1.5, "ökningen nådde aldrig över den gamla gränsen"
 
 
 def test_apply_variation_dispatches_on_the_type():
@@ -304,7 +325,8 @@ def test_add_variations_adds_one_group_per_variation(tmp_path):
     service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
 
     added = service.add_variations(
-        VariationSettings(count=2, rotation=True, rotation_degrees=30), seed=1
+        VariationSettings(count=2, mode=MODE_ALL, rotation=True, rotation_degrees=30),
+        seed=1,
     )
 
     assert added == 2
@@ -313,6 +335,26 @@ def test_add_variations_adds_one_group_per_variation(tmp_path):
     groups = {image["group"] for image in images if image.get("synthetic")}
     assert len(groups) == 2
     assert all(image.get("synthetic") for image in images[2:])
+
+
+def test_add_variations_gives_one_pair_per_type_without_a_count(tmp_path):
+    """En bild per variationstyp behöver inget antal per bildpar (TASK-117)."""
+    service = _service(tmp_path)
+    service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
+
+    added = service.add_variations(
+        VariationSettings(mode=MODE_PER_TYPE, rotation=True, flip_horizontal=True),
+        seed=1,
+    )
+
+    assert added == 2
+    synthetic = [
+        image for image in service.load_dataset()["images"] if image.get("synthetic")
+    ]
+    assert [image["variation"][0]["type"] for image in synthetic[::2]] == [
+        "rotation",
+        "flip",
+    ]
 
 
 def test_add_variations_keeps_the_pair_together(tmp_path):
@@ -366,7 +408,12 @@ def test_add_variations_writes_labels_for_the_varied_annotations(tmp_path):
     service = _service(tmp_path)
     service.add_samples([_sample()])
 
-    service.add_variations(VariationSettings(count=1, scale=True, scale_percent=50), seed=2)
+    service.add_variations(
+        VariationSettings(
+            count=1, scale=True, scale_up_percent=50, scale_down_percent=50
+        ),
+        seed=2,
+    )
 
     images = service.load_dataset()["images"]
     synthetic = images[1]
@@ -415,7 +462,9 @@ def test_dataset_counts_separates_original_pairs_from_synthetic_pairs(tmp_path):
 
     assert service.dataset_counts() == (3, 0)
 
-    service.add_variations(VariationSettings(count=2, flip_horizontal=True), seed=1)
+    service.add_variations(
+        VariationSettings(count=2, mode=MODE_ALL, flip_horizontal=True), seed=1
+    )
 
     # två variationer per bildpar blir två syntetiska bildpar per ursprungspar
     assert service.dataset_counts() == (3, 6)

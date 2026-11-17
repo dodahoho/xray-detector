@@ -36,20 +36,23 @@ def variation_plan(
     """Parametrarna för en uppsättning variationer, en lista per syntetisk bild.
 
     Planen räknas fram en gång per bildpar, så båda bilderna i paret får
-    samma variationer. Läget avgör vad varje bild får: en typ i taget
-    (cykliskt över de aktiva typerna), alla aktiva typer, eller ett slumpvis
-    urval av dem. Beskrivningen sparas i datasetets metadata och används som
-    tooltip i datasetvyn.
+    samma variationer. Läget avgör vad varje bild får: en typ per bild (en
+    bild per aktiv typ), alla aktiva typer, eller ett slumpvis urval av dem.
+    Beskrivningen sparas i datasetets metadata och används som tooltip i
+    datasetvyn.
     """
     types = settings.active_types
-    if not types or settings.count <= 0:
+    if not types:
+        return []
+    # en bild per variationstyp tar ingen hänsyn till antalet per bildpar
+    if settings.mode == MODE_PER_TYPE:
+        return [[_variation(kind, settings, rng)] for kind in types]
+    if settings.count <= 0:
         return []
     plan: list[list[dict]] = []
-    for index in range(settings.count):
+    for _ in range(settings.count):
         if settings.mode == MODE_ALL:
             chosen = types
-        elif settings.mode == MODE_PER_TYPE:
-            chosen = [types[index % len(types)]]
         else:
             # minst en typ per bild, annars vore bilden identisk med originalet
             chosen = [kind for kind in types if rng.random() < 0.5] or [
@@ -73,7 +76,13 @@ def _variation(kind: str, settings: VariationSettings, rng: random.Random) -> di
         # en bild får en riktning; båda samtidigt vore samma sak som 180 grader
         return {"type": "flip", "axis": rng.choice(axes)}
     if kind == "scale":
-        factor = 1 + rng.uniform(-settings.scale_percent, settings.scale_percent) / 100
+        # ökningen och minskningen har egna gränser, så en bild kan växa mer
+        # än den kan krympa (TASK-117)
+        factor = (
+            1
+            + rng.uniform(-settings.scale_down_percent, settings.scale_up_percent)
+            / 100
+        )
         return {
             "type": "scale",
             "factor": round(min(MAX_SCALE, max(MIN_SCALE, factor)), 2),

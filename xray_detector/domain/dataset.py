@@ -2,13 +2,13 @@ from dataclasses import dataclass
 
 import numpy as np
 
-# hur de aktiverade variationstyperna kombineras i en syntetisk bild (TASK-106)
+# hur de aktiverade variationstyperna kombineras i en syntetisk bild (TASK-106, TASK-117)
 MODE_PER_TYPE = "per_type"
 MODE_ALL = "all"
 MODE_RANDOM = "random"
 MODES = {
-    MODE_PER_TYPE: "En bild per variationstyp",
-    MODE_ALL: "Alla valda variationer i varje bild",
+    MODE_PER_TYPE: "En per variationstyp",
+    MODE_ALL: "Alla valda variationer",
     MODE_RANDOM: "Slumpvisa kombinationer",
 }
 
@@ -21,14 +21,15 @@ class AnnotatedImage:
 
 @dataclass(frozen=True)
 class VariationSettings:
-    """Hur de syntetiska bilderna av varje bildpar ska se ut (TASK-88, TASK-106).
+    """Hur de syntetiska bilderna av varje bildpar ska se ut (TASK-88, TASK-106, TASK-117).
 
-    Antalet gäller per bildpar, så båda bilderna i paret får samma variationer
-    och varje variation blir ett eget bildpar. En typ är aktiverad när dess
-    flagga är satt; vändningen aktiveras av sina riktningar. Styrkan är den
-    största förändringen, så rotation 30 ger en vinkel i intervallet -30 till
-    30 grader. Läget avgör om en bild får en typ, alla aktiva typer eller ett
-    slumpvis urval av dem.
+    En typ är aktiverad när dess flagga är satt; vändningen aktiveras av sina
+    riktningar. Styrkan är den största förändringen, så rotation 30 ger en
+    vinkel i intervallet -30 till 30 grader, och storleken dras mellan
+    scale_down_percent under och scale_up_percent över originalet. Läget avgör
+    vad en bild får: en typ, alla aktiva typer eller ett slumpvis urval av dem.
+    Antalet variationer per bildpar gäller bara när en bild får flera typer; en
+    bild per variationstyp ger i stället en bild per aktiv typ.
     """
 
     count: int = 0
@@ -38,7 +39,8 @@ class VariationSettings:
     flip_horizontal: bool = False
     flip_vertical: bool = False
     scale: bool = False
-    scale_percent: float = 0.0
+    scale_up_percent: float = 0.0
+    scale_down_percent: float = 0.0
     color: bool = False
     color_percent: float = 0.0
 
@@ -64,4 +66,8 @@ class VariationSettings:
     @property
     def total(self) -> int:
         """Antal syntetiska bilder som varje bildpar får."""
-        return self.count if self.active_types else 0
+        types = self.active_types
+        if not types:
+            return 0
+        # en bild per variationstyp ger en bild per aktiv typ, inte count bilder
+        return len(types) if self.mode == MODE_PER_TYPE else self.count

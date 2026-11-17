@@ -41,7 +41,6 @@ def service(tmp_path) -> DatasetService:
     svc.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
     svc.add_variations(
         VariationSettings(
-            count=2,
             mode=MODE_PER_TYPE,
             rotation=True,
             rotation_degrees=30,
@@ -303,7 +302,8 @@ def test_synthetic_badge_lists_every_variation(qapp, config, tmp_path, settings)
             rotation=True,
             rotation_degrees=30,
             scale=True,
-            scale_percent=20,
+            scale_up_percent=20,
+            scale_down_percent=20,
         ),
         seed=1,
     )

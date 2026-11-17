@@ -1,4 +1,4 @@
-"""Dialogen för att utöka datasetet med bildvariationer (TASK-88, TASK-106)."""
+"""Dialogen för att utöka datasetet med bildvariationer (TASK-88, TASK-106, TASK-117)."""
 
 import pytest
 from PySide6.QtWidgets import QDialog, QPushButton
@@ -7,9 +7,15 @@ from xray_detector.domain.dataset import (
     MODE_ALL,
     MODE_PER_TYPE,
     MODE_RANDOM,
+    MODES,
     VariationSettings,
 )
-from xray_detector.ui.variation_dialog import NO_VARIATIONS, VariationDialog
+from xray_detector.ui.variation_dialog import (
+    MAX_SCALE_DOWN_PERCENT,
+    MAX_SCALE_UP_PERCENT,
+    NO_VARIATIONS,
+    VariationDialog,
+)
 
 
 @pytest.fixture
@@ -27,7 +33,8 @@ def test_dialog_starts_without_an_active_type(dialog):
         flip_horizontal=False,
         flip_vertical=False,
         scale=False,
-        scale_percent=50.0,
+        scale_up_percent=50.0,
+        scale_down_percent=50.0,
         color=False,
         color_percent=20.0,
     )
@@ -44,16 +51,46 @@ def test_an_active_type_enables_the_extend_button(dialog):
 
     assert dialog.extend_button.isEnabled()
     assert dialog.summary.text() == (
-        "1 syntetiska bilder per bildpar ger 3 nya bildpar från 3 original."
+        "En bild per variationstyp ger 3 nya bildpar från 3 original."
     )
 
 
-def test_the_count_sets_the_number_of_images_per_pair(dialog):
+def test_the_count_sets_the_number_of_variations_per_pair(dialog):
+    dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData(MODE_ALL))
     dialog.rotation.setChecked(True)
     dialog.count.setValue(5)
 
     assert dialog.settings().total == 5
-    assert dialog.summary.text().startswith("5 syntetiska bilder per bildpar")
+    assert dialog.summary.text().startswith("5 variationer per bildpar")
+
+
+def test_the_count_is_a_sub_option_to_the_combination(dialog):
+    """Antalet gäller bara när en bild får flera typer (TASK-117)."""
+    assert not dialog.count_row.isEnabled()
+    assert not dialog.count.isEnabled()
+
+    for mode in (MODE_ALL, MODE_RANDOM):
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData(mode))
+
+        assert dialog.count_row.isEnabled()
+        assert dialog.count.isEnabled()
+
+    dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData(MODE_PER_TYPE))
+
+    assert not dialog.count_row.isEnabled()
+
+
+def test_per_type_gives_one_image_per_active_type(dialog):
+    """En bild per variationstyp ger en bild per vald typ, oavsett antalet (TASK-117)."""
+    dialog.count.setValue(7)
+    dialog.rotation.setChecked(True)
+    dialog.flip.setChecked(True)
+    dialog.scale.setChecked(True)
+
+    assert dialog.settings().total == 3
+    assert dialog.summary.text() == (
+        "En bild per variationstyp ger 9 nya bildpar från 3 original."
+    )
 
 
 def test_a_type_card_disables_its_fields_until_it_is_checked(dialog):
@@ -83,7 +120,8 @@ def test_settings_reads_every_field(dialog):
     dialog.flip.setChecked(True)
     dialog.flip_vertical.setChecked(False)
     dialog.scale.setChecked(True)
-    dialog.scale_percent.setValue(30)
+    dialog.scale_up_percent.setValue(30)
+    dialog.scale_down_percent.setValue(10)
     dialog.color.setChecked(True)
     dialog.color_percent.setValue(10)
 
@@ -95,10 +133,19 @@ def test_settings_reads_every_field(dialog):
         flip_horizontal=True,
         flip_vertical=False,
         scale=True,
-        scale_percent=30.0,
+        scale_up_percent=30.0,
+        scale_down_percent=10.0,
         color=True,
         color_percent=10.0,
     )
+
+
+def test_the_scale_has_separate_limits_for_growing_and_shrinking(dialog):
+    """En bild kan växa mer än den kan krympa, som annars blir noll (TASK-117)."""
+    assert dialog.scale_up_percent.maximum() == MAX_SCALE_UP_PERCENT
+    assert dialog.scale_down_percent.maximum() == MAX_SCALE_DOWN_PERCENT
+    assert MAX_SCALE_UP_PERCENT > 100
+    assert MAX_SCALE_DOWN_PERCENT < 100
 
 
 def test_the_mode_combo_offers_the_three_combinations(dialog):
@@ -108,6 +155,20 @@ def test_the_mode_combo_offers_the_three_combinations(dialog):
     ]
 
     assert modes == [MODE_PER_TYPE, MODE_ALL, MODE_RANDOM]
+
+
+def test_the_mode_labels_are_shortened(dialog):
+    labels = [
+        dialog.mode_combo.itemText(index)
+        for index in range(dialog.mode_combo.count())
+    ]
+
+    assert labels == [
+        "En per variationstyp",
+        "Alla valda variationer",
+        "Slumpvisa kombinationer",
+    ]
+    assert list(MODES.values()) == labels
 
 
 def test_buttons_are_extend_and_cancel(dialog):
