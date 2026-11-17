@@ -45,7 +45,9 @@ class MainWindow(QMainWindow):
         )
         self.dataset_view = DatasetView(config, self.dataset_service, self.settings)
         self.training_view = TrainingView(config, self.dataset_service, self.settings)
-        self.settings_view = SettingsView(config, self.settings)
+        self.settings_view = SettingsView(
+            config, self.settings, active_run_dir=self.training_view.active_run_dir
+        )
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.detection_view, mnemonic("Detektion", "D"))

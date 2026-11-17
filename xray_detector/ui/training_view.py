@@ -115,7 +115,7 @@ class TrainingView(QWidget):
         self.history = TrainingHistoryView(
             self.config.trained_dir,
             self.dataset_service,
-            active_run_dir=self._active_run_dir,
+            active_run_dir=self.active_run_dir,
         )
         self.history.run_selected.connect(self._on_history_selected)
         # en borttagen träning försvinner ur modellväljarna (TASK-119)
@@ -548,7 +548,7 @@ class TrainingView(QWidget):
     def _training_active(self) -> bool:
         return self.worker is not None and self.worker.is_running()
 
-    def _active_run_dir(self) -> Path | None:
+    def active_run_dir(self) -> Path | None:
         """Katalogen träningen skriver i just nu, så historiken inte tar bort den (TASK-119)."""
         if not self._training_active():
             return None

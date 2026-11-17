@@ -48,6 +48,30 @@ DELETE_QUESTION = (
 )
 
 
+def is_active_run(run_dir, active_run_dir) -> bool:
+    """Om katalogen är körningen som pågår just nu (TASK-119, TASK-129).
+
+    active_run_dir är en anropbar som ger katalogen träningen skriver i, eller
+    None. Den delas av träningshistoriken och modellistan i inställningarna, så
+    en pågående träning skyddas på båda ställena.
+    """
+    active = active_run_dir() if callable(active_run_dir) else active_run_dir
+    if active is None or run_dir is None:
+        return False
+    return Path(run_dir).resolve() == Path(active).resolve()
+
+
+def confirm_delete_run(parent, run_id: str) -> bool:
+    """Frågar innan körningen och dess filer raderas (TASK-119, TASK-129)."""
+    answer = QMessageBox.warning(
+        parent,
+        "Ta bort träningen",
+        DELETE_QUESTION.format(run_id=run_id),
+        QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+    )
+    return answer == QMessageBox.StandardButton.Ok
+
+
 class TrainingHistoryView(QWidget):
     """Tabell över models/trained/ med export, utvärdering och borttagning.
 
@@ -176,8 +200,7 @@ class TrainingHistoryView(QWidget):
         """En pågående körning kan inte tas bort medan träningen skriver i den."""
         if run is None:
             return False
-        active = self.active_run_dir()
-        return active is None or Path(run.run_dir).resolve() != Path(active).resolve()
+        return not is_active_run(run.run_dir, self.active_run_dir)
 
     def evaluate_selected(self, split: str | None = None) -> dict | None:
         """Utvärderar vald körning och sparar rapporten; None utan val."""
@@ -297,13 +320,7 @@ class TrainingHistoryView(QWidget):
         run = self.selected_run()
         if not self._delete_enabled(run):
             return
-        answer = QMessageBox.warning(
-            self,
-            "Ta bort träningen",
-            DELETE_QUESTION.format(run_id=run.run_id),
-            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
-        )
-        if answer != QMessageBox.StandardButton.Ok:
+        if not confirm_delete_run(self, run.run_id):
             return
         try:
             self.delete_selected()

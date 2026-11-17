@@ -37,6 +37,7 @@ from xray_detector.application.model_registry import (
 from xray_detector.application.training_history import delete_run
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import LIST_MAX_WIDTH, button
+from xray_detector.ui.training_history import is_active_run
 
 WEIGHT_FILTER = "Modellvikter (*.pt *.pth)"
 FAMILY_LABELS = {"yolo": "YOLO", "rfdetr": "RF-DETR"}
@@ -79,11 +80,18 @@ class ModelSection(QGroupBox):
     models_changed = Signal()
 
     def __init__(
-        self, models_dir: Path, trained_dir: Path | None = None, parent=None
+        self,
+        models_dir: Path,
+        trained_dir: Path | None = None,
+        parent=None,
+        active_run_dir=None,
     ) -> None:
         super().__init__("Modeller", parent)
         self.setMaximumWidth(LIST_MAX_WIDTH)
         self.catalog = ModelCatalog(models_dir)
+        #: Katalogen för körningen som pågår just nu, så den inte kan tas bort
+        #: medan träningen skriver i den (TASK-129).
+        self.active_run_dir = active_run_dir or (lambda: None)
         # samma standard som AppConfig.trained_dir
         self.trained_dir = (
             Path(trained_dir)
@@ -239,6 +247,11 @@ class ModelSection(QGroupBox):
             return
         run_id = trained_run_id(spec)
         if run_id is not None:
+            if is_active_run(self.trained_dir / run_id, self.active_run_dir):
+                self.status.setText(
+                    f"{spec.label} tränas just nu och kan inte tas bort förrän träningen är klar"
+                )
+                return
             if not self._confirm_trained_removal(spec):
                 return
             try:

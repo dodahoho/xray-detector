@@ -17,12 +17,15 @@ class SettingsView(QWidget):
 
     models_changed = Signal()
 
-    def __init__(self, config: AppConfig, settings, parent=None) -> None:
+    def __init__(self, config: AppConfig, settings, parent=None, active_run_dir=None) -> None:
         super().__init__(parent)
         self.config = config
         self.settings = settings
         self.theme_section = ThemeSection(settings)
-        self.model_section = ModelSection(config.models_dir, config.trained_dir)
+        # en pågående träning får inte raderas från modellistan (TASK-129)
+        self.model_section = ModelSection(
+            config.models_dir, config.trained_dir, active_run_dir=active_run_dir
+        )
         # väljarna i detektions- och träningsvyn bygger om sina listor (TASK-81)
         self.model_section.models_changed.connect(self.models_changed)
         layout = QVBoxLayout(self)

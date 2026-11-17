@@ -368,3 +368,38 @@ def test_deleting_a_run_in_the_training_view_updates_the_model_lists(trained_win
     combo = trained_window.detection_view.model_combo
     assert "trained-v3" not in _keys(section)
     assert "trained-v3" not in [combo.itemData(row) for row in range(combo.count())]
+
+
+def test_running_training_cannot_be_removed_from_the_settings_tab(
+    qapp, trained_config, monkeypatch
+):
+    """En pågående träning skyddas även i modellistan (TASK-129)."""
+    run_dir = trained_config.trained_dir / "v3"
+    section = ModelSection(
+        trained_config.models_dir,
+        trained_config.trained_dir,
+        active_run_dir=lambda: run_dir,
+    )
+    section.list.setCurrentRow(section.list.count() - 1)
+    messages = _answer_warning(monkeypatch, QMessageBox.StandardButton.Ok)
+
+    section.remove_button.click()
+
+    assert run_dir.is_dir(), "katalogen för en pågående träning raderades"
+    assert messages == [], "ingen bekräftelsedialog ska visas för en pågående träning"
+    assert "tränas just nu" in section.status.text()
+    assert "trained-v3" in _keys(section)
+
+
+def test_removal_guard_is_shared_with_the_training_history(qapp, trained_config, monkeypatch):
+    """Samma kontroll och dialog används av historiken och modellistan (TASK-129)."""
+    from xray_detector.ui.training_history import confirm_delete_run, is_active_run
+
+    run_dir = trained_config.trained_dir / "v3"
+    assert is_active_run(run_dir, lambda: run_dir)
+    assert not is_active_run(run_dir, lambda: None)
+    assert not is_active_run(None, lambda: run_dir)
+
+    messages = _answer_warning(monkeypatch, QMessageBox.StandardButton.Cancel)
+    assert confirm_delete_run(None, "v3") is False
+    assert len(messages) == 1 and "v3" in messages[0]
