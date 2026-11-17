@@ -3,7 +3,6 @@ import logging
 import time
 from pathlib import Path
 
-import cv2
 import numpy as np
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPen, QPixmap
@@ -41,6 +40,8 @@ from xray_detector.ui.colors import (
     class_color,
     device_color,
 )
+from xray_detector.ui.image_utils import bgr_to_qimage
+from xray_detector.ui.model_combo import ModelComboBox
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
     BadgeSection,
@@ -486,13 +487,8 @@ class StreamPanel(QFrame):
 
     @staticmethod
     def _to_qimage(frame: np.ndarray) -> QImage:
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        height, width, channels = rgb.shape
-        # .copy() ger en egen buffer: QImage pekar annars på rgb, som frigörs
-        # när funktionen returnerar (TASK-128).
-        return QImage(
-            rgb.data, width, height, channels * width, QImage.Format.Format_RGB888
-        ).copy()
+        """BGR-ramen som QImage; kopian och konverteringen delas med vyerna (TASK-140)."""
+        return bgr_to_qimage(frame)
 
 
 class _CaptureKeyFilter(QObject):
@@ -536,7 +532,7 @@ class DetectionView(QWidget):
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
-        self.model_combo = QComboBox()
+        self.model_combo = ModelComboBox()
         self.refresh_models()
         self._select_model(config.default_model)
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
@@ -639,42 +635,20 @@ class DetectionView(QWidget):
         """Fyller modellväljaren med basmodeller plus egentränade modeller."""
         from xray_detector.application.model_registry import available_models
 
-        current = self.model_combo.currentData()
-        self.model_combo.blockSignals(True)
-        self.model_combo.clear()
-        self._specs = {}
-        for spec in available_models(self.config.models_dir, self.config.trained_dir):
-            self.model_combo.addItem(spec.label, spec.key)
-            self._specs[spec.key] = spec
-        self._disable_unavailable_models()
-        self._select_model(current)
-        self.model_combo.blockSignals(False)
-
-    def _disable_unavailable_models(self) -> None:
-        """Avstänger modeller vars paket saknas (samma mönster som träningsvyn)."""
-        import importlib.util
-
-        missing = {"rfdetr": importlib.util.find_spec("rfdetr") is None}
-        model = self.model_combo.model()
-        for row in range(model.rowCount()):
-            spec = self._specs.get(self.model_combo.itemData(row))
-            if spec is None or not missing.get(spec.family, False):
-                continue
-            item = model.item(row)
-            item.setEnabled(False)
-            self.model_combo.setItemText(row, f"{item.text()} (rfdetr ej installerat)")
+        self.model_combo.fill(
+            available_models(self.config.models_dir, self.config.trained_dir),
+            self.model_combo.currentData(),
+        )
+        self._specs = self.model_combo.specs
+        self._select_model(self.model_combo.currentData())
 
     def _select_model(self, key: str | None) -> bool:
         """Väljer modellen om den finns och är tillgänglig."""
         index = self.model_combo.findData(key) if key else -1
-        if index < 0 or not self._model_enabled(index):
+        if index < 0 or not self.model_combo.enabled(index):
             return False
         self.model_combo.setCurrentIndex(index)
         return True
-
-    def _model_enabled(self, index: int) -> bool:
-        item = self.model_combo.model().item(index)
-        return item is None or item.isEnabled()
 
     def restore_settings(self) -> None:
         model_key = self.settings.value("detection/model", type=str)

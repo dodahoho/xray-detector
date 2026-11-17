@@ -36,6 +36,7 @@ from xray_detector.domain.training import (
     trained_model_name,
 )
 from xray_detector.ui.colors import MUTED_TEXT
+from xray_detector.ui.model_combo import ModelComboBox
 from xray_detector.ui.settings_dialog import (
     TRAIN_RATIO_KEY,
     TrainingScheduleSection,
@@ -135,34 +136,11 @@ class TrainingView(QWidget):
         """
         from xray_detector.application.model_registry import available_models
 
-        current = self.model_combo.currentData()
-        self.model_combo.blockSignals(True)
-        self.model_combo.clear()
-        self._specs = {}
-        for spec in available_models(self.config.models_dir, self.config.trained_dir):
-            self.model_combo.addItem(spec.label, spec.key)
-            self._specs[spec.key] = spec
-        self._disable_missing_rfdetr()
-        index = self.model_combo.findData(current)
-        if index >= 0:
-            self.model_combo.setCurrentIndex(index)
-        self.model_combo.blockSignals(False)
-
-    def _disable_missing_rfdetr(self) -> None:
-        """Avstanger RF-DETR posten nar paketet inte ar installerat."""
-        import importlib.util
-
-        if importlib.util.find_spec("rfdetr") is None:
-            model = self.model_combo.model()
-            for row in range(model.rowCount()):
-                spec = self._specs.get(self.model_combo.itemData(row))
-                if spec is None or spec.family != "rfdetr":
-                    continue
-                item = model.item(row)
-                item.setEnabled(False)
-                self.model_combo.setItemText(
-                    row, f"{item.text()} (rfdetr ej installerat)"
-                )
+        self.model_combo.fill(
+            available_models(self.config.models_dir, self.config.trained_dir),
+            self.model_combo.currentData(),
+        )
+        self._specs = self.model_combo.specs
 
     def _build_header(self) -> QHBoxLayout:
         """Inställningsknappen högst upp till höger, som i de andra vyerna."""
@@ -182,7 +160,7 @@ class TrainingView(QWidget):
         """Träningsinställningarna i ett kort med maxbredd (TASK-82)."""
         card = FormCard("Träningsinställningar")
         form = card.form
-        self.model_combo = QComboBox()
+        self.model_combo = ModelComboBox()
         self.refresh_models()
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         form.addRow("Basmodell:", self.model_combo)

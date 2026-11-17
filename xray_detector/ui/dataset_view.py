@@ -42,6 +42,7 @@ from xray_detector.ui.colors import (
     TEXT_LIGHT,
     class_color,
 )
+from xray_detector.ui.image_utils import bgr_to_qimage
 from xray_detector.ui.settings_dialog import (
     SORT_NEWEST,
     DatasetSortSection,
@@ -972,9 +973,7 @@ class DatasetView(QWidget):
             row = QHBoxLayout()
             row.setSpacing(4)
             for stream_frame in capture.frames:
-                height, width = stream_frame.frame.shape[:2]
-                rgb = stream_frame.frame[:, :, ::-1].copy()
-                image = QImage(rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888).copy()
+                image = bgr_to_qimage(stream_frame.frame)
                 pixmap = QPixmap.fromImage(image).scaledToHeight(
                     THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
                 )

@@ -10,6 +10,7 @@ efter ett antal missade ramar.
 from dataclasses import dataclass
 
 from xray_detector.domain.detection import Detection
+from xray_detector.infrastructure.training.metrics import iou_matrix
 
 IOU_THRESHOLD = 0.3
 ALPHA = 0.5
@@ -110,14 +111,10 @@ class DetectionSmoother:
 
 
 def _iou(box: list[float], detection: Detection) -> float:
-    x1 = max(box[0], detection.x1)
-    y1 = max(box[1], detection.y1)
-    x2 = min(box[2], detection.x2)
-    y2 = min(box[3], detection.y2)
-    intersection = max(0.0, x2 - x1) * max(0.0, y2 - y1)
-    area = (
-        (box[2] - box[0]) * (box[3] - box[1])
-        + detection.width * detection.height
-        - intersection
+    """IoU mellan en sparad ruta och en detektion, med metrics-sviten (TASK-140)."""
+    return float(
+        iou_matrix(
+            [box],
+            [[detection.x1, detection.y1, detection.x2, detection.y2]],
+        )[0][0]
     )
-    return intersection / area if area else 0.0

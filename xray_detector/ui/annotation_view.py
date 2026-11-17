@@ -17,6 +17,7 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
+from xray_detector.ui.image_utils import bgr_to_qimage
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import (
     bind_default_action,
@@ -77,12 +78,7 @@ class AnnotationCanvas(QWidget):
             self.update()
 
     def load_frame(self, stream_frame: StreamFrame, default_class: str) -> None:
-        frame = stream_frame.frame
-        height, width = frame.shape[:2]
-        rgb = np.ascontiguousarray(frame[:, :, ::-1])
-        self.image = QImage(
-            rgb.data, width, height, 3 * width, QImage.Format.Format_RGB888
-        ).copy()
+        self.image = bgr_to_qimage(stream_frame.frame)
         self.rects = [
             RectItem(
                 d.x1, d.y1, d.x2, d.y2, d.class_name or default_class
