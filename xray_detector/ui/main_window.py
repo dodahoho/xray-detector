@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.dataset_view, mnemonic("Dataset", "S"))
         self.tabs.addTab(self.training_view, mnemonic("Träning", "T"))
         self.tabs.addTab(self.settings_view, mnemonic("Inställningar", "L"))
-        self.tabs.setTabEnabled(1, False)
+        self.tabs.setTabEnabled(self._annotation_tab, False)
         self._tab_guard = False
         # fliken annoteringen öppnades från, dit Spara och Avbryt återgår (TASK-60)
         self._annotation_origin = 0
@@ -132,13 +132,18 @@ class MainWindow(QMainWindow):
             return "discard"
         return "cancel"
 
+    @property
+    def _annotation_tab(self) -> int:
+        """Annoteringsflikens index, uppslaget så flikordningen kan ändras (TASK-127)."""
+        return self.tabs.indexOf(self.annotation_view)
+
     def _on_tab_changed(self, index: int) -> None:
-        if self._tab_guard or index == 1:
+        if self._tab_guard or index == self._annotation_tab:
             return
         if self.tabs.isTabEnabled(1) and not self._leave_annotation():
             # användaren ångrade sig: tillbaka till annoteringen
             self._tab_guard = True
-            self.tabs.setCurrentIndex(1)
+            self.tabs.setCurrentIndex(self._annotation_tab)
             self._tab_guard = False
             return
         if index == self.tabs.indexOf(self.detection_view):
@@ -161,14 +166,14 @@ class MainWindow(QMainWindow):
                 return False
             if choice == "save":
                 # sparningen tar bort pending-gruppen när den lyckas
-                self.annotation_view._on_save()
+                self.annotation_view.save()
                 return True
         self._end_annotation_session()
         return True
 
     def _end_annotation_session(self) -> None:
         """Stänger annoteringsfliken och kastar den osparade fångsten (TASK-112)."""
-        self.tabs.setTabEnabled(1, False)
+        self.tabs.setTabEnabled(self._annotation_tab, False)
         self.annotation_view.discard_pending()
 
     def _show_status(self, message: str) -> None:
@@ -180,8 +185,8 @@ class MainWindow(QMainWindow):
         pending_group_id = self.dataset_service.save_pending(captures)
         self._annotation_origin = self.tabs.indexOf(self.detection_view)
         # vyn växlas före laddningen, så klassdialogerna hamnar i annoteringsvyn (TASK-71)
-        self.tabs.setTabEnabled(1, True)
-        self.tabs.setCurrentIndex(1)
+        self.tabs.setTabEnabled(self._annotation_tab, True)
+        self.tabs.setCurrentIndex(self._annotation_tab)
         self.annotation_view.load_captures(captures, pending_group_id)
 
     def _on_open_from_dataset(self, payload) -> None:
@@ -193,8 +198,8 @@ class MainWindow(QMainWindow):
         pending_group_id = getattr(payload, "group_id", None)
         self._annotation_origin = self.tabs.indexOf(self.dataset_view)
         # vyn växlas före laddningen, så klassdialogerna hamnar i annoteringsvyn (TASK-71)
-        self.tabs.setTabEnabled(1, True)
-        self.tabs.setCurrentIndex(1)
+        self.tabs.setTabEnabled(self._annotation_tab, True)
+        self.tabs.setCurrentIndex(self._annotation_tab)
         # sparade bilder blir dubbletter om de sparas utan ändring (TASK-62)
         self.annotation_view.load_captures(
             frames, pending_group_id, already_saved=not from_pending
@@ -202,8 +207,8 @@ class MainWindow(QMainWindow):
 
     def _on_annotation_saved(self) -> None:
         # sparningen är asynkron (TASK-40): fliken kan redan ha bytts medan den skrevs
-        on_annotation_tab = self.tabs.currentIndex() == 1
-        self.tabs.setTabEnabled(1, False)
+        on_annotation_tab = self.tabs.currentIndex() == self._annotation_tab
+        self.tabs.setTabEnabled(self._annotation_tab, False)
         if on_annotation_tab:
             self.tabs.setCurrentIndex(self._annotation_origin)
         self.training_view.refresh_dataset_info()
@@ -252,7 +257,7 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
             if choice == "save":
-                self.annotation_view._on_save()
+                self.annotation_view.save()
             else:
                 self.annotation_view.mark_clean()
         geometry = (self.normalGeometry() if self.isFullScreen() or self.isMaximized() else self.geometry())

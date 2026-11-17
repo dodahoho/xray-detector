@@ -78,7 +78,7 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     view._on_thumb_double_clicked(pending_thumb)
     assert window2.annotation_view.canvases[0].image is not None
     assert window2.annotation_view.pending_group_id == pending_thumb.group_id
-    window2.annotation_view._on_save()
+    window2.annotation_view.save()
     window2.annotation_view.wait_for_save()
     assert window2.dataset_service.pending_captures() == []
     view.refresh()

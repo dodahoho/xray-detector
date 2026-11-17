@@ -117,7 +117,7 @@ def test_draw_marks_dirty_and_save_clears(qapp, tmp_path, monkeypatch):
     canvas.rects.append(RectItem(5, 5, 30, 30, "klass"))
     canvas._mark_dirty()
     assert view.is_dirty()
-    view._on_save()
+    view.save()
     view.wait_for_save()
     assert not view.is_dirty()
     assert service.metadata()["num_images"] >= 1
@@ -129,7 +129,7 @@ def test_save_without_boxes_asks_negative(qapp, tmp_path, monkeypatch):
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
     view, service = _make_view(qapp, tmp_path)
     view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
-    view._on_save()
+    view.save()
     view.wait_for_save()
     info = service.metadata()
     assert info["num_images"] == 1
@@ -141,7 +141,7 @@ def test_save_without_boxes_declined_writes_nothing(qapp, tmp_path, monkeypatch)
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
     view, service = _make_view(qapp, tmp_path)
     view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
-    view._on_save()
+    view.save()
     assert service.load_dataset()["images"] == []
 
 

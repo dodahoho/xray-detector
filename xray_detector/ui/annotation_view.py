@@ -480,7 +480,7 @@ class AnnotationView(QWidget):
         self.save_button = button(
             with_hint(mnemonic("Spara till dataset", "P"), "Enter"), primary=True
         )
-        self.save_button.clicked.connect(self._on_save)
+        self.save_button.clicked.connect(self.save)
         bar.addWidget(self.save_button)
         self.cancel_button = button(with_hint("Avbryt", "Esc"))
         self.cancel_button.clicked.connect(self.cancelled.emit)
@@ -717,9 +717,9 @@ class AnnotationView(QWidget):
         och Enter ska inte göra det som knappen inte får göra (TASK-62).
         """
         if self.save_button.isEnabled():
-            self._on_save()
+            self.save()
 
-    def _on_save(self) -> None:
+    def save(self) -> None:
         if self._save_task is not None:
             return
         samples = [canvas.result() for canvas in self.canvases if canvas.image is not None]

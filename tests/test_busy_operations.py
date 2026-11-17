@@ -383,7 +383,7 @@ def _dirty_annotation_view(config, dataset_service, settings) -> AnnotationView:
 def test_save_shows_indicator_and_writes_dataset(qapp, config, settings, dataset_service):
     view = _dirty_annotation_view(config, dataset_service, settings)
 
-    view._on_save()
+    view.save()
 
     assert view.busy.is_busy()
     assert not view.save_button.isEnabled()
@@ -406,7 +406,7 @@ def test_save_runs_off_the_gui_thread(qapp, config, settings, dataset_service, m
     monkeypatch.setattr(dataset_service, "add_samples", recording)
     view = _dirty_annotation_view(config, dataset_service, settings)
 
-    view._on_save()
+    view.save()
     view.wait_for_save()
 
     assert threads and threads[0] != threading.get_ident()

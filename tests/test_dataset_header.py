@@ -191,7 +191,7 @@ def test_saved_capture_keeps_pending_timestamp(qapp, tmp_path, monkeypatch):
     saved_at = pending_saved_at(tmp_path, group_id)
     assert saved_at
 
-    window.annotation_view._on_save()
+    window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
     images = window.dataset_service.load_dataset()["images"]

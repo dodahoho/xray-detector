@@ -105,7 +105,7 @@ def test_saving_an_edited_pair_replaces_it_instead_of_copying(window):
     canvas.selected = canvas.rects[0]
     canvas.delete_selected()
 
-    window.annotation_view._on_save()
+    window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
     dataset = window.dataset_service.load_dataset()
@@ -126,7 +126,7 @@ def test_saving_an_edited_pair_keeps_its_group_and_capture_time(window):
     canvas.selected = canvas.rects[0]
     canvas.delete_selected()
 
-    window.annotation_view._on_save()
+    window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
     image = window.dataset_service.load_dataset()["images"][0]
@@ -137,7 +137,7 @@ def test_saving_an_edited_pair_keeps_its_group_and_capture_time(window):
 def test_saving_a_new_capture_still_adds_a_pair(window):
     open_from_detection(window)
 
-    window.annotation_view._on_save()
+    window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
     assert len(window.dataset_service.load_dataset()["images"]) == 1

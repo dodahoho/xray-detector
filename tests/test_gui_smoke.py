@@ -49,7 +49,7 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     assert window.tabs.currentIndex() == 1
 
     # spara -> bildparet ersätts i stället för att kopieras (TASK-110)
-    window.annotation_view._on_save()
+    window.annotation_view.save()
     window.annotation_view.wait_for_save()
     dataset = service.load_dataset()
     assert len(dataset["images"]) == 1
