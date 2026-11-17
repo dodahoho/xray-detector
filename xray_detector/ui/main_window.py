@@ -75,6 +75,12 @@ class MainWindow(QMainWindow):
         # en ändrad modellista slår igenom i båda modellväljarna (TASK-81)
         self.settings_view.models_changed.connect(self.detection_view.refresh_models)
         self.settings_view.models_changed.connect(self.training_view.refresh_models)
+        # en borttagen träning försvinner ur väljarna och modellistan (TASK-119)
+        self.settings_view.models_changed.connect(self.training_view.history.refresh)
+        self.training_view.models_changed.connect(self.detection_view.refresh_models)
+        self.training_view.models_changed.connect(
+            self.settings_view.model_section.refresh
+        )
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)

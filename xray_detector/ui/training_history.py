@@ -29,6 +29,7 @@ from xray_detector.application.evaluation import (
 )
 from xray_detector.application.training_history import (
     TrainingRun,
+    delete_run,
     export_run,
     training_runs,
 )
@@ -40,24 +41,36 @@ COLUMNS = ("Körning", "Basmodell", "Epoker", "Tid", "mAP50-95", "Dom", "Status"
 NO_RUNS = "Inga tidigare träningar"
 NO_SELECTION = "Välj en träning för att exportera modellen"
 NOT_EVALUATED = "Inte utvärderad"
+DELETE_QUESTION = (
+    "Ta bort träningen {run_id}?\n\n"
+    "Körningens vikter, manifest, metrics och utvärdering raderas, och modellen "
+    "försvinner ur modellväljarna. Det går inte att ångra."
+)
 
 
 class TrainingHistoryView(QWidget):
-    """Tabell över models/trained/ med export och utvärdering av vald körning.
+    """Tabell över models/trained/ med export, utvärdering och borttagning.
 
     Listan läses från manifesten, så den visar även körningar som gjorts från
     CLI:t. Exporten kopierar vikterna och manifestet till en katalog
     användaren väljer, och utvärderingen sparar sin rapport i körningens
-    katalog så två körningar kan jämföras i efterhand.
+    katalog så två körningar kan jämföras i efterhand. Borttagningen raderar
+    körningens katalog, så vikter, manifest och metrics försvinner med den.
     """
 
     #: Vald körning, eller None när inget är valt (TASK-70).
     run_selected = Signal(object)
+    #: En körning har tagits bort med sina filer (TASK-119).
+    run_deleted = Signal()
 
-    def __init__(self, trained_dir: Path, dataset=None, parent=None) -> None:
+    def __init__(
+        self, trained_dir: Path, dataset=None, parent=None, active_run_dir=None
+    ) -> None:
         super().__init__(parent)
         self.trained_dir = Path(trained_dir)
         self.dataset = dataset
+        #: Katalogen för körningen som pågår just nu, så den inte kan tas bort
+        self.active_run_dir = active_run_dir or (lambda: None)
         self.runs: list[TrainingRun] = []
         self.evaluation_report: dict | None = None
         self._evaluate_task: BackgroundTask | None = None
@@ -99,6 +112,14 @@ class TrainingHistoryView(QWidget):
         self.export_button.setEnabled(False)
         self.export_button.clicked.connect(self._on_export)
         buttons.addWidget(self.export_button)
+        self.delete_button = button(mnemonic("Ta bort träning", "b"))
+        self.delete_button.setEnabled(False)
+        self.delete_button.setToolTip(
+            "Raderar körningens vikter, manifest, metrics och utvärdering, så "
+            "modellen försvinner ur modellväljarna"
+        )
+        self.delete_button.clicked.connect(self._on_delete)
+        buttons.addWidget(self.delete_button)
         layout.addLayout(buttons)
         self.busy = BusyIndicator(self)
         self._fill_splits("yolo")
@@ -141,6 +162,23 @@ class TrainingHistoryView(QWidget):
             return None
         return export_run(run, target_dir)
 
+    def delete_selected(self) -> bool:
+        """Tar bort vald körning med dess filer; False när inget är valt (TASK-119)."""
+        run = self.selected_run()
+        if not self._delete_enabled(run):
+            return False
+        delete_run(self.trained_dir, run.run_id)
+        self.refresh()
+        self.run_deleted.emit()
+        return True
+
+    def _delete_enabled(self, run: TrainingRun | None) -> bool:
+        """En pågående körning kan inte tas bort medan träningen skriver i den."""
+        if run is None:
+            return False
+        active = self.active_run_dir()
+        return active is None or Path(run.run_dir).resolve() != Path(active).resolve()
+
     def evaluate_selected(self, split: str | None = None) -> dict | None:
         """Utvärderar vald körning och sparar rapporten; None utan val."""
         run = self.selected_run()
@@ -178,6 +216,7 @@ class TrainingHistoryView(QWidget):
         run = self.selected_run()
         self.export_button.setEnabled(run is not None)
         self.evaluate_button.setEnabled(run is not None and self.dataset is not None)
+        self.delete_button.setEnabled(self._delete_enabled(run))
         self.details.setText(run.details if run is not None else NO_SELECTION)
         self._show_evaluation(run)
         if run is not None:
@@ -252,3 +291,21 @@ class TrainingHistoryView(QWidget):
         QMessageBox.information(
             self, "Modellen exporterad", f"Vikter och manifest ligger i {exported}"
         )
+
+    def _on_delete(self) -> None:
+        """Frågar innan körningen och dess filer raderas (TASK-119)."""
+        run = self.selected_run()
+        if not self._delete_enabled(run):
+            return
+        answer = QMessageBox.warning(
+            self,
+            "Ta bort träningen",
+            DELETE_QUESTION.format(run_id=run.run_id),
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Ok:
+            return
+        try:
+            self.delete_selected()
+        except OSError as exc:
+            QMessageBox.warning(self, "Borttagningen misslyckades", str(exc))

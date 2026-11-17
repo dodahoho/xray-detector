@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFileDialog, QInputDialog
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from xray_detector.application.model_registry import MODEL_SPECS
 from xray_detector.domain.config import AppConfig
@@ -254,13 +254,13 @@ def test_trained_models_are_listed_in_the_settings_tab(qapp, trained_config):
     assert section.list.item(section.list.count() - 1).text() == "Vår tränade modell"
 
 
-def test_trained_model_is_read_only_in_the_settings_tab(qapp, trained_config):
+def test_trained_model_can_only_be_removed_in_the_settings_tab(qapp, trained_config):
     section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
     section.list.setCurrentRow(section.list.count() - 1)
 
     assert section.current_key() == "trained-v3"
     assert not section.rename_button.isEnabled()
-    assert not section.remove_button.isEnabled()
+    assert section.remove_button.isEnabled()
     assert section.trained_hint.isVisibleTo(section)
 
 
@@ -290,3 +290,81 @@ def test_settings_list_and_detection_combo_show_the_same_models(trained_window):
 
     assert _keys(section) == [combo.itemData(row) for row in range(combo.count())]
     assert "trained-v3" in _keys(section)
+
+
+# --- Borttagning av en egentränad modell (TASK-119) ---
+
+
+def _answer_warning(monkeypatch, answer) -> list[str]:
+    """Svarar på QMessageBox.warning och samlar dialogtexterna."""
+    messages: list[str] = []
+
+    def warning(parent, title, text, *args, **kwargs):
+        messages.append(text)
+        return answer
+
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(warning))
+    return messages
+
+
+def test_removing_a_trained_model_warns_about_the_training_files(
+    qapp, trained_config, monkeypatch
+):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+    section.list.setCurrentRow(section.list.count() - 1)
+    messages = _answer_warning(monkeypatch, QMessageBox.StandardButton.Ok)
+
+    section.remove_button.click()
+
+    assert len(messages) == 1
+    assert "träningsfilerna" in messages[0]
+    assert "Vår tränade modell" in messages[0]
+
+
+def test_removing_a_trained_model_deletes_the_training(qapp, trained_config, monkeypatch):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+    section.list.setCurrentRow(section.list.count() - 1)
+    _answer_warning(monkeypatch, QMessageBox.StandardButton.Ok)
+
+    section.remove_button.click()
+
+    assert _keys(section) == [spec.key for spec in MODEL_SPECS]
+    assert not (trained_config.trained_dir / "v3").exists()
+    assert "träningsfilerna" in section.status.text()
+
+
+def test_cancelling_the_warning_keeps_the_trained_model(
+    qapp, trained_config, monkeypatch
+):
+    section = ModelSection(trained_config.models_dir, trained_config.trained_dir)
+    section.list.setCurrentRow(section.list.count() - 1)
+    _answer_warning(monkeypatch, QMessageBox.StandardButton.Cancel)
+
+    section.remove_button.click()
+
+    assert "trained-v3" in _keys(section)
+    assert (trained_config.trained_dir / "v3").is_dir()
+
+
+def test_removing_a_trained_model_updates_the_history_list(
+    trained_window, monkeypatch
+):
+    section = trained_window.settings_view.model_section
+    section.list.setCurrentRow(section.list.count() - 1)
+    _answer_warning(monkeypatch, QMessageBox.StandardButton.Ok)
+
+    section.remove_button.click()
+
+    assert trained_window.training_view.history.table.rowCount() == 0
+
+
+def test_deleting_a_run_in_the_training_view_updates_the_model_lists(trained_window):
+    history = trained_window.training_view.history
+    history.table.selectRow(0)
+
+    assert history.delete_selected() is True
+
+    section = trained_window.settings_view.model_section
+    combo = trained_window.detection_view.model_combo
+    assert "trained-v3" not in _keys(section)
+    assert "trained-v3" not in [combo.itemData(row) for row in range(combo.count())]

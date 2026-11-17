@@ -185,6 +185,20 @@ def run_epochs(run: TrainingRun) -> list[EpochMetrics]:
     return read_epoch_history(run.run_dir / folder / name, run.family, run.epochs)
 
 
+def delete_run(trained_dir: Path, run_id: str) -> None:
+    """Tar bort en träningskörning med vikter, manifest och metrics (TASK-119).
+
+    Körningskatalogen är träningens egen, så allt den skrev ligger i den.
+    Sökvägen kontrolleras så en nyckel utifrån aldrig kan peka utanför
+    models/trained/.
+    """
+    trained_dir = Path(trained_dir)
+    run_dir = (trained_dir / run_id).resolve()
+    if trained_dir.resolve() not in run_dir.parents:
+        raise ValueError(f"Körningen ligger utanför {trained_dir}: {run_id}")
+    shutil.rmtree(run_dir)
+
+
 def export_run(run: TrainingRun, target_dir: Path) -> Path:
     """Kopierar vikterna och manifestet till target_dir/<körning>/.
 

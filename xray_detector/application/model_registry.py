@@ -284,6 +284,13 @@ def is_trained(spec: ModelSpec) -> bool:
     return spec.key.startswith(TRAINED_KEY_PREFIX)
 
 
+def trained_run_id(spec: ModelSpec) -> str | None:
+    """Körnings-id bakom en egentränad modells nyckel; None för en basmodell (TASK-119)."""
+    if not is_trained(spec):
+        return None
+    return spec.key[len(TRAINED_KEY_PREFIX):]
+
+
 def available_models(models_dir: Path, trained_dir: Path) -> list[ModelSpec]:
     """Alla modeller appen kan använda: basmodellerna plus de egentränade (TASK-115).
 

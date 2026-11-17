@@ -5,8 +5,10 @@ och låter användaren lägga till en viktfil från disk eller en adress, byta
 visningsnamn och ta bort en modell. Ändringarna skrivs direkt till
 models/models.json, så vyerna kan bygga om sina väljare på en gång.
 
-Egentränade modeller listas också, men är skrivskyddade: de hittas genom sina
-träningsmanifest under models/trained/ och försvinner när körningen gör det.
+Egentränade modeller listas också. De hittas genom sina träningsmanifest under
+models/trained/ och namnet sätts vid träningen, så de kan inte bytas namn på
+här. De kan tas bort, och då raderas träningsfilerna på samma sätt som när
+körningen tas bort i träningsvyn (TASK-119).
 """
 
 from pathlib import Path
@@ -20,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QVBoxLayout,
 )
 
@@ -29,7 +32,9 @@ from xray_detector.application.model_registry import (
     ModelSpec,
     available_models,
     is_trained,
+    trained_run_id,
 )
+from xray_detector.application.training_history import delete_run
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import LIST_MAX_WIDTH, button
 
@@ -38,8 +43,13 @@ FAMILY_LABELS = {"yolo": "YOLO", "rfdetr": "RF-DETR"}
 LIST_MAX_HEIGHT = 220
 MUTED_COLOR = "#888"
 TRAINED_HINT = (
-    "Egentränad modell: den hittas genom sin träningskörning och kan därför "
-    "inte bytas namn på eller tas bort här."
+    "Egentränad modell: namnet sätts vid träningen och kan därför inte bytas "
+    "här. Ta bort raderar även träningsfilerna."
+)
+TRAINED_REMOVE_QUESTION = (
+    "{label} är en egentränad modell.\n\n"
+    "Borttagningen raderar även träningsfilerna: vikter, manifest, metrics och "
+    "utvärdering. Det går inte att ångra."
 )
 # dialogen har ingen egen hjälptext, så instruktionen står i etiketten
 URL_HINT = (
@@ -56,13 +66,14 @@ class ModelSection(QGroupBox):
     """Modellistan: lägg till, byt namn och ta bort modeller (TASK-81).
 
     En nedladdning kan ta minuter, så tilläggen körs i trådpoolen och knapparna
-    är avstängda under tiden. Borttagningen rör bara listan: viktfilen ligger
-    kvar i models/, så en modell som togs bort av misstag går att lägga till
-    igen utan att laddas ner på nytt.
+    är avstängda under tiden. Borttagningen av en basmodell rör bara listan:
+    viktfilen ligger kvar i models/, så en modell som togs bort av misstag går
+    att lägga till igen utan att laddas ner på nytt.
 
     Listan är densamma som detektionsvyns väljare bygger på (TASK-115), så
-    egentränade modeller syns här också. De ägs av sina träningsmanifest och
-    kan därför inte bytas namn på eller tas bort här.
+    egentränade modeller syns här också. De ägs av sina träningsmanifest, så
+    namnet sätts vid träningen; att ta bort en sådan modell raderar
+    träningsfilerna, precis som i träningsvyn (TASK-119).
     """
 
     models_changed = Signal()
@@ -156,11 +167,12 @@ class ModelSection(QGroupBox):
 
     def _update_buttons(self, *_args) -> None:
         spec = self._current_spec()
-        # en egentränad modell ägs av sitt manifest, så den är skrivskyddad här
-        editable = spec is not None and not is_trained(spec)
-        for widget in (self.rename_button, self.remove_button):
-            widget.setEnabled(editable and not self._busy)
-        self.trained_hint.setVisible(spec is not None and is_trained(spec))
+        # en egentränad modell får sitt namn vid träningen, men kan tas bort
+        # med sina träningsfiler (TASK-119)
+        trained = spec is not None and is_trained(spec)
+        self.rename_button.setEnabled(spec is not None and not trained and not self._busy)
+        self.remove_button.setEnabled(spec is not None and not self._busy)
+        self.trained_hint.setVisible(trained)
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -221,13 +233,36 @@ class ModelSection(QGroupBox):
         self.models_changed.emit()
 
     def _on_remove(self) -> None:
+        """Tar bort modellen; en egentränad modell tar sina träningsfiler med sig (TASK-119)."""
         spec = self._current_spec()
-        if spec is None or is_trained(spec):
+        if spec is None:
             return
-        self.catalog.remove(spec.key)
-        self.refresh()
-        self.status.setText(f"Borttagen ur listan: {spec.label}")
+        run_id = trained_run_id(spec)
+        if run_id is not None:
+            if not self._confirm_trained_removal(spec):
+                return
+            try:
+                delete_run(self.trained_dir, run_id)
+            except OSError as exc:
+                self.status.setText(f"Kunde inte ta bort träningen: {exc}")
+                return
+            self.refresh()
+            self.status.setText(f"Borttagen med träningsfilerna: {spec.label}")
+        else:
+            self.catalog.remove(spec.key)
+            self.refresh()
+            self.status.setText(f"Borttagen ur listan: {spec.label}")
         self.models_changed.emit()
+
+    def _confirm_trained_removal(self, spec: ModelSpec) -> bool:
+        """Varnar att en egentränad modell tar sina träningsfiler med sig (TASK-119)."""
+        answer = QMessageBox.warning(
+            self,
+            "Ta bort egentränad modell",
+            TRAINED_REMOVE_QUESTION.format(label=spec.label),
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+        )
+        return answer == QMessageBox.StandardButton.Ok
 
     def _current_spec(self) -> ModelSpec | None:
         key = self.current_key()

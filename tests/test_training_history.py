@@ -3,8 +3,12 @@
 import json
 from pathlib import Path
 
+import pytest
+from PySide6.QtWidgets import QMessageBox
+
 from xray_detector.application.training_history import (
     TrainingRun,
+    delete_run,
     export_run,
     run_epochs,
     training_runs,
@@ -356,3 +360,116 @@ def test_run_details_are_readable_for_a_manual_run(tmp_path):
     assert run.map50_95_text == "-"
     assert run.status_label == "Pågår"
     assert "Bildstorlek (längsta sidan): -" in run.details
+
+
+# --- Borttagning av en träning (TASK-119) ---
+
+
+def test_delete_run_removes_the_run_directory(tmp_path):
+    run_dir = _write_run(tmp_path, "korning")
+    (run_dir / "evaluation.json").write_text("{}", encoding="utf-8")
+
+    delete_run(tmp_path, "korning")
+
+    assert not run_dir.exists()
+    assert training_runs(tmp_path) == []
+
+
+def test_delete_run_keeps_the_other_runs(tmp_path):
+    _write_run(tmp_path, "2026-11-11_120000", started="2026-11-11T12:00:00+00:00")
+    _write_run(tmp_path, "2026-11-12_090000", started="2026-11-12T09:00:00+00:00")
+
+    delete_run(tmp_path, "2026-11-12_090000")
+
+    assert [run.run_id for run in training_runs(tmp_path)] == ["2026-11-11_120000"]
+
+
+def test_delete_run_refuses_a_path_outside_the_trained_dir(tmp_path):
+    trained = tmp_path / "trained"
+    trained.mkdir()
+    outside = tmp_path / "annat"
+    outside.mkdir()
+
+    with pytest.raises(ValueError):
+        delete_run(trained, "../annat")
+
+    assert outside.is_dir()
+
+
+def test_delete_button_is_disabled_without_a_selection(qapp, tmp_path):
+    _write_run(tmp_path, "korning")
+
+    view = _history_view(qapp, tmp_path)
+
+    assert not view.delete_button.isEnabled()
+    assert view.delete_selected() is False
+
+
+def test_delete_selected_removes_the_run_and_its_files(qapp, tmp_path):
+    run_dir = _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.table.selectRow(0)
+
+    assert view.delete_selected() is True
+
+    assert not run_dir.exists()
+    assert view.table.rowCount() == 0
+    assert view.selected_run() is None
+
+
+def test_deleting_a_run_emits_run_deleted(qapp, tmp_path):
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.table.selectRow(0)
+    emitted = []
+    view.run_deleted.connect(lambda: emitted.append(True))
+
+    view.delete_selected()
+
+    assert emitted == [True]
+
+
+def test_delete_button_asks_before_removing(qapp, tmp_path, monkeypatch):
+    run_dir = _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.table.selectRow(0)
+    messages: list[str] = []
+
+    def warning(parent, title, text, *args, **kwargs):
+        messages.append(text)
+        return QMessageBox.StandardButton.Cancel
+
+    monkeypatch.setattr(QMessageBox, "warning", staticmethod(warning))
+
+    view.delete_button.click()
+
+    assert run_dir.is_dir()
+    assert "korning" in messages[0]
+
+
+def test_delete_button_removes_the_run_when_confirmed(qapp, tmp_path, monkeypatch):
+    run_dir = _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.table.selectRow(0)
+    monkeypatch.setattr(
+        QMessageBox,
+        "warning",
+        staticmethod(lambda *args, **kwargs: QMessageBox.StandardButton.Ok),
+    )
+
+    view.delete_button.click()
+
+    assert not run_dir.exists()
+    assert view.table.rowCount() == 0
+
+
+def test_running_training_cannot_be_deleted(qapp, tmp_path):
+    from xray_detector.ui.training_history import TrainingHistoryView
+
+    run_dir = _write_run(tmp_path, "korning", status="running")
+    view = TrainingHistoryView(tmp_path, active_run_dir=lambda: run_dir)
+    view.table.selectRow(0)
+
+    assert not view.delete_button.isEnabled()
+    assert view.delete_selected() is False
+    assert run_dir.is_dir()

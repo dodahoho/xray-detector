@@ -55,6 +55,8 @@ class TrainingView(QWidget):
     training_started = Signal()
     training_finished = Signal()
     status_changed = Signal(str)
+    #: Modellistan ändrades, som när en träning togs bort (TASK-119).
+    models_changed = Signal()
 
     def __init__(self, config: AppConfig, dataset: DatasetService, settings, parent=None) -> None:
         super().__init__(parent)
@@ -106,8 +108,14 @@ class TrainingView(QWidget):
         layout.addWidget(self.chart, 2)
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.history = TrainingHistoryView(self.config.trained_dir, self.dataset_service)
+        self.history = TrainingHistoryView(
+            self.config.trained_dir,
+            self.dataset_service,
+            active_run_dir=self._active_run_dir,
+        )
         self.history.run_selected.connect(self._on_history_selected)
+        # en borttagen träning försvinner ur modellväljarna (TASK-119)
+        self.history.run_deleted.connect(self._on_run_deleted)
         self.bottom_tabs = QTabWidget()
         self.bottom_tabs.addTab(self.log, "Logg")
         self.bottom_tabs.addTab(self.history, "Tidigare träningar")
@@ -518,6 +526,17 @@ class TrainingView(QWidget):
 
     def _training_active(self) -> bool:
         return self.worker is not None and self.worker.is_running()
+
+    def _active_run_dir(self) -> Path | None:
+        """Katalogen träningen skriver i just nu, så historiken inte tar bort den (TASK-119)."""
+        if not self._training_active():
+            return None
+        return Path(self.worker.config.output_dir)
+
+    def _on_run_deleted(self) -> None:
+        """En borttagen träning försvinner ur modellväljarna (TASK-119)."""
+        self.status_changed.emit("Träningen borttagen – modellväljarna uppdaterade")
+        self.models_changed.emit()
 
     def _on_history_selected(self, run) -> None:
         """Visar en vald tidigare träning i grafen (TASK-70).
