@@ -46,6 +46,24 @@ def rfdetr_resolution_error(imgsz: int) -> str | None:
     return None
 
 
+def trained_model_name(
+    base_name: str,
+    date: str,
+    pairs: int,
+    synthetic: int,
+    classes: int,
+) -> str:
+    """Visningsnamn för en tränad modell (TASK-108).
+
+    Mönstret är ``[basmodell] [datum] [ursprungsbildpar + syntetiska bilder]
+    [antal klasser]``, till exempel ``YOLO26 large 2026-11-15 13+29 bildpar
+    4 klasser``. Basmodellens namn är modellen den första träningen utgick
+    från, så en vidareträning på samma dataset bara byter datum.
+    """
+    klass = "klass" if classes == 1 else "klasser"
+    return f"{base_name} {date} {pairs}+{synthetic} bildpar {classes} {klass}"
+
+
 @dataclass
 class TrainConfig:
     dataset_yaml: Path
@@ -56,6 +74,10 @@ class TrainConfig:
     batch: int | None = None
     family: str = "yolo"
     overfitting_guard: bool = True
+    #: visningsnamn för den tränade modellen (TASK-108)
+    name: str = ""
+    #: basmodellens visningsnamn, ärvt när basen är en egen tränad modell (TASK-108)
+    base_name: str = ""
 
     def batch_size(self) -> int:
         """Batchestorleken; familjens default när inget eget värde är satt."""

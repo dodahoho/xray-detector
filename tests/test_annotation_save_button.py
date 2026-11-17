@@ -94,3 +94,50 @@ def test_save_is_enabled_again_for_the_next_capture(window):
     open_from_detection(window)
 
     assert window.annotation_view.save_button.isEnabled()
+
+
+# --- Redigering ersätter bildparet i stället för att kopiera det (TASK-110) ---
+
+
+def test_saving_an_edited_pair_replaces_it_instead_of_copying(window):
+    open_from_dataset(window)
+    canvas = window.annotation_view.canvases[0]
+    canvas.selected = canvas.rects[0]
+    canvas.delete_selected()
+
+    window.annotation_view._on_save()
+    window.annotation_view.wait_for_save()
+
+    dataset = window.dataset_service.load_dataset()
+    assert len(dataset["images"]) == 1
+    assert dataset["images"][0]["id"] == 1
+    assert dataset["images"][0]["annotations"] == []
+
+
+def test_saving_an_edited_pair_keeps_its_group_and_capture_time(window):
+    window.dataset_service.add_samples(
+        [AnnotatedImage(synthetic_frame(), [{"class_name": "kniv", "bbox": [8, 8, 20, 24]}])],
+        captured="2026-11-01T09:00:00",
+    )
+    window.dataset_view.refresh()
+    window.dataset_view.wait_for_refresh()
+    window.dataset_view._on_thumb_double_clicked(window.dataset_view._thumbs[0])
+    canvas = window.annotation_view.canvases[0]
+    canvas.selected = canvas.rects[0]
+    canvas.delete_selected()
+
+    window.annotation_view._on_save()
+    window.annotation_view.wait_for_save()
+
+    image = window.dataset_service.load_dataset()["images"][0]
+    assert image["group"] == 1
+    assert image["captured"] == "2026-11-01T09:00:00"
+
+
+def test_saving_a_new_capture_still_adds_a_pair(window):
+    open_from_detection(window)
+
+    window.annotation_view._on_save()
+    window.annotation_view.wait_for_save()
+
+    assert len(window.dataset_service.load_dataset()["images"]) == 1

@@ -212,6 +212,10 @@ def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
     finished = None if state.status == "running" else datetime.now(UTC)
     manifest = {
         "family": args.family,
+        # visningsnamnet byggs av GUI:t, som känner datasetets sammansättning
+        # och basmodellens namn (TASK-108)
+        "name": getattr(args, "name", "") or None,
+        "base_model_name": getattr(args, "base_name", "") or None,
         "base_weights": args.weights,
         "weights_relative": best.relative_to(run_dir).as_posix(),
         "classes": _read_data_classes(Path(args.dataset)),
@@ -316,6 +320,16 @@ def main() -> None:
         help="Avbryt träningen när överträning detekteras",
     )
     parser.add_argument("--overfitting-patience", type=int, default=DEFAULT_PATIENCE)
+    parser.add_argument(
+        "--name",
+        default="",
+        help="Visningsnamn för den tränade modellen (TASK-108)",
+    )
+    parser.add_argument(
+        "--base-name",
+        default="",
+        help="Basmodellens visningsnamn, ärvt vid vidareträning (TASK-108)",
+    )
     args = parser.parse_args()
     if args.batch is None:
         args.batch = default_batch(args.family)

@@ -8,7 +8,7 @@ models_dir, så listan följer med när katalogen pekas om i config.yaml.
 
 import shutil
 import urllib.request
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from json import load as json_load
 from pathlib import Path
 from urllib.parse import urlparse
@@ -30,6 +30,8 @@ class ModelSpec:
     label: str
     family: str
     weights: str
+    #: basmodellens visningsnamn för en egen tränad modell (TASK-108)
+    base_name: str = ""
 
 
 MODEL_SPECS: list[ModelSpec] = [
@@ -105,9 +107,21 @@ class ModelCatalog:
         return list(MODEL_SPECS) if entries is None else entries
 
     def save(self, specs: list[ModelSpec]) -> None:
+        """Skriver listan; base_name hör till tränade modeller och sparas inte."""
         atomic_write_json(
             self.path,
-            {"version": CATALOG_VERSION, "models": [asdict(spec) for spec in specs]},
+            {
+                "version": CATALOG_VERSION,
+                "models": [
+                    {
+                        "key": spec.key,
+                        "label": spec.label,
+                        "family": spec.family,
+                        "weights": spec.weights,
+                    }
+                    for spec in specs
+                ],
+            },
         )
 
     def add_local(self, source: Path, label: str | None = None) -> ModelSpec:
@@ -245,12 +259,20 @@ def trained_models(trained_dir: Path) -> list[ModelSpec]:
             continue
         base = Path(manifest.get("base_weights", "modell")).stem
         classes = ", ".join(manifest.get("classes", []))
-        label = f"Tränad {run_dir} ({base})" + (f" [{classes}]" if classes else "")
+        # manifest utan name är skrivna före TASK-108 och får den gamla etiketten
+        label = manifest.get("name") or (
+            f"Tränad {run_dir} ({base})" + (f" [{classes}]" if classes else "")
+        )
         # manifest utan familj är skrivna före TASK-48 och är alltid YOLO
         family = str(manifest.get("family") or "yolo")
         specs.append(
-            ModelSpec(key=f"trained-{run_dir}", label=label,
-                      family=family, weights=str(weights))
+            ModelSpec(
+                key=f"trained-{run_dir}",
+                label=label,
+                family=family,
+                weights=str(weights),
+                base_name=str(manifest.get("base_model_name") or ""),
+            )
         )
     return specs
 

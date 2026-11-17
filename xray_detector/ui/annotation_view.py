@@ -437,6 +437,8 @@ class AnnotationView(QWidget):
         # anropbar som ger vald modells klassnamn; de är bara standardvärden (TASK-61)
         self.model_classes = model_classes
         self.pending_group_id: str | None = None
+        # datasetets bild-id:n när sparade bilder redigeras; då ersätts de (TASK-110)
+        self.dataset_ids: list[int] = []
         # bilder som redan ligger i datasetet kräver en ändring före sparning (TASK-62)
         self._save_requires_change = False
         self._save_task: BackgroundTask | None = None
@@ -624,6 +626,13 @@ class AnnotationView(QWidget):
         self._ask_seed_classes()
         self._ask_add_detected_classes(captures)
         self.pending_group_id = pending_group_id
+        # en bild som kommer ur datasetet bär sitt id, så sparningen kan
+        # ersätta den i stället för att lägga till en kopia (TASK-110)
+        self.dataset_ids = [
+            capture.dataset_id
+            for capture in captures
+            if getattr(capture, "dataset_id", None) is not None
+        ]
         for canvas in self.canvases:
             canvas.set_class_name(self.class_combo.currentText())
         for canvas, capture in zip(self.canvases, captures):
@@ -695,6 +704,7 @@ class AnnotationView(QWidget):
             if answer != QMessageBox.StandardButton.Yes:
                 return
         pending_group_id = self.pending_group_id
+        dataset_ids = self.dataset_ids
         # fångsttiden finns i pending-indexet, som skrevs vid knapptrycket
         captured = (
             self.dataset_service.pending_saved_at(pending_group_id)
@@ -704,7 +714,7 @@ class AnnotationView(QWidget):
         self.busy.start("Sparar annoteringar...")
         self.save_button.setEnabled(False)
         task = BackgroundTask(
-            lambda: self._write(samples, captured, pending_group_id)
+            lambda: self._write(samples, captured, pending_group_id, dataset_ids)
         )
         task.succeeded.connect(self._on_saved)
         task.failed.connect(self._on_save_failed)
@@ -712,14 +722,19 @@ class AnnotationView(QWidget):
         self._save_task = task
         task.start()
 
-    def _write(self, samples, captured, pending_group_id) -> None:
+    def _write(self, samples, captured, pending_group_id, dataset_ids) -> None:
         """Skriver datasetet i arbetstråden, inklusive städning av pending (TASK-40)."""
-        self.dataset_service.add_samples(samples, captured)
+        if dataset_ids:
+            # en redigering av ett sparat bildpar ersätter paret (TASK-110)
+            self.dataset_service.replace_samples(dataset_ids, samples)
+        else:
+            self.dataset_service.add_samples(samples, captured)
         if pending_group_id:
             self.dataset_service.remove_pending(pending_group_id)
 
     def _on_saved(self) -> None:
         self.pending_group_id = None
+        self.dataset_ids = []
         self._save_requires_change = False
         self.mark_clean()
         for canvas in self.canvases:

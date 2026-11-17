@@ -412,6 +412,11 @@ class DatasetView(QWidget):
         self.delete_button = button(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
+        # klasslistan är datasetets egen, så rensningen står som en egen grupp (TASK-109)
+        bar.addSpacing(BUTTON_GROUP_GAP)
+        self.unused_classes_button = button(mnemonic("Ta bort oanvända klasser", "k"))
+        self.unused_classes_button.clicked.connect(self._on_remove_unused_classes)
+        bar.addWidget(self.unused_classes_button)
         self.settings_button = settings_button(
             self, "Inställningar – Dataset", self._settings_sections
         )
@@ -1052,7 +1057,8 @@ class DatasetView(QWidget):
                 )
             frames.append(
                 StreamFrame(source_id=f"img{entry['id']}", frame=frame,
-                             detections=detections, source_label=entry["file_name"])
+                             detections=detections, source_label=entry["file_name"],
+                             dataset_id=entry["id"])
             )
         if frames:
             self.open_annotation_requested.emit(frames)
@@ -1079,4 +1085,23 @@ class DatasetView(QWidget):
         for group_id in pending_ids:
             self.dataset_service.remove_pending(group_id)
         self.status_changed.emit(f"Tog bort {count} bildpar från datasetet")
+        self.refresh()
+
+    def _on_remove_unused_classes(self) -> None:
+        """Rensar klasslistan till de klasser som finns annoterade (TASK-109)."""
+        unused = self.dataset_service.unused_classes()
+        if not unused:
+            self.status_changed.emit("Alla klasser i datasetet används")
+            return
+        answer = QMessageBox.question(
+            self,
+            "Ta bort oanvända klasser",
+            f"Ta bort {len(unused)} oanvända klasser ur datasetets klasslista?\n\n"
+            + ", ".join(unused),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        removed = self.dataset_service.remove_unused_classes()
+        self.status_changed.emit(f"Tog bort {len(removed)} oanvända klasser")
         self.refresh()

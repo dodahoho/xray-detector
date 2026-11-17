@@ -137,3 +137,97 @@ def test_delete_images_is_noop_for_unknown_ids(tmp_path):
     svc.add_samples([sample()])
     svc.delete_images([999])
     assert len(svc.load_dataset()["images"]) == 1
+
+
+# --- Oanvända klasser (TASK-109) ---
+
+
+def test_unused_classes_are_the_ones_without_annotations(tmp_path):
+    svc = make_service(tmp_path)
+    svc.set_classes(["kniv", "pistol", "cannabis"])
+    svc.add_samples([sample(class_name="pistol")])
+
+    assert svc.unused_classes() == ["kniv", "cannabis"]
+
+
+def test_remove_unused_classes_keeps_the_annotations_of_the_used_ones(tmp_path):
+    """Indexen skrivs om, så en kvarvarande klass behåller sina annoteringar."""
+    svc = make_service(tmp_path)
+    svc.set_classes(["kniv", "pistol", "cannabis"])
+    svc.add_samples([sample(class_name="pistol")])
+
+    removed = svc.remove_unused_classes()
+
+    assert removed == ["kniv", "cannabis"]
+    assert svc.classes() == ["pistol"]
+    dataset = svc.load_dataset()
+    assert [a["class_name"] for a in dataset["images"][0]["annotations"]] == ["pistol"]
+    assert (svc.store.labels_dir / "img_000001.txt").read_text(
+        encoding="utf-8"
+    ).startswith("0 ")
+
+
+def test_remove_unused_classes_is_a_no_op_when_every_class_is_used(tmp_path):
+    svc = make_service(tmp_path)
+    svc.add_samples([sample(), sample(200, "pistol")])
+
+    assert svc.remove_unused_classes() == []
+    assert svc.classes() == ["kniv", "pistol"]
+
+
+def test_every_class_is_unused_before_anything_is_annotated(tmp_path):
+    svc = make_service(tmp_path)
+    svc.set_classes(["kniv", "pistol"])
+
+    assert svc.unused_classes() == ["kniv", "pistol"]
+
+
+# --- Redigering ersätter bilden på plats (TASK-110) ---
+
+
+def test_replace_samples_keeps_the_id_and_rewrites_the_annotations(tmp_path):
+    svc = make_service(tmp_path)
+    svc.add_samples([sample(), sample(200)])
+    before = svc.load_dataset()["images"][0]
+
+    svc.replace_samples(
+        [before["id"]],
+        [AnnotatedImage(np.full((40, 50, 3), 90, np.uint8),
+                        [{"class_name": "pistol", "bbox": [4, 4, 8, 8]}])],
+    )
+
+    images = svc.load_dataset()["images"]
+    assert len(images) == 1 + 1  # den andra bilden ligger kvar
+    assert images[0]["id"] == before["id"]
+    assert images[0]["group"] == before["group"]
+    assert [a["class_name"] for a in images[0]["annotations"]] == ["pistol"]
+    assert svc.metadata()["num_objects"] == 2
+
+
+def test_replace_samples_keeps_the_synthetic_origin(tmp_path):
+    """En redigerad variation fortsätter höra till sitt ursprung (TASK-110)."""
+    from xray_detector.domain.dataset import VariationSettings
+
+    svc = make_service(tmp_path)
+    svc.add_samples([sample()])
+    svc.add_variations(VariationSettings(count=1, flip_horizontal=True), seed=1)
+    variation = next(i for i in svc.load_dataset()["images"] if i.get("synthetic"))
+
+    svc.replace_samples([variation["id"]], [sample(150)])
+
+    updated = next(i for i in svc.load_dataset()["images"] if i["id"] == variation["id"])
+    assert updated["synthetic"] is True
+    assert updated["source"] == variation["source"]
+
+
+def test_replace_samples_falls_back_to_delete_and_add_on_a_count_mismatch(tmp_path):
+    svc = make_service(tmp_path)
+    svc.add_samples([sample(), sample(200)])
+    ids = [image["id"] for image in svc.load_dataset()["images"]]
+
+    svc.replace_samples(ids, [sample(90)])
+
+    images = svc.load_dataset()["images"]
+    assert len(images) == 1
+    assert len(images[0]["annotations"]) == 1
+    assert svc.metadata()["num_objects"] == 1

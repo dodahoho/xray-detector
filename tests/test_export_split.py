@@ -311,3 +311,80 @@ def test_stratified_split_is_reproducible():
 
     assert [image["id"] for image in first[0]] == [image["id"] for image in second[0]]
     assert [image["id"] for image in first[1]] == [image["id"] for image in second[1]]
+
+
+# --- Syntetiska bilder i delningen (TASK-111) ---
+
+
+def _original(image_id: int, group: int) -> dict:
+    return {
+        "id": image_id,
+        "group": group,
+        "annotations": [{"class_name": "kniv", "bbox": [1, 1, 6, 6]}],
+    }
+
+
+def _synthetic(image_id: int, group: int, source: int) -> dict:
+    """En variation: egen fångstgrupp, men source pekar på ursprungsbilden."""
+    return {
+        "id": image_id,
+        "group": group,
+        "synthetic": True,
+        "source": source,
+        "annotations": [{"class_name": "kniv", "bbox": [1, 1, 6, 6]}],
+    }
+
+
+def _originals(count: int) -> list[dict]:
+    return [_original(image_id, group) for group, image_id in enumerate(range(1, count + 1), 1)]
+
+
+def _variations(originals: list[dict]) -> list[dict]:
+    return [
+        _synthetic(100 + index, 50 + index, source=image["id"])
+        for index, image in enumerate(originals)
+    ]
+
+
+def test_synthetic_images_follow_their_origin_into_the_split():
+    """En syntetisk bild hamnar alltid i samma del som sitt ursprung (TASK-111)."""
+    originals = _originals(12)
+    variations = _variations(originals)
+
+    for seed in range(5):
+        train, val = train_val_split(originals + variations, 0.5, seed)
+        split_of = {image["id"]: "train" for image in train}
+        split_of.update({image["id"]: "val" for image in val})
+        for variation in variations:
+            assert split_of[variation["id"]] == split_of[variation["source"]], seed
+
+
+def test_group_count_counts_original_pairs_only():
+    images = [
+        {"id": 1, "group": 1},
+        {"id": 2, "group": 1},
+        _synthetic(3, 7, source=1),
+        _synthetic(4, 8, source=2),
+    ]
+
+    assert group_count(images) == 1
+
+
+def test_split_is_unchanged_when_the_dataset_is_extended():
+    """Utökningen får inte flytta ett enda original mellan train och val (TASK-111)."""
+    originals = _originals(12)
+    variations = _variations(originals)
+
+    before = train_val_split(originals, 0.5, 7)
+    after = train_val_split(originals + variations, 0.5, 7)
+
+    assert [[image["id"] for image in split] for split in before] == [
+        [image["id"] for image in split if not image.get("synthetic")] for split in after
+    ]
+
+
+def test_synthetic_without_its_origin_keeps_its_own_group():
+    """Saknas ursprunget i listan får bilden ingen grupp att följa (TASK-111)."""
+    images = [{"id": 1, "group": 1}, _synthetic(2, 9, source=404)]
+
+    assert group_count(images) == 2

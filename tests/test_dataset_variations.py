@@ -405,3 +405,17 @@ def test_delete_synthetic_without_synthetic_images_returns_zero(tmp_path):
 
     assert service.delete_synthetic() == 0
     assert len(service.load_dataset()["images"]) == 1
+
+
+def test_dataset_counts_separates_original_pairs_from_synthetic_images(tmp_path):
+    """Namngivningen räknar ursprungspar och syntetiska bilder för sig (TASK-108)."""
+    service = _service(tmp_path)
+    for fill in (60, 120, 180):
+        service.add_samples([_sample(fill), _sample(fill + 10)])
+
+    assert service.dataset_counts() == (3, 0)
+
+    service.add_variations(VariationSettings(count=2, flip_horizontal=True), seed=1)
+
+    # två variationer per bildpar ger två syntetiska bilder per par
+    assert service.dataset_counts() == (3, 12)

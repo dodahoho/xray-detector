@@ -17,19 +17,47 @@ def _group_key(image: dict) -> object:
     return image.get("group") or image["id"]
 
 
+def _root_image(image: dict, by_id: dict[int, dict]) -> dict:
+    """Ursprungsbilden för en syntetisk bild; bilden själv när den är ett original.
+
+    ``source`` pekar på bilden variationen skapades från, och en variation görs
+    alltid på ett original. Kedjan följs därför bara så länge källan finns med,
+    så en bild vars ursprung saknas i listan behåller sin egen grupp (TASK-111).
+    """
+    seen: set[int] = set()
+    current = image
+    while current.get("synthetic"):
+        source = by_id.get(current.get("source"))
+        if source is None or current["id"] in seen:
+            break
+        seen.add(current["id"])
+        current = source
+    return current
+
+
 def _groups(images: list[dict]) -> dict[object, list[dict]]:
-    """Bilderna grupperade per fångstgrupp (bildpar)."""
+    """Bilderna grupperade per fångstgrupp (bildpar).
+
+    En syntetisk bild hamnar i sin ursprungsbilds grupp, så en utökning av ett
+    bildpar aldrig kan läcka mellan train och val (TASK-111).
+    """
+    by_id = {image["id"]: image for image in images}
     groups: dict[object, list[dict]] = {}
     for image in images:
-        groups.setdefault(_group_key(image), []).append(image)
+        groups.setdefault(_group_key(_root_image(image, by_id)), []).append(image)
     return groups
 
 
 def _signature(images: list[dict]) -> frozenset[str]:
-    """Klassuppsättningen i en fångstgrupp (TASK-94)."""
+    """Klassuppsättningen i en fångstgrupp (TASK-94).
+
+    Räknas på ursprungsbilderna: en variation kan tappa en annotering som hamnat
+    utanför bilden, och då ska den inte styra stratifieringen (TASK-111).
+    """
+    originals = [image for image in images if not image.get("synthetic")]
     return frozenset(
         annotation["class_name"]
-        for image in images
+        for image in originals or images
         for annotation in image.get("annotations") or []
     )
 
@@ -183,8 +211,12 @@ def train_val_test_split(
 
 
 def group_count(images: list[dict]) -> int:
-    """Antal fångstgrupper (bildpar) i en lista bilder (TASK-72)."""
-    return len({_group_key(image) for image in images})
+    """Antal fångstgrupper (bildpar) i en lista bilder (TASK-72).
+
+    En syntetisk bild räknas i sin ursprungsbilds grupp, så siffran är antalet
+    ursprungspar och inte antalet kort i datasetvyn (TASK-111).
+    """
+    return len(_groups(images))
 
 
 def _fresh_dir(path: Path) -> Path:

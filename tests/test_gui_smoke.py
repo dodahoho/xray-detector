@@ -48,18 +48,18 @@ def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
     assert [rect.class_name for rect in canvas.rects] == ["kniv"]
     assert window.tabs.currentIndex() == 1
 
-    # spara -> ny fångstgrupp i samma dataset
+    # spara -> bildparet ersätts i stället för att kopieras (TASK-110)
     window.annotation_view._on_save()
     window.annotation_view.wait_for_save()
     dataset = service.load_dataset()
-    assert len(dataset["images"]) == 2
+    assert len(dataset["images"]) == 1
     groups = {image.get("group") for image in dataset["images"]}
-    assert None not in groups and len(groups) == 2
+    assert None not in groups and len(groups) == 1
 
-    # datasetvyn visar tvÃ¥ thumbnails och annotation-fliken lÃ¥st igen
+    # datasetvyn visar ett thumbnail och annotation-fliken låst igen
     view.refresh()
     view.wait_for_refresh()
-    assert len(view._thumbs) == 2
+    assert len(view._thumbs) == 1
     assert not window.tabs.isTabEnabled(1)
 
 

@@ -209,6 +209,31 @@ class DatasetStore:
             for row in read_labels(path)
         )
 
+    def unused_classes(self) -> list[str]:
+        """Klasser i data.yaml som ingen annotering använder (TASK-109).
+
+        Läses i en svepning över labels/ i stället för en sökning per klass, så
+        en lång klasslista inte kostar en genomläsning av datasetet per namn.
+        """
+        names = self.classes()
+        if not self.labels_dir.exists():
+            return list(names)
+        used: set[int] = set()
+        for path in self.labels_dir.glob("*.txt"):
+            used.update(row[0] for row in read_labels(path))
+        return [name for index, name in enumerate(names) if index not in used]
+
+    def remove_unused_classes(self) -> list[str]:
+        """Rensar klasslistan till de klasser som finns annoterade (TASK-109).
+
+        set_classes skriver om labelindexen, så de klasser som blir kvar
+        behåller sina annoteringar. Returnerar de borttagna namnen.
+        """
+        removed = self.unused_classes()
+        if removed:
+            self.set_classes([name for name in self.classes() if name not in removed])
+        return removed
+
     def add_samples(
         self,
         samples: list[AnnotatedImage],
@@ -252,6 +277,56 @@ class DatasetStore:
         if names != known:
             write_data_yaml(self.data_yaml, names)
         metadata["info"]["num_objects"] = metadata["info"].get("num_objects", 0) + objects
+        self._save_metadata(metadata)
+
+    def replace_samples(
+        self,
+        image_ids: list[int],
+        samples: list[AnnotatedImage],
+    ) -> None:
+        """Skriver om sparade bilder på plats i stället för att lägga till kopior (TASK-110).
+
+        Bild-id, fångstgrupp, fångsttid och synthetic/source behålls, så ett
+        redigerat bildpar ligger kvar på samma plats i datasetet och en
+        variation fortsätter höra till sitt ursprung. Stämmer antalet bilder
+        inte med antalet id:n raderas de gamla och bilderna läggs till som nya.
+        """
+        metadata = self._load_metadata()
+        by_id = {image["id"]: image for image in metadata["images"]}
+        targets = [by_id[image_id] for image_id in image_ids if image_id in by_id]
+        if len(targets) != len(samples):
+            self.delete_images(image_ids)
+            self.add_samples(samples)
+            return
+        self.images_dir.mkdir(parents=True, exist_ok=True)
+        self.labels_dir.mkdir(parents=True, exist_ok=True)
+        names = self.classes()
+        known = list(names)
+        replaced = 0
+        objects = 0
+        for image, sample in zip(targets, samples):
+            label = self._label_path(image["file_name"])
+            replaced += len(read_labels(label))
+            cv2.imwrite(str(self.images_dir / image["file_name"]), sample.frame)
+            height, width = sample.frame.shape[:2]
+            rows = [
+                from_pixels(
+                    self._class_index(names, annotation["class_name"]),
+                    annotation["bbox"],
+                    width,
+                    height,
+                )
+                for annotation in sample.annotations
+            ]
+            write_labels(label, rows)
+            objects += len(rows)
+            image["width"] = width
+            image["height"] = height
+        if names != known:
+            write_data_yaml(self.data_yaml, names)
+        metadata["info"]["num_objects"] = max(
+            0, metadata["info"].get("num_objects", 0) - replaced + objects
+        )
         self._save_metadata(metadata)
 
     def add_variations(
@@ -349,6 +424,18 @@ class DatasetStore:
 
     def metadata(self) -> dict:
         return self._load_metadata()["info"]
+
+    def dataset_counts(self) -> tuple[int, int]:
+        """Antal ursprungsbildpar och antal syntetiska bilder (TASK-108).
+
+        Räknas på metadata, så siffrorna är desamma som delningen utgår från:
+        en syntetisk bild hör till sitt ursprungs bildpar och lägger därför
+        inte till ett par.
+        """
+        images = self._load_metadata()["images"]
+        originals = [image for image in images if not image.get("synthetic")]
+        pairs = len({image.get("group") or image["id"] for image in originals})
+        return pairs, len(images) - len(originals)
 
     def image_sizes(self) -> list[tuple[int, int, int]]:
         """Datasetets bildupplösningar som (bredd, höjd, antal) (TASK-80).

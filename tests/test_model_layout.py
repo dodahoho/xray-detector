@@ -331,3 +331,60 @@ def test_empty_legacy_models_dir_is_silent(tmp_path):
     _warn_about_legacy_models(config, log)
 
     assert messages == []
+
+
+# --- Namngivning av tränad modell (TASK-108) ---
+
+
+def _write_named_run(trained_dir: Path, run: str, name: str, base_model_name: str) -> None:
+    run_dir = trained_dir / run
+    weights = run_dir / "yolo" / "weights" / "best.pt"
+    weights.parent.mkdir(parents=True, exist_ok=True)
+    weights.write_bytes(b"vikter")
+    manifest = {
+        "family": "yolo",
+        "name": name,
+        "base_model_name": base_model_name,
+        "base_weights": "yolo26l.pt",
+        "weights_relative": "yolo/weights/best.pt",
+        "classes": ["kniv", "pistol"],
+    }
+    (run_dir / "training_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def test_trained_models_use_the_name_from_the_manifest(tmp_path):
+    trained = tmp_path / "trained"
+    _write_named_run(
+        trained,
+        "2026-11-15_130000",
+        "YOLO26 large 2026-11-15 13+29 bildpar 4 klasser",
+        "YOLO26 large",
+    )
+
+    spec = trained_models(trained)[0]
+
+    assert spec.label == "YOLO26 large 2026-11-15 13+29 bildpar 4 klasser"
+    assert spec.base_name == "YOLO26 large"
+
+
+def test_trained_models_without_a_name_keep_the_old_label(tmp_path):
+    """Manifest skrivna före TASK-108 saknar name och får den gamla etiketten."""
+    trained = tmp_path / "trained"
+    _write_run(trained, "v3")
+
+    spec = trained_models(trained)[0]
+
+    assert spec.label.startswith("Tränad v3")
+    assert spec.base_name == ""
+
+
+def test_the_catalog_does_not_write_base_name_to_models_json(tmp_path):
+    """base_name hör till tränade modeller och ska inte hamna i models.json."""
+    from xray_detector.application.model_registry import ModelCatalog
+
+    catalog = ModelCatalog(tmp_path / "models")
+    catalog.save([MODEL_SPECS[0]])
+
+    payload = json.loads(catalog.path.read_text(encoding="utf-8"))
+
+    assert set(payload["models"][0]) == {"key", "label", "family", "weights"}

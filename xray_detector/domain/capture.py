@@ -13,6 +13,8 @@ class StreamFrame:
     source_label: str
     sequence: int = 0
     fps: float | None = None
+    #: datasetets bild-id när ramen är en sparad bild som redigeras (TASK-110)
+    dataset_id: int | None = None
 
 
 @dataclass(frozen=True)

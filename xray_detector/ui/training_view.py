@@ -29,6 +29,7 @@ from xray_detector.domain.training import (
     default_batch,
     imgsz_for,
     rfdetr_resolution_error,
+    trained_model_name,
 )
 from xray_detector.ui.settings_dialog import (
     TRAIN_RATIO_KEY,
@@ -354,6 +355,21 @@ class TrainingView(QWidget):
         if sizes and not self._imgsz_user_set:
             self._set_imgsz(imgsz_for(sizes[0][0], sizes[0][1]), user=False)
 
+    def _trained_name(self, spec, now: datetime) -> str:
+        """Visningsnamn för körningen enligt TASK-108:s mönster.
+
+        Basmodellens namn ärvs när basen är en egen tränad modell, så en
+        vidareträning på samma dataset bara byter datum.
+        """
+        pairs, synthetic = self.dataset_service.dataset_counts()
+        return trained_model_name(
+            base_name=spec.base_name or spec.label,
+            date=now.strftime("%Y-%m-%d"),
+            pairs=pairs,
+            synthetic=synthetic,
+            classes=len(self.dataset_service.classes()),
+        )
+
     def _on_start(self) -> None:
         import importlib.util
 
@@ -385,15 +401,18 @@ class TrainingView(QWidget):
         else:
             self.dataset_service.export_yolo(self.config.export_dir, ratio)
             dataset_path = self.config.export_dir / "yolo" / "data.yaml"
+        now = datetime.now()
         config = TrainConfig(
             dataset_yaml=Path(dataset_path),
             weights=weights,
-            output_dir=self.config.trained_dir / datetime.now().strftime("%Y-%m-%d_%H%M%S"),
+            output_dir=self.config.trained_dir / now.strftime("%Y-%m-%d_%H%M%S"),
             epochs=self.epochs_spin.value(),
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),
             family=family,
             overfitting_guard=self.overfitting_check.isChecked(),
+            name=self._trained_name(spec, now),
+            base_name=spec.base_name or spec.label,
         )
         run_mode = self.run_combo.currentData()
         if run_mode == "direct":

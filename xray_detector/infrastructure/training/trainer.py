@@ -64,6 +64,10 @@ class TrainingWorker(QObject):
             str(self.config.family),
             "--overfitting-guard",
             "on" if self.config.overfitting_guard else "off",
+            "--name",
+            self.config.name,
+            "--base-name",
+            self.config.base_name,
         ]
 
     def start(self) -> None:

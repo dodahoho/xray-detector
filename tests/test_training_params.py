@@ -323,3 +323,126 @@ def test_the_rfdetr_hyperparameters_are_readable_from_the_manifest(tmp_path):
     assert manifest["hyperparameters"]["resolution"] == 640
     assert manifest["hyperparameters"]["num_workers"] == 8
     assert manifest["hyperparameters"]["seed"] == 42
+
+
+# --- Namngivning av tränad modell (TASK-108) ---
+
+
+def test_the_trained_model_name_follows_the_pattern():
+    from xray_detector.domain.training import trained_model_name
+
+    name = trained_model_name(
+        base_name="YOLO26 large",
+        date="2026-11-15",
+        pairs=13,
+        synthetic=29,
+        classes=4,
+    )
+
+    assert name == "YOLO26 large 2026-11-15 13+29 bildpar 4 klasser"
+
+
+def test_the_trained_model_name_uses_the_singular_for_one_class():
+    from xray_detector.domain.training import trained_model_name
+
+    name = trained_model_name("RF-DETR small", "2026-11-17", 2, 0, 1)
+
+    assert name == "RF-DETR small 2026-11-17 2+0 bildpar 1 klass"
+
+
+def test_the_manifest_records_the_name_and_the_base_model_name(tmp_path):
+    from xray_detector.infrastructure.training.train_task import (
+        MANIFEST_NAME,
+        _RunState,
+        _write_manifest,
+    )
+
+    run_dir = tmp_path / "korning"
+    weights = run_dir / "yolo" / "weights" / "best.pt"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"vikter")
+
+    _write_manifest(
+        _yolo_args(
+            run_dir,
+            name="YOLO26 large 2026-11-15 13+29 bildpar 4 klasser",
+            base_name="YOLO26 large",
+        ),
+        run_dir,
+        _RunState(status="completed"),
+    )
+
+    manifest = json.loads((run_dir / MANIFEST_NAME).read_text(encoding="utf-8"))
+    assert manifest["name"] == "YOLO26 large 2026-11-15 13+29 bildpar 4 klasser"
+    assert manifest["base_model_name"] == "YOLO26 large"
+
+
+def test_the_manifest_leaves_the_name_empty_without_one(tmp_path):
+    """En körning från CLI:t har inget namn och får då den gamla etiketten."""
+    from xray_detector.infrastructure.training.train_task import (
+        MANIFEST_NAME,
+        _RunState,
+        _write_manifest,
+    )
+
+    run_dir = tmp_path / "korning"
+    weights = run_dir / "yolo" / "weights" / "best.pt"
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"vikter")
+
+    _write_manifest(_yolo_args(run_dir), run_dir, _RunState(status="completed"))
+
+    manifest = json.loads((run_dir / MANIFEST_NAME).read_text(encoding="utf-8"))
+    assert manifest["name"] is None
+    assert manifest["base_model_name"] is None
+
+
+def test_the_worker_passes_the_name_to_the_training_process(tmp_path):
+    from xray_detector.infrastructure.training.trainer import TrainingWorker
+
+    config = TrainConfig(
+        dataset_yaml=tmp_path / "d.yaml",
+        weights="yolo26n.pt",
+        output_dir=tmp_path / "o",
+        name="YOLO26 nano 2026-11-17 3+0 bildpar 2 klasser",
+        base_name="YOLO26 nano",
+    )
+    command = TrainingWorker(config).command()
+
+    assert command[command.index("--name") + 1] == config.name
+    assert command[command.index("--base-name") + 1] == "YOLO26 nano"
+
+
+def test_the_training_view_names_the_run_from_the_dataset(qapp, tmp_path):
+    """Namnet byggs av basmodellens etikett och datasetets sammansättning (TASK-108)."""
+    from datetime import datetime
+
+    import numpy as np
+    from PySide6.QtCore import QSettings
+
+    from xray_detector.application.dataset_service import DatasetService
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.domain.dataset import AnnotatedImage
+    from xray_detector.ui.training_view import TrainingView
+
+    config = AppConfig()
+    config.data_dir = tmp_path / "data"
+    config.models_dir = tmp_path / "models"
+    config.ensure_dirs()
+    service = DatasetService(config.dataset_dir)
+    service.set_classes(["kniv", "pistol"])
+    for fill in (60, 120):
+        service.add_samples([
+            AnnotatedImage(
+                np.full((32, 40, 3), fill, dtype=np.uint8),
+                [{"class_name": "kniv", "bbox": [1, 1, 6, 6]}],
+            )
+            for _ in range(2)
+        ])
+    view = TrainingView(
+        config, service, QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    )
+
+    name = view._trained_name(view._specs["yolo26n"], datetime(2026, 11, 17, 9, 30))
+
+    assert name == "YOLO26 nano 2026-11-17 2+0 bildpar 2 klasser"

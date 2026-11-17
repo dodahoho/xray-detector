@@ -45,6 +45,14 @@ class DatasetService:
     def class_in_use(self, name: str) -> bool:
         return self.store.class_in_use(name)
 
+    def unused_classes(self) -> list[str]:
+        """Klasser i datasetet som ingen annotering använder (TASK-109)."""
+        return self.store.unused_classes()
+
+    def remove_unused_classes(self) -> list[str]:
+        """Rensar klasslistan till de klasser som finns annoterade (TASK-109)."""
+        return self.store.remove_unused_classes()
+
     def add_samples(
         self,
         samples: list[AnnotatedImage],
@@ -54,6 +62,14 @@ class DatasetService:
 
     def delete_images(self, image_ids: list[int]) -> None:
         self.store.delete_images(image_ids)
+
+    def replace_samples(
+        self,
+        image_ids: list[int],
+        samples: list[AnnotatedImage],
+    ) -> None:
+        """Ersätter sparade bilder på plats; en redigering blir ingen kopia (TASK-110)."""
+        self.store.replace_samples(image_ids, samples)
 
     def add_variations(
         self,
@@ -73,6 +89,10 @@ class DatasetService:
 
     def metadata(self) -> dict:
         return self.store.metadata()
+
+    def dataset_counts(self) -> tuple[int, int]:
+        """Antal ursprungsbildpar och antal syntetiska bilder (TASK-108)."""
+        return self.store.dataset_counts()
 
     def image_sizes(self) -> list[tuple[int, int, int]]:
         """Datasetets upplösningar som (bredd, höjd, antal), vanligaste först (TASK-80)."""
