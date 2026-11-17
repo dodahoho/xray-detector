@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from xray_detector.domain.dataset import (
     AnnotatedImage,
@@ -122,6 +123,32 @@ class DatasetStore:
         """
         return sum(len(read_labels(self._label_path(image["file_name"]))) for image in images)
 
+    def _write_sample(
+        self,
+        image_name: str,
+        frame: np.ndarray,
+        annotations: list[dict],
+        names: list[str],
+    ) -> tuple[int, int]:
+        """Skriver bilden och dess label-fil; returnerar (bredd, höjd) (TASK-141).
+
+        Klassindexen slås upp mot names, så en ny klass hamnar sist i listan och
+        label-filen får det index som hör till namnet.
+        """
+        cv2.imwrite(str(self.images_dir / image_name), frame)
+        height, width = frame.shape[:2]
+        rows = [
+            from_pixels(
+                self._class_index(names, annotation["class_name"]),
+                annotation["bbox"],
+                width,
+                height,
+            )
+            for annotation in annotations
+        ]
+        write_labels(self._label_path(image_name), rows)
+        return width, height
+
     def _label_path(self, file_name: str) -> Path:
         return self.labels_dir / label_name(file_name)
 
@@ -221,18 +248,9 @@ class DatasetStore:
         known = list(names)
         for sample in samples:
             image_name = f"img_{image_id:06d}.png"
-            cv2.imwrite(str(self.images_dir / image_name), sample.frame)
-            height, width = sample.frame.shape[:2]
-            rows = [
-                from_pixels(
-                    self._class_index(names, annotation["class_name"]),
-                    annotation["bbox"],
-                    width,
-                    height,
-                )
-                for annotation in sample.annotations
-            ]
-            write_labels(self._label_path(image_name), rows)
+            width, height = self._write_sample(
+                image_name, sample.frame, sample.annotations, names
+            )
             metadata["images"].append(
                 {
                     "id": image_id,
@@ -272,19 +290,9 @@ class DatasetStore:
         names = self.classes()
         known = list(names)
         for image, sample in zip(targets, samples, strict=True):
-            label = self._label_path(image["file_name"])
-            cv2.imwrite(str(self.images_dir / image["file_name"]), sample.frame)
-            height, width = sample.frame.shape[:2]
-            rows = [
-                from_pixels(
-                    self._class_index(names, annotation["class_name"]),
-                    annotation["bbox"],
-                    width,
-                    height,
-                )
-                for annotation in sample.annotations
-            ]
-            write_labels(label, rows)
+            width, height = self._write_sample(
+                image["file_name"], sample.frame, sample.annotations, names
+            )
             image["width"] = width
             image["height"] = height
         if names != known:
@@ -337,18 +345,9 @@ class DatasetStore:
                         frame, image["annotations"], variations
                     )
                     image_name = f"img_{image_id:06d}.png"
-                    cv2.imwrite(str(self.images_dir / image_name), varied)
-                    height, width = varied.shape[:2]
-                    rows = [
-                        from_pixels(
-                            self._class_index(names, annotation["class_name"]),
-                            annotation["bbox"],
-                            width,
-                            height,
-                        )
-                        for annotation in annotations
-                    ]
-                    write_labels(self._label_path(image_name), rows)
+                    width, height = self._write_sample(
+                        image_name, varied, annotations, names
+                    )
                     metadata["images"].append(
                         {
                             "id": image_id,
