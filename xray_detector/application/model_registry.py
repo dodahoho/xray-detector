@@ -13,6 +13,7 @@ from json import load as json_load
 from pathlib import Path
 from urllib.parse import urlparse
 
+from xray_detector.application.training_history import training_runs
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.detectors.base import BaseDetector
 
@@ -237,35 +238,23 @@ def base_models(models_dir: Path) -> list[ModelSpec]:
 def trained_models(trained_dir: Path) -> list[ModelSpec]:
     """Listar egentränade modeller utifrån training_manifest.json under models/trained/.
 
-    Sökningen är rekursiv så att varje träningskörnings egen katalog
-    hittas för sig.
+    Manifestet läses av training_history, så ett nytt fält bara behöver läggas
+    till på ett ställe för att synas i både modellväljaren och historiken
+    (TASK-138). Ett manifest utan visningsnamn hoppas över: väljaren kan inte
+    visa en post utan etikett.
     """
-    trained_dir = Path(trained_dir)
-    specs: list[ModelSpec] = []
-    for manifest_path in sorted(trained_dir.rglob("training_manifest.json")):
-        try:
-            with open(manifest_path, encoding="utf-8") as file:
-                manifest = json_load(file)
-            weights = manifest_path.parent / manifest["weights_relative"]
-            if not weights.exists():
-                continue
-            run_dir = manifest_path.parent.relative_to(trained_dir).as_posix()
-            # name och family skrivs av träningen; ett manifest utan dem är
-            # ofullständigt och hoppas över i stället för att gissa (TASK-134)
-            label = str(manifest["name"])
-            family = str(manifest["family"])
-        except (OSError, ValueError, KeyError):
-            continue
-        specs.append(
-            ModelSpec(
-                key=f"{TRAINED_KEY_PREFIX}{run_dir}",
-                label=label,
-                family=family,
-                weights=str(weights),
-                base_name=str(manifest.get("base_model_name") or ""),
-            )
+    specs = [
+        ModelSpec(
+            key=f"{TRAINED_KEY_PREFIX}{run.run_id}",
+            label=run.name,
+            family=run.family,
+            weights=str(run.weights),
+            base_name=run.base_name,
         )
-    return specs
+        for run in training_runs(Path(trained_dir))
+        if run.name
+    ]
+    return sorted(specs, key=lambda spec: spec.key)
 
 
 def is_trained(spec: ModelSpec) -> bool:

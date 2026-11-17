@@ -56,6 +56,10 @@ class TrainingRun:
     imgsz: int | None
     batch: int | None
     stop_reason: str | None = None
+    #: visningsnamnet träningen satte (TASK-108); tomt i äldre manifest
+    name: str = ""
+    #: basmodellens visningsnamn, som modellväljaren visar (TASK-138)
+    base_name: str = ""
 
     @property
     def status_label(self) -> str:
@@ -156,6 +160,8 @@ def _read_run(trained_dir: Path, manifest_path: Path) -> TrainingRun | None:
         imgsz=manifest.get("imgsz"),
         batch=manifest.get("batch"),
         stop_reason=manifest.get("stop_reason"),
+        name=str(manifest.get("name") or ""),
+        base_name=str(manifest.get("base_model_name") or ""),
     )
 
 

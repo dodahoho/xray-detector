@@ -28,6 +28,9 @@ def _args(output_path: Path, **overrides):
         "device": "cpu",
         "overfitting_guard": "on",
         "started": datetime(2026, 11, 12, 10, 0, tzinfo=UTC),
+        # GUI:t sätter alltid ett visningsnamn; väljaren hoppar över manifest utan
+        "name": f"Tränad {output_path.name}",
+        "base_name": "YOLO26 nano",
     }
     values.update(overrides)
     return SimpleNamespace(**values)

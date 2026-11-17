@@ -351,3 +351,20 @@ def test_the_catalog_does_not_write_base_name_to_models_json(tmp_path):
     payload = json.loads(catalog.path.read_text(encoding="utf-8"))
 
     assert set(payload["models"][0]) == {"key", "label", "family", "weights"}
+
+
+def test_the_selector_and_the_history_read_the_same_manifest(tmp_path):
+    """Ett manifest läses på ett ställe, så väljaren och historiken är eniga (TASK-138)."""
+    from xray_detector.application.training_history import training_runs
+
+    trained = tmp_path / "trained"
+    _write_run(trained, "v3")
+
+    spec = trained_models(trained)[0]
+    run = training_runs(trained)[0]
+
+    assert spec.key == f"trained-{run.run_id}"
+    assert spec.label == run.name
+    assert spec.family == run.family
+    assert spec.weights == str(run.weights)
+    assert spec.base_name == run.base_name
