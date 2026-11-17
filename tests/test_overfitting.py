@@ -1,116 +1,16 @@
-"""Överträningsdetektion som avbryter träningen (TASK-46)."""
+"""Tidigt stopp av träningen med ramverkens egna early stopping (TASK-46, TASK-118)."""
 
 import json
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
-from xray_detector.domain.training import EpochMetrics, TrainConfig
+from xray_detector.domain.training import TrainConfig
 from xray_detector.infrastructure.training.epoch_metrics import (
     ABORT_MARKER,
     abort_line,
     parse_abort_line,
 )
-from xray_detector.infrastructure.training.overfitting import OverfittingGuard
-
-
-def _epoch(epoch: int, train_loss: float, map50_95: float | None) -> EpochMetrics:
-    return EpochMetrics(
-        epoch=epoch,
-        total_epochs=20,
-        train_loss=train_loss,
-        map50_95=map50_95,
-    )
-
-
-# --- Syntetiska kurvor (AC 10) ---
-
-
-def test_guard_fires_when_train_loss_falls_and_val_map_turns_down():
-    """Klassisk överträning: train-loss ner, val-mAP stilla eller ner."""
-    guard = OverfittingGuard(patience=3)
-    curve = [
-        _epoch(1, 3.0, 0.10),
-        _epoch(2, 2.5, 0.30),
-        _epoch(3, 2.0, 0.31),
-        _epoch(4, 1.5, 0.30),
-        _epoch(5, 1.0, 0.29),
-        _epoch(6, 0.6, 0.28),
-    ]
-
-    reasons = [guard.update(metrics) for metrics in curve]
-
-    assert reasons[:5] == [None] * 5
-    assert reasons[5] is not None
-    assert "Överträning" in reasons[5]
-    assert "epok 3" in reasons[5]
-
-
-def test_guard_stays_quiet_while_val_map_improves():
-    guard = OverfittingGuard(patience=3)
-    curve = [_epoch(epoch, 3.0 - epoch * 0.2, 0.1 + epoch * 0.05) for epoch in range(1, 10)]
-
-    assert [guard.update(metrics) for metrics in curve] == [None] * 9
-
-
-def test_guard_stays_quiet_when_train_loss_also_stalls():
-    """Avstannad utveckling är inte överträning."""
-    guard = OverfittingGuard(patience=2)
-    curve = [_epoch(epoch, 2.0, 0.3) for epoch in range(1, 8)]
-
-    assert [guard.update(metrics) for metrics in curve] == [None] * 7
-
-
-def test_guard_waits_for_patience():
-    guard = OverfittingGuard(patience=5)
-    curve = [_epoch(epoch, 3.0 - epoch * 0.2, 0.3) for epoch in range(1, 6)]
-
-    assert [guard.update(metrics) for metrics in curve] == [None] * 5
-
-
-def test_guard_falls_back_to_val_loss_without_map():
-    guard = OverfittingGuard(patience=2)
-    curve = [
-        EpochMetrics(epoch=1, total_epochs=10, train_loss=3.0, val_loss=1.0),
-        EpochMetrics(epoch=2, total_epochs=10, train_loss=2.5, val_loss=1.1),
-        EpochMetrics(epoch=3, total_epochs=10, train_loss=2.0, val_loss=1.2),
-        EpochMetrics(epoch=4, total_epochs=10, train_loss=1.5, val_loss=1.3),
-    ]
-
-    reasons = [guard.update(metrics) for metrics in curve]
-
-    assert reasons[2] is not None
-
-
-def test_guard_ignores_epochs_without_validation_values():
-    guard = OverfittingGuard(patience=1)
-
-    assert guard.update(EpochMetrics(epoch=1, total_epochs=5, train_loss=2.0)) is None
-
-
-def test_guard_reports_the_same_reason_once():
-    guard = OverfittingGuard(patience=1)
-    guard.update(_epoch(1, 3.0, 0.3))
-    first = guard.update(_epoch(2, 2.0, 0.3))
-
-    assert first is not None
-    assert guard.update(_epoch(3, 1.0, 0.3)) == first
-
-
-# --- Avbrottet sker i träningsprocessen (AC 4, 5) ---
-
-
-def test_apply_stop_stops_the_yolo_trainer():
-    from xray_detector.infrastructure.training.train_task import (
-        _apply_stop,
-        _StopSignal,
-    )
-
-    trainer = SimpleNamespace(stop=False)
-    _apply_stop(trainer, _StopSignal())
-    assert trainer.stop is False
-
-    _apply_stop(trainer, _StopSignal(reason="Överträning"))
-    assert trainer.stop is True
 
 
 def _args(tmp_path, **overrides):
@@ -140,63 +40,66 @@ def _wait_for(predicate, timeout_s=5.0):
     return False
 
 
-def test_reporter_aborts_training_when_overfitting_is_detected(tmp_path, capsys):
+# --- Tidigt stopp avgörs efter träningen (TASK-118) ---
+
+
+def test_a_short_run_without_the_guard_is_completed(tmp_path):
+    """Utan early stopping är färre epoker ingen tidig avstängning."""
     from xray_detector.infrastructure.training.train_task import (
+        _finish_state,
         _RunState,
-        _start_reporter,
-        _StopSignal,
     )
 
-    args = _args(tmp_path)
-    run_dir = tmp_path
-    metrics_path = run_dir / "yolo" / "results.csv"
-    metrics_path.parent.mkdir(parents=True)
-    metrics_path.write_text(
-        "epoch,train/box_loss,metrics/mAP50-95(B)\n", encoding="utf-8"
+    state = _RunState(epochs_completed=7)
+
+    _finish_state(_args(tmp_path, overfitting_guard="off"), state)
+
+    assert state.status == "completed"
+    assert state.stop_reason is None
+
+
+def test_a_run_without_any_reported_epoch_is_completed(tmp_path):
+    """En metrics-fil som inte gick att läsa får inte se ut som ett stopp."""
+    from xray_detector.infrastructure.training.train_task import (
+        _finish_state,
+        _RunState,
     )
+
     state = _RunState()
-    stop = _StopSignal()
-    reporter = _start_reporter(args, run_dir, state, stop)
-    try:
-        with open(metrics_path, "a", encoding="utf-8") as file:
-            file.write("1,3.0,0.3\n")
-            file.write("2,2.5,0.3\n")
-            file.write("3,2.0,0.3\n")
-        assert _wait_for(lambda: stop.reason is not None)
-    finally:
-        reporter.stop()
-        reporter.join(timeout=5)
 
-    assert "Överträning" in stop.reason
-    assert any(
-        line.startswith(ABORT_MARKER) for line in capsys.readouterr().out.splitlines()
-    )
+    _finish_state(_args(tmp_path), state)
+
+    assert state.status == "completed"
 
 
-def test_reporter_does_not_abort_when_the_guard_is_off(tmp_path):
+# --- Rapportören följer epokerna (TASK-44, TASK-118) ---
+
+
+def test_reporter_tracks_the_completed_epochs(tmp_path):
     from xray_detector.infrastructure.training.train_task import (
         _RunState,
         _start_reporter,
-        _StopSignal,
     )
 
-    args = _args(tmp_path, overfitting_guard="off")
     metrics_path = tmp_path / "yolo" / "results.csv"
     metrics_path.parent.mkdir(parents=True)
     metrics_path.write_text(
         "epoch,train/box_loss,metrics/mAP50-95(B)\n", encoding="utf-8"
     )
-    stop = _StopSignal()
-    reporter = _start_reporter(args, tmp_path, _RunState(), stop)
+    state = _RunState()
+    reporter = _start_reporter(_args(tmp_path), tmp_path, state)
     try:
         with open(metrics_path, "a", encoding="utf-8") as file:
-            file.writelines(f"{epoch},{3.0 - epoch * 0.2},0.3\n" for epoch in range(1, 8))
-        time.sleep(0.3)
+            file.writelines(
+                f"{epoch},{3.0 - epoch * 0.2},0.3\n" for epoch in range(1, 4)
+            )
+        assert _wait_for(lambda: state.epochs_completed == 3)
     finally:
         reporter.stop()
         reporter.join(timeout=5)
 
-    assert stop.reason is None
+    assert state.epochs_completed == 3
+    assert state.metrics["map50_95"] == 0.3
 
 
 def test_manifest_records_the_abort_reason(tmp_path):
@@ -209,14 +112,108 @@ def test_manifest_records_the_abort_reason(tmp_path):
     weights = run_dir / "yolo" / "weights" / "best.pt"
     weights.parent.mkdir(parents=True)
     weights.write_bytes(b"vikter")
-    state = _RunState(status="aborted", reason="Överträning", epochs_completed=7)
+    state = _RunState(
+        status="aborted",
+        reason="Tidigt stopp: valvärdet förbättrades inte under de senaste 2 epokerna",
+        epochs_completed=7,
+    )
 
     _write_manifest(_args(run_dir), run_dir, state)
 
     manifest = json.loads((run_dir / "training_manifest.json").read_text(encoding="utf-8"))
     assert manifest["status"] == "aborted"
-    assert manifest["abort_reason"] == "Överträning"
+    assert manifest["abort_reason"].startswith("Tidigt stopp")
     assert manifest["epochs_completed"] == 7
+
+
+# --- Träningsprocessen (TASK-118) ---
+
+
+def _fake_ultralytics(monkeypatch, epochs_written: int) -> None:
+    """Ersätter ultralytics med en YOLO som skriver färre epoker än begärt."""
+
+    class _FakeYolo:
+        def __init__(self, weights):
+            self.weights = weights
+
+        def add_callback(self, name, callback):
+            pass
+
+        def train(self, **kwargs):
+            run_dir = Path(kwargs["project"]) / kwargs["name"]
+            run_dir.mkdir(parents=True, exist_ok=True)
+            rows = "".join(
+                f"{epoch},{3.0 - epoch * 0.2},0.3\n"
+                for epoch in range(1, epochs_written + 1)
+            )
+            (run_dir / "results.csv").write_text(
+                "epoch,train/box_loss,metrics/mAP50-95(B)\n" + rows, encoding="utf-8"
+            )
+            weights = run_dir / "weights" / "best.pt"
+            weights.parent.mkdir(parents=True, exist_ok=True)
+            weights.write_bytes(b"vikter")
+
+    import sys
+    import types
+
+    fake = types.ModuleType("ultralytics")
+    fake.YOLO = _FakeYolo
+    monkeypatch.setitem(sys.modules, "ultralytics", fake)
+
+
+def _run_main(monkeypatch, tmp_path, *extra: str) -> None:
+    import sys
+
+    from xray_detector.infrastructure.training import train_task
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "train_task",
+            "--dataset",
+            str(tmp_path / "data.yaml"),
+            "--weights",
+            "yolo26n.pt",
+            "--output",
+            str(tmp_path / "out"),
+            "--epochs",
+            "20",
+            "--device",
+            "cpu",
+            *extra,
+        ],
+    )
+    train_task.main()
+
+
+def test_main_reports_the_frameworks_early_stop(monkeypatch, tmp_path, capsys):
+    _fake_ultralytics(monkeypatch, epochs_written=2)
+
+    _run_main(monkeypatch, tmp_path, "--overfitting-patience", "2")
+
+    out = capsys.readouterr().out
+    assert any(line.startswith(ABORT_MARKER) for line in out.splitlines())
+    manifest = json.loads(
+        (tmp_path / "out" / "training_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["status"] == "aborted"
+    assert manifest["stop_reason"] == "overfitting"
+    assert manifest["epochs_completed"] == 2
+
+
+def test_main_completes_a_run_that_used_all_epochs(monkeypatch, tmp_path, capsys):
+    _fake_ultralytics(monkeypatch, epochs_written=20)
+
+    _run_main(monkeypatch, tmp_path)
+
+    out = capsys.readouterr().out
+    assert not any(line.startswith(ABORT_MARKER) for line in out.splitlines())
+    manifest = json.loads(
+        (tmp_path / "out" / "training_manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["status"] == "completed"
+    assert manifest["stop_reason"] is None
 
 
 def test_rfdetr_gets_early_stopping_when_the_guard_is_on(monkeypatch, tmp_path):
@@ -268,7 +265,7 @@ def test_rfdetr_gets_no_early_stopping_when_the_guard_is_off(monkeypatch, tmp_pa
         "cpu",
     )
 
-    assert "early_stopping" not in captured
+    assert captured["early_stopping"] is False
 
 
 # --- GUI:t (AC 1, 2, 3, 6, 9) ---
@@ -342,11 +339,11 @@ def test_view_shows_why_the_training_was_aborted(qapp, tmp_path):
     messages = []
     view.status_changed.connect(messages.append)
 
-    view._on_abort_reason("Överträning: valvärdet har inte förbättrats sedan epok 2")
+    view._on_abort_reason("Tidigt stopp: valvärdet förbättrades inte sedan epok 2")
 
     assert view.epoch_label.text().startswith("Avbruten:")
     assert "epok 2" in view.epoch_label.text()
-    assert messages and "Överträning" in messages[0]
+    assert messages and "Tidigt stopp" in messages[0]
 
 
 def test_worker_emits_the_abort_reason(qapp, tmp_path):
@@ -354,7 +351,7 @@ def test_worker_emits_the_abort_reason(qapp, tmp_path):
 
     from xray_detector.infrastructure.training.trainer import TrainingWorker
 
-    reason = "Överträning: valvärdet har inte förbättrats sedan epok 2"
+    reason = "Tidigt stopp: valvärdet förbättrades inte sedan epok 2"
     script = (
         "import sys\n"
         f"sys.stdout.write({abort_line(reason)!r} + '\\n')\n"

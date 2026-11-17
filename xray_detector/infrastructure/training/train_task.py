@@ -13,10 +13,6 @@ from xray_detector.infrastructure.training.epoch_metrics import (
     EpochReporter,
     abort_line,
 )
-from xray_detector.infrastructure.training.overfitting import (
-    DEFAULT_PATIENCE,
-    OverfittingGuard,
-)
 from xray_detector.infrastructure.training.progress import ProgressReporter
 
 MANIFEST_NAME = "training_manifest.json"
@@ -28,6 +24,9 @@ RFDETR_RUN_DIR = "rfdetr"
 DEFAULT_WORKERS = 8
 #: Träningens seed, så en körning går att göra om (TASK-91, TASK-92).
 DEFAULT_SEED = 42
+#: Epoker utan förbättrat valvärde innan ramverkets early stopping stoppar
+#: träningen (TASK-118).
+DEFAULT_PATIENCE = 10
 
 #: YOLO:ts hyperparametrar för röntgenbilder (TASK-92).
 #:
@@ -119,18 +118,12 @@ class _RunState:
 
     status: str = "running"
     reason: str | None = None
-    #: "overfitting" när vakten stoppade körningen, "error" vid ett undantag
-    #: (TASK-97). Skillnaden avgör om körningen gick bra eller kraschade.
+    #: "overfitting" när ramverkets early stopping stoppade körningen, "error"
+    #: vid ett undantag (TASK-97). Skillnaden avgör om körningen gick bra eller
+    #: kraschade.
     stop_reason: str | None = None
     metrics: dict[str, float] = field(default_factory=dict)
     epochs_completed: int = 0
-
-
-@dataclass
-class _StopSignal:
-    """Delad flagga: rapportören sätter orsaken, träningsloopen läser den."""
-
-    reason: str | None = None
 
 
 def _output_path(value: str) -> Path:
@@ -251,20 +244,10 @@ def _metrics_path(args, run_dir: Path) -> Path:
     return run_dir / YOLO_RUN_DIR / "results.csv"
 
 
-def _start_reporter(args, run_dir: Path, state: _RunState, stop: _StopSignal):
+def _start_reporter(args, run_dir: Path, state: _RunState):
     """Startar epokrapportören som skickar EPOCH-rader och håller manifestet färskt."""
-    guard = (
-        OverfittingGuard(args.overfitting_patience)
-        if args.overfitting_guard == "on"
-        else None
-    )
 
     def on_epoch(metrics) -> None:
-        if guard is not None and stop.reason is None:
-            reason = guard.update(metrics)
-            if reason is not None:
-                stop.reason = reason
-                print(abort_line(reason), flush=True)
         state.metrics = metrics.as_dict()
         state.epochs_completed = metrics.epoch
         _write_manifest(args, run_dir, state)
@@ -276,18 +259,39 @@ def _start_reporter(args, run_dir: Path, state: _RunState, stop: _StopSignal):
     return reporter
 
 
-def _finish_state(state: _RunState, stop: _StopSignal) -> None:
-    """Avgör hur körningen slutade innan manifestet skrivs (TASK-97).
+def _stopped_early(args, state: _RunState) -> bool:
+    """Sant när ramverkets early stopping avslutade körningen i förtid (TASK-118).
 
-    Ett stopp av överträningsvakten är ett lyckat utfall och sparas därför som
-    ``overfitting``, medan ett undantag redan har satt ``error``. Skillnaden
-    låter historikvyn skilja ett planerat stopp från en krasch.
+    Ultralytics och rfdetr stoppar båda själva när valvärdet stått still, så
+    det syns bara som att färre epoker blev klara än vad som begärdes.
     """
-    if stop.reason is not None:
+    return args.overfitting_guard == "on" and 0 < state.epochs_completed < args.epochs
+
+
+def _early_stop_reason(args, state: _RunState) -> str:
+    """Orsaken som visas i träningsvyn och sparas i manifestet (TASK-118)."""
+    return (
+        f"Tidigt stopp: valvärdet förbättrades inte under de senaste "
+        f"{args.overfitting_patience} epokerna (epok {state.epochs_completed} "
+        f"av {args.epochs})"
+    )
+
+
+def _finish_state(args, state: _RunState) -> None:
+    """Avgör hur körningen slutade innan manifestet skrivs (TASK-97, TASK-118).
+
+    Ett tidigt stopp av ramverkets early stopping är ett lyckat utfall och
+    sparas därför som ``overfitting``, medan ett undantag redan har satt
+    ``error``. Skillnaden låter historikvyn skilja ett planerat stopp från en
+    krasch.
+    """
+    if state.status != "running":
+        return
+    if _stopped_early(args, state):
         state.status = "aborted"
-        state.reason = stop.reason
+        state.reason = _early_stop_reason(args, state)
         state.stop_reason = "overfitting"
-    elif state.status == "running":
+    else:
         state.status = "completed"
 
 
@@ -337,9 +341,14 @@ def main() -> None:
         "--overfitting-guard",
         default="on",
         choices=["on", "off"],
-        help="Avbryt träningen när överträning detekteras",
+        help="Stoppa träningen med ramverkets early stopping när valvärdet stannar",
     )
-    parser.add_argument("--overfitting-patience", type=int, default=DEFAULT_PATIENCE)
+    parser.add_argument(
+        "--overfitting-patience",
+        type=int,
+        default=DEFAULT_PATIENCE,
+        help="Epoker utan förbättrat valvärde innan träningen stoppas",
+    )
     parser.add_argument(
         "--name",
         default="",
@@ -371,14 +380,13 @@ def main() -> None:
     args.output_path = run_dir
     print(f"Körningskatalog: {run_dir}")
     state = _RunState()
-    stop = _StopSignal()
-    reporter = _start_reporter(args, run_dir, state, stop)
+    reporter = _start_reporter(args, run_dir, state)
     progress = ProgressReporter()
     try:
         if args.family == "rfdetr":
             _train_rfdetr(args, device)
         else:
-            _train_yolo(args, device, stop, progress)
+            _train_yolo(args, device, progress)
     except BaseException as exc:
         state.status = "aborted"
         state.reason = str(exc) or type(exc).__name__
@@ -387,19 +395,17 @@ def main() -> None:
     finally:
         reporter.stop()
         reporter.join(timeout=5)
-        _finish_state(state, stop)
+        _finish_state(args, state)
+        if state.stop_reason == "overfitting" and state.reason is not None:
+            print(abort_line(state.reason), flush=True)
         _write_manifest(args, run_dir, state)
     print("TRAINING_DONE")
 
 
-def _train_yolo(args, device, stop: _StopSignal, progress: ProgressReporter) -> Path:
+def _train_yolo(args, device, progress: ProgressReporter) -> Path:
     from ultralytics import YOLO
 
     model = YOLO(args.weights)
-    if args.overfitting_guard == "on":
-        # on_fit_epoch_end körs efter save_metrics och save_model, så ett stop
-        # här avbryter före nästa epok och bästa vikterna är redan sparade.
-        model.add_callback("on_fit_epoch_end", lambda trainer: _apply_stop(trainer, stop))
     model.add_callback("on_train_batch_end", _batch_callback(progress))
     model.train(
         data=args.dataset,
@@ -410,9 +416,8 @@ def _train_yolo(args, device, stop: _StopSignal, progress: ProgressReporter) -> 
         project=args.output_path,
         name=YOLO_RUN_DIR,
         exist_ok=True,
-        patience=(
-            args.overfitting_patience if args.overfitting_guard == "on" else args.epochs
-        ),
+        # ultralytics egen early stopping; 0 stänger av den (TASK-118)
+        patience=args.overfitting_patience if args.overfitting_guard == "on" else 0,
         **YOLO_HYPERPARAMETERS,
     )
     return args.output_path / YOLO_RUN_DIR
@@ -444,12 +449,6 @@ def _batch_callback(progress: ProgressReporter):
     return on_train_batch_end
 
 
-def _apply_stop(trainer, stop: _StopSignal) -> None:
-    """Stoppar ultralytics-träningen i träningsprocessen, inte från GUI:t."""
-    if stop.reason is not None:
-        trainer.stop = True
-
-
 def _train_rfdetr(args, device) -> Path:
     """Trainer vald RF-DETR-modell pa exporterat rfdetr-dataset.
 
@@ -463,6 +462,7 @@ def _train_rfdetr(args, device) -> Path:
     där (TASK-91, TASK-107). num_workers och seed sätts explicit: paketet
     defaultar till 2 arbetare, vilket svälter GPU:n på ett stort dataset, och
     till ingen seed alls, vilket gör körningen omöjlig att göra om.
+    early_stopping är paketets egen mekanism (TASK-118).
     """
     from xray_detector.infrastructure.detectors.rfdetr_detector import (
         load_rfdetr_model,
@@ -479,14 +479,11 @@ def _train_rfdetr(args, device) -> Path:
         "num_workers": getattr(args, "workers", DEFAULT_WORKERS),
         "seed": getattr(args, "seed", DEFAULT_SEED),
         "resolution": args.imgsz,
-    }
-    if getattr(args, "overfitting_guard", "on") == "on":
-        # RF-DETR saknar publik callback-krok, så avbrottet sker med paketets
-        # egen early stopping: samma patience som vakten i rapportören.
-        wanted["early_stopping"] = True
-        wanted["early_stopping_patience"] = getattr(
+        "early_stopping": getattr(args, "overfitting_guard", "on") == "on",
+        "early_stopping_patience": getattr(
             args, "overfitting_patience", DEFAULT_PATIENCE
-        )
+        ),
+    }
     kwargs = {k: v for k, v in wanted.items() if k in params or _varkw(params)}
     run_dir = args.output_path / RFDETR_RUN_DIR
     kwargs.setdefault("output_dir", str(run_dir))

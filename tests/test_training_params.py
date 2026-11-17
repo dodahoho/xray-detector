@@ -221,15 +221,11 @@ def test_yolo_training_sets_the_optimizer_and_seed_explicitly(monkeypatch, tmp_p
     calls: list[dict] = []
     _fake_ultralytics(monkeypatch, calls)
     from xray_detector.infrastructure.training.progress import ProgressReporter
-    from xray_detector.infrastructure.training.train_task import (
-        _StopSignal,
-        _train_yolo,
-    )
+    from xray_detector.infrastructure.training.train_task import _train_yolo
 
     _train_yolo(
         _yolo_args(tmp_path),
         "cpu",
-        _StopSignal(),
         ProgressReporter(emit=lambda line: None),
     )
 
@@ -244,15 +240,11 @@ def test_yolo_augmentation_is_chosen_for_xray(monkeypatch, tmp_path):
     calls: list[dict] = []
     _fake_ultralytics(monkeypatch, calls)
     from xray_detector.infrastructure.training.progress import ProgressReporter
-    from xray_detector.infrastructure.training.train_task import (
-        _StopSignal,
-        _train_yolo,
-    )
+    from xray_detector.infrastructure.training.train_task import _train_yolo
 
     _train_yolo(
         _yolo_args(tmp_path),
         "cpu",
-        _StopSignal(),
         ProgressReporter(emit=lambda line: None),
     )
 
@@ -267,20 +259,48 @@ def test_yolo_training_keeps_the_run_arguments(monkeypatch, tmp_path):
     calls: list[dict] = []
     _fake_ultralytics(monkeypatch, calls)
     from xray_detector.infrastructure.training.progress import ProgressReporter
-    from xray_detector.infrastructure.training.train_task import (
-        _StopSignal,
-        _train_yolo,
-    )
+    from xray_detector.infrastructure.training.train_task import _train_yolo
 
     _train_yolo(
         _yolo_args(tmp_path, epochs=7, imgsz=512, batch=8),
         "cpu",
-        _StopSignal(),
         ProgressReporter(emit=lambda line: None),
     )
 
     assert (calls[0]["epochs"], calls[0]["imgsz"], calls[0]["batch"]) == (7, 512, 8)
     assert calls[0]["data"] == str(tmp_path / "data.yaml")
+
+
+def test_yolo_uses_ultralytics_own_early_stopping(monkeypatch, tmp_path):
+    """Patience är ramverkets egen early stopping (TASK-118)."""
+    calls: list[dict] = []
+    _fake_ultralytics(monkeypatch, calls)
+    from xray_detector.infrastructure.training.progress import ProgressReporter
+    from xray_detector.infrastructure.training.train_task import _train_yolo
+
+    _train_yolo(
+        _yolo_args(tmp_path, overfitting_guard="on", overfitting_patience=15),
+        "cpu",
+        ProgressReporter(emit=lambda line: None),
+    )
+
+    assert calls[0]["patience"] == 15
+
+
+def test_yolo_disables_early_stopping_with_patience_zero(monkeypatch, tmp_path):
+    """0 är ultralytics sätt att stänga av early stopping (TASK-118)."""
+    calls: list[dict] = []
+    _fake_ultralytics(monkeypatch, calls)
+    from xray_detector.infrastructure.training.progress import ProgressReporter
+    from xray_detector.infrastructure.training.train_task import _train_yolo
+
+    _train_yolo(
+        _yolo_args(tmp_path, overfitting_guard="off"),
+        "cpu",
+        ProgressReporter(emit=lambda line: None),
+    )
+
+    assert calls[0]["patience"] == 0
 
 
 def test_the_hyperparameters_are_readable_from_the_manifest(tmp_path):

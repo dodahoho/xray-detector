@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from xray_detector.application.training_history import training_runs
 from xray_detector.domain.training import EpochMetrics
@@ -12,6 +13,25 @@ from xray_detector.infrastructure.training.verdict import (
     UNKNOWN,
     verdict,
 )
+
+
+def _args(tmp_path, **overrides):
+    """Träningsargumenten som _finish_state läser tidigt stopp ur (TASK-118)."""
+    values = {
+        "family": "yolo",
+        "weights": "yolo26n.pt",
+        "output_path": tmp_path,
+        "dataset": str(tmp_path / "data.yaml"),
+        "epochs": 20,
+        "imgsz": 320,
+        "batch": 2,
+        "device": "cpu",
+        "overfitting_guard": "on",
+        "overfitting_patience": 2,
+        "started": None,
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
 
 
 def _epoch(epoch: int, map50_95: float, train_loss: float = 1.0, val_loss: float = 1.0):
@@ -154,45 +174,43 @@ def test_a_guard_stop_is_distinguishable_from_a_crash(tmp_path):
     assert runs["kraschad"].status_label == "Avbruten (fel)"
 
 
-def test_the_guard_stop_is_recorded_as_overfitting():
-    """Ett stopp av vakten är ett lyckat utfall, inte en krasch (TASK-97)."""
+def test_the_guard_stop_is_recorded_as_overfitting(tmp_path):
+    """Ett tidigt stopp är ett lyckat utfall, inte en krasch (TASK-97, TASK-118)."""
     from xray_detector.infrastructure.training.train_task import (
         _finish_state,
         _RunState,
-        _StopSignal,
     )
 
-    state = _RunState()
-    _finish_state(state, _StopSignal(reason="Överträning: valvärdet står still"))
+    state = _RunState(epochs_completed=7)
+
+    _finish_state(_args(tmp_path), state)
 
     assert (state.status, state.stop_reason) == ("aborted", "overfitting")
-    assert state.reason.startswith("Överträning")
+    assert state.reason.startswith("Tidigt stopp")
 
 
-def test_a_crash_keeps_its_error_reason():
+def test_a_crash_keeps_its_error_reason(tmp_path):
     from xray_detector.infrastructure.training.train_task import (
         _finish_state,
         _RunState,
-        _StopSignal,
     )
 
     state = _RunState(status="aborted", reason="CUDA out of memory", stop_reason="error")
 
-    _finish_state(state, _StopSignal())
+    _finish_state(_args(tmp_path), state)
 
     assert (state.status, state.stop_reason) == ("aborted", "error")
 
 
-def test_a_run_that_reaches_the_end_is_completed():
+def test_a_run_that_reaches_the_end_is_completed(tmp_path):
     from xray_detector.infrastructure.training.train_task import (
         _finish_state,
         _RunState,
-        _StopSignal,
     )
 
-    state = _RunState()
+    state = _RunState(epochs_completed=20)
 
-    _finish_state(state, _StopSignal())
+    _finish_state(_args(tmp_path), state)
 
     assert (state.status, state.stop_reason) == ("completed", None)
 

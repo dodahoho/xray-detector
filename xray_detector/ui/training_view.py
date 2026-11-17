@@ -208,7 +208,8 @@ class TrainingView(QWidget):
         self.overfitting_check = QCheckBox("Avbryt vid överträning")
         self.overfitting_check.setChecked(True)
         self.overfitting_check.setToolTip(
-            "Avbryter träningen när train-loss fortsätter sjunka medan val-mAP vänder ner"
+            "Stoppar träningen med ramverkets early stopping när valvärdet inte "
+            "förbättrats under tio epoker"
         )
         form.addRow("Överträning:", self.overfitting_check)
         self.start_button = button(mnemonic("Starta träning", "R"), primary=True)
