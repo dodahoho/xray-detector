@@ -189,6 +189,15 @@ class EpochAccumulator:
         self._pending.clear()
         return remaining
 
+    def reset(self) -> None:
+        """Glöm ofullständiga rader; filen har skrivits om och läses från början.
+
+        Raderna som lästes ur den gamla filen hör inte ihop med den nya, så de
+        får inte bli ett epokevent. Redan skickade epoker ligger kvar i
+        ``_emitted`` och skickas inte igen (TASK-107).
+        """
+        self._pending.clear()
+
 
 class MetricsTail:
     """Läser de rader som tillkommit i en CSV-fil som växer under träningen."""
@@ -198,17 +207,22 @@ class MetricsTail:
         self._offset = 0
         self._header: list[str] | None = None
         self._partial = b""
+        #: Sant när den senaste läsningen började om från filens början
+        self.rewound = False
 
     def read_new_rows(self) -> list[dict[str, str]]:
+        self.rewound = False
         try:
             size = self.path.stat().st_size
         except OSError:
             return []
-        if size < self._offset:
-            # filen skrevs om, t.ex. när Lightning startar en ny körning
+        if size < self._offset or self._header_changed():
+            # filen skrevs om, t.ex. när Lightning startar en ny körning eller
+            # lägger till en kolumn
             self._offset = 0
             self._header = None
             self._partial = b""
+            self.rewound = True
         if size == self._offset:
             return []
         try:
@@ -231,6 +245,24 @@ class MetricsTail:
                 continue
             rows.append(dict(zip(self._header, values, strict=False)))
         return rows
+
+    def _header_changed(self) -> bool:
+        """Sant när filens första rad inte längre är den header vi läste.
+
+        Lightning skriver om hela metrics.csv när en ny kolumn tillkommer
+        (``_rewrite_with_new_header``), och då räcker inte storleksjämförelsen:
+        den omskrivna filen kan hinna bli större än den gamla offseten, och
+        läsningen fortsätter då mitt i en rad (TASK-107).
+        """
+        if self._header is None:
+            return False
+        try:
+            with open(self.path, "rb") as file:
+                first = file.readline()
+        except OSError:
+            return False
+        line = first.decode("utf-8", errors="replace").strip("\r\n")
+        return next(csv.reader([line]), []) != self._header
 
 
 def read_epoch_history(path: Path, family: str, total_epochs: int) -> list[EpochMetrics]:
@@ -288,7 +320,10 @@ class EpochReporter(threading.Thread):
         self._stop_event.set()
 
     def _drain(self, tail: MetricsTail, accumulator: EpochAccumulator) -> None:
-        for row in tail.read_new_rows():
+        rows = tail.read_new_rows()
+        if tail.rewound:
+            accumulator.reset()
+        for row in rows:
             metrics = accumulator.feed(row)
             if metrics is not None:
                 self._emit(metrics)

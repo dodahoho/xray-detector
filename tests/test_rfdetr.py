@@ -35,6 +35,9 @@ def test_export_rfdetr_layout(service, tmp_path):
         assert len(coco["annotations"]) == len(images)
         assert [c["name"] for c in coco["categories"]] == ["kniv", "pistol"]
         assert all(img["file_name"].startswith("images/") for img in coco["images"])
+        # rfdetr läser area rakt av och faller på KeyError utan den (TASK-107)
+        assert all(annotation["area"] > 0 for annotation in coco["annotations"])
+        assert all(annotation["iscrowd"] == 0 for annotation in coco["annotations"])
     train = json.loads((out / "train" / "_annotations.coco.json").read_text(encoding="utf-8"))
     valid = json.loads((out / "valid" / "_annotations.coco.json").read_text(encoding="utf-8"))
     test = json.loads((out / "test" / "_annotations.coco.json").read_text(encoding="utf-8"))
@@ -321,6 +324,45 @@ def test_train_rfdetr_uses_selected_size(monkeypatch, tmp_path):
     assert used == [("_FakeNano", {"resolution": 640})]
     assert trained[0]["num_workers"] == 8
     assert trained[0]["seed"] == 42
+    assert trained[0]["resolution"] == 640
+    assert run_dir == tmp_path / "out" / "rfdetr"
+
+
+def test_train_rfdetr_loads_checkpoint_snapshot(monkeypatch, tmp_path):
+    """En egen .pth-snapshot laddas med from_checkpoint i stället för att slås upp som storlek (TASK-107)."""
+    import sys
+    import types
+
+    loaded = []
+    trained = []
+
+    class _FakeSnapshot:
+        def train(self, **kwargs):
+            trained.append(kwargs)
+
+    fake = types.ModuleType("rfdetr")
+    fake.from_checkpoint = lambda path: loaded.append(path) or _FakeSnapshot()
+    monkeypatch.setitem(sys.modules, "rfdetr", fake)
+
+    from xray_detector.infrastructure.training.train_task import _train_rfdetr
+
+    weights = tmp_path / "checkpoint_best_total.pth"
+    weights.write_bytes(b"")
+    args = types.SimpleNamespace(
+        weights=str(weights),
+        dataset=str(tmp_path / "ds"),
+        epochs=1,
+        imgsz=800,
+        batch=4,
+        workers=8,
+        seed=42,
+        output_path=tmp_path / "out",
+    )
+    run_dir = _train_rfdetr(args, "cpu")
+
+    # upplösningen hör till körningen, inte till snapshotens egen arkitektur
+    assert loaded == [str(weights)]
+    assert trained[0]["resolution"] == 800
     assert run_dir == tmp_path / "out" / "rfdetr"
 
 

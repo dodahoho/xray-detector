@@ -47,18 +47,22 @@ def _is_checkpoint(weights: str) -> bool:
     return Path(weights).is_file()
 
 
-def _load_model(weights: str):
+def load_rfdetr_model(weights: str, resolution: int | None = None):
     """Publicerad storlek (modellnyckel) eller tränad snapshot (sökväg till .pth).
 
     En tränad snapshot bär både arkitektur och antal klasser, så
     from_checkpoint väljer variant och läser detektionshuvudet ur filen.
+    Upplösningen sätts bara för en storlek: en snapshot har sin egen i
+    model_config, och träningen ändrar den i stället via train(resolution=...),
+    som räknar om positionskodningarna åt den (TASK-107).
     """
     import rfdetr
 
     _capture_rfdetr_logs()
     if _is_checkpoint(weights):
         return rfdetr.from_checkpoint(weights)
-    return rfdetr_variant(weights)()
+    variant = rfdetr_variant(weights)
+    return variant() if resolution is None else variant(resolution=resolution)
 
 
 class RfDetrDetector(BaseDetector):
@@ -84,7 +88,7 @@ class RfDetrDetector(BaseDetector):
         )
 
         configure_inference_threads()
-        model = _load_model(weights)
+        model = load_rfdetr_model(weights)
         # modellbygget importerar fler rfdetr-moduler med egna loggrar
         _capture_rfdetr_logs()
         super().__init__(

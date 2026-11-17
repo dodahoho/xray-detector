@@ -230,6 +230,39 @@ def test_metrics_tail_ignores_a_missing_file(tmp_path):
     assert MetricsTail(tmp_path / "saknas.csv").read_new_rows() == []
 
 
+def test_metrics_tail_restarts_when_a_column_is_added(tmp_path):
+    """Lightning skriver om metrics.csv när en kolumn tillkommer (TASK-107).
+
+    Den omskrivna filen är större än den gamla, så storleksjämförelsen räcker
+    inte: utan headerkontrollen läses raden mitt i och kolumnerna hamnar fel.
+    """
+    path = tmp_path / "metrics.csv"
+    path.write_text("epoch,step,val/mAP_50\n0,15,0.09\n", encoding="utf-8")
+    tail = MetricsTail(path)
+    assert [row["val/mAP_50"] for row in tail.read_new_rows()] == ["0.09"]
+    assert not tail.rewound
+
+    path.write_text(
+        "epoch,step,train/loss,val/mAP_50\n0,15,12.7,0.09\n", encoding="utf-8"
+    )
+    rows = tail.read_new_rows()
+
+    assert tail.rewound
+    assert rows == [
+        {"epoch": "0", "step": "15", "train/loss": "12.7", "val/mAP_50": "0.09"}
+    ]
+
+
+def test_epoch_accumulator_reset_drops_pending_rows():
+    """Rader ur en omskriven fil får inte bli ett epokevent (TASK-107)."""
+    accumulator = EpochAccumulator("rfdetr", total_epochs=1)
+    accumulator.feed({"epoch": "5", "train/loss": ""})
+
+    accumulator.reset()
+
+    assert accumulator.flush() == []
+
+
 # --- Sparad epokhistorik (TASK-70) ---
 
 
@@ -331,6 +364,34 @@ def test_reporter_flushes_incomplete_epochs_on_stop(tmp_path):
     reporter.join(timeout=5)
 
     assert [metrics.epoch for metrics in seen] == [1]
+
+
+def test_reporter_ignores_rows_from_a_rewritten_file(tmp_path):
+    """Epokeventet ska komma ur den omskrivna filen, inte ur en gammal rad (TASK-107)."""
+    path = tmp_path / "metrics.csv"
+    path.write_text("epoch,step,val/mAP_50,val/mAP_50_95\n", encoding="utf-8")
+    seen = []
+    reporter = EpochReporter(path, "rfdetr", 1, seen.append, interval=0.01)
+    reporter.start()
+    try:
+        with open(path, "a", encoding="utf-8") as file:
+            file.write("0,15,0.09,0.02\n")
+        time.sleep(0.1)  # rapportören hinner läsa valraden
+        # Lightning skriver om filen när train-kolumnerna tillkommer
+        path.write_text(
+            "epoch,step,train/loss,val/mAP_50,val/mAP_50_95\n"
+            "0,15,,0.09,0.02\n"
+            "0,15,12.7,,\n",
+            encoding="utf-8",
+        )
+        assert _wait_for(lambda: len(seen) == 1)
+    finally:
+        reporter.stop()
+        reporter.join(timeout=5)
+
+    assert seen[0].epoch == 1
+    assert seen[0].train_loss == 12.7
+    assert seen[0].map50_95 == 0.02
 
 
 # --- TrainingWorker (AC 4, 6, 7) ---

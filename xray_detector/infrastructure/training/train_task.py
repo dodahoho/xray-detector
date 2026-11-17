@@ -417,19 +417,24 @@ def _apply_stop(trainer, stop: _StopSignal) -> None:
 
 
 def _train_rfdetr(args, device) -> Path:
-    """Trainer vald RF-DETR-storlek pa exporterat rfdetr-dataset.
+    """Trainer vald RF-DETR-modell pa exporterat rfdetr-dataset.
 
-    rfdetr-paketet ar valfritt och dess train()-signatur varierar mellan
-    versioner: kwargs filtreras därför mot den faktiska signaturen.
+    Basmodellen ar antingen en publicerad storlek eller en egen snapshot
+    (TASK-107). rfdetr-paketet ar valfritt och dess train()-signatur varierar
+    mellan versioner: kwargs filtreras därför mot den faktiska signaturen.
 
-    Upplösningen sätts när modellen konstrueras, eftersom den styr modellens
-    positionskodningar (TASK-91). num_workers och seed sätts explicit: paketet
+    Upplösningen sätts vid konstruktionen för en storlek och skickas dessutom
+    till train(), som räknar om positionskodningarna när den ändras. En
+    snapshot bär sin egen upplösning i model_config och får vyns värde först
+    där (TASK-91, TASK-107). num_workers och seed sätts explicit: paketet
     defaultar till 2 arbetare, vilket svälter GPU:n på ett stort dataset, och
     till ingen seed alls, vilket gör körningen omöjlig att göra om.
     """
-    from xray_detector.infrastructure.detectors.rfdetr_detector import rfdetr_variant
+    from xray_detector.infrastructure.detectors.rfdetr_detector import (
+        load_rfdetr_model,
+    )
 
-    model = rfdetr_variant(args.weights)(resolution=args.imgsz)
+    model = load_rfdetr_model(args.weights, args.imgsz)
     self = model.train
     params = inspect.signature(self).parameters
     wanted = {
@@ -439,6 +444,7 @@ def _train_rfdetr(args, device) -> Path:
         "device": device,
         "num_workers": getattr(args, "workers", DEFAULT_WORKERS),
         "seed": getattr(args, "seed", DEFAULT_SEED),
+        "resolution": args.imgsz,
     }
     if getattr(args, "overfitting_guard", "on") == "on":
         # RF-DETR saknar publik callback-krok, så avbrottet sker med paketets

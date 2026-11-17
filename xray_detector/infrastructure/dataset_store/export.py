@@ -288,12 +288,17 @@ def _coco_document(dataset: dict, images: list[dict]) -> dict:
             category_id = category_of.get(annotation["class_name"])
             if category_id is None:
                 continue
+            bbox = [round(value, 2) for value in annotation["bbox"]]
             annotations.append(
                 {
                     "id": annotation_id,
                     "image_id": image["id"],
                     "category_id": category_id,
-                    "bbox": [round(value, 2) for value in annotation["bbox"]],
+                    "bbox": bbox,
+                    # COCO kräver area och iscrowd; rfdetr läser area rakt av
+                    # och faller annars på KeyError (TASK-107)
+                    "area": round(bbox[2] * bbox[3], 2),
+                    "iscrowd": 0,
                 }
             )
             annotation_id += 1
