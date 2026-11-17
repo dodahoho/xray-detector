@@ -45,7 +45,6 @@ def test_config_values_lists_effective_values(tmp_path):
     assert "yolo26s" in text
     assert "0.55" in text
     assert str(tmp_path / "logs") in text
-    assert "kniv" in text
 
 
 def test_log_format_contains_process_id(tmp_path, root_handlers):

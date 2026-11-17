@@ -221,13 +221,6 @@ def create_detector(
     raise ValueError(f"Okänd modellfamilj: {spec.family}")
 
 
-def spec_by_key(key: str) -> ModelSpec:
-    for spec in MODEL_SPECS:
-        if spec.key == key:
-            return spec
-    raise ValueError(f"Okänd modell: {key}")
-
-
 def base_models(models_dir: Path) -> list[ModelSpec]:
     """Modellerna i listan med YOLO-vikterna under models_dir (TASK-50, TASK-81).
 

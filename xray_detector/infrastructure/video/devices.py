@@ -3,8 +3,6 @@
 import os
 from dataclasses import dataclass
 
-import cv2
-
 from xray_detector.domain.capture import VideoMode
 
 
@@ -74,12 +72,3 @@ def list_device_modes(index: int) -> list[VideoMode]:
         modes.append(VideoMode(width=key[0], height=key[1], fourcc=key[2]))
     return modes
 
-
-def device_is_available(index: int) -> bool:
-    """Snabb probing av ett enskilt index (öppnar kort, används ej vid start)."""
-    capture = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-    try:
-        return capture is not None and capture.isOpened()
-    finally:
-        if capture is not None:
-            capture.release()

@@ -10,27 +10,26 @@ from xray_detector.application.app_config import (
 from xray_detector.domain.config import AppConfig
 
 
-def test_yaml_overrides_classes_model_and_threshold(tmp_path):
+def test_yaml_overrides_model_and_threshold(tmp_path):
     config = AppConfig()
     yaml = tmp_path / "config.yaml"
     yaml.write_text(
-        "# kommentar\n"
-        "classes: ['cigaretter', 'kniv', 'vattenpistol']\n"
-        "default_model: yolo26s\n"
-        "confidence_threshold: 0.55\n",
+        """# kommentar
+default_model: yolo26s
+confidence_threshold: 0.55
+""",
         encoding="utf-8",
     )
     assert apply_yaml_overrides(config, yaml)
-    assert config.classes == ["cigaretter", "kniv", "vattenpistol"]
     assert config.default_model == "yolo26s"
     assert config.confidence_threshold == 0.55
 
 
 def test_missing_yaml_is_noop(tmp_path):
     config = AppConfig()
-    baseline = list(config.classes)
+    baseline = config.default_model
     assert not apply_yaml_overrides(config, tmp_path / "saknas.yaml")
-    assert config.classes == baseline
+    assert config.default_model == baseline
 
 
 def test_load_config_prefers_data_dir_file(tmp_path):

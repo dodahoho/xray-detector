@@ -34,7 +34,6 @@ from xray_detector.infrastructure.training.metrics import (
 EVALUATION_NAME = "evaluation.json"
 #: Delmängderna en körning kan utvärderas mot. "test" finns bara i RF-DETR:s
 #: export; YOLO-exporten har train/val.
-SPLITS = ("test", "val", "all")
 SPLIT_LABELS = {"test": "Test", "val": "Val", "all": "Alla"}
 #: Låg tröskel så mAP räknas över hela precision/recall-kurvan.
 EVAL_CONFIDENCE = 0.01

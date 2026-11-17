@@ -42,20 +42,6 @@ NOISY_LOGGERS = ("comtypes",)
 NOISY_LEVEL = logging.WARNING
 
 
-def _parse_scalar(value):
-    if isinstance(value, str):
-        lowered = value.strip().lower()
-        if lowered in ("true", "yes"):
-            return True
-        if lowered in ("false", "no"):
-            return False
-        try:
-            return float(value) if "." in lowered else int(value)
-        except ValueError:
-            return value
-    return value
-
-
 def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
     """Tillämpar klasser/trösklar från en enkel YAML-fil.
 
@@ -83,9 +69,7 @@ def apply_yaml_overrides(config: AppConfig, yaml_path: Path) -> bool:
         key, _, raw = line.partition(":")
         key = key.strip()
         raw = raw.strip()
-        if key == "classes" and raw.startswith("[") and raw.endswith("]"):
-            config.classes = [part.strip().strip("'\"") for part in raw[1:-1].split(",") if part.strip()]
-        elif key == "default_model" and raw:
+        if key == "default_model" and raw:
             config.default_model = str(raw).strip("'\"")
         elif key == "confidence_threshold" and raw:
             try:
@@ -122,7 +106,7 @@ def load_config_with_yaml(config_dir: Path | None = None, workdir: Path | None =
 def config_values(config: AppConfig) -> str:
     """Konfigurationens gällande värden som en loggvänlig rad (TASK-101)."""
     return (
-        f"classes={config.classes} default_model={config.default_model} "
+        f"default_model={config.default_model} "
         f"confidence_threshold={config.confidence_threshold} "
         f"data_dir={config.data_dir} models_dir={config.models_dir} "
         f"logs_dir={config.logs_dir}"

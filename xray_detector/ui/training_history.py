@@ -38,7 +38,6 @@ from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
 
 COLUMNS = ("Körning", "Basmodell", "Epoker", "Tid", "mAP50-95", "Dom", "Status")
-NO_RUNS = "Inga tidigare träningar"
 NO_SELECTION = "Välj en träning för att exportera modellen"
 NOT_EVALUATED = "Inte utvärderad"
 DELETE_QUESTION = (

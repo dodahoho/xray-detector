@@ -18,9 +18,6 @@ def default_logs_dir() -> Path:
 
 @dataclass
 class AppConfig:
-    classes: list[str] = field(
-        default_factory=lambda: ["cigaretter", "cannabis", "kniv", "pistol"]
-    )
     data_dir: Path = field(default_factory=lambda: Path.home() / ".xray-detector")
     models_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "models")
     logs_dir: Path = field(default_factory=default_logs_dir)
@@ -51,8 +48,3 @@ class AppConfig:
         ):
             path.mkdir(parents=True, exist_ok=True)
 
-
-def load_config() -> AppConfig:
-    config = AppConfig()
-    config.ensure_dirs()
-    return config

@@ -83,10 +83,11 @@ def test_annotation_list_is_empty_by_default(qapp, tmp_path):
     assert service.classes() == []
 
 
-def test_config_classes_do_not_fill_the_annotation_list(qapp, tmp_path):
+def test_config_has_no_class_list_of_its_own(qapp, tmp_path):
+    """data.yaml är master för klasslistan; AppConfig har ingen egen (TASK-132)."""
     view, _ = make_view(tmp_path)
 
-    assert AppConfig().classes, "config.classes finns kvar i konfigurationen"
+    assert not hasattr(AppConfig(), "classes")
     assert view._class_names() == []
 
 
