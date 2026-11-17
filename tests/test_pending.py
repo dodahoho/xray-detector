@@ -56,11 +56,11 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     config.data_dir = tmp_path
     config.ensure_dirs()
 
-    # fangst -> pending skrivs direkt, annotering avbryts (som vid krasch)
+    # fangst -> pending skrivs direkt, och fonstret overges utan att avbryta
+    # (som vid en krasch; Avbryt kastar fangsten enligt TASK-112)
     window = MainWindow(config)
     window._on_capture(frames_two())
     assert window.dataset_service.pending_captures()
-    window.annotation_view.cancelled.emit()
 
     # "omstart": ny MainWindow ser den osparade fangsten
     window2 = MainWindow(config)

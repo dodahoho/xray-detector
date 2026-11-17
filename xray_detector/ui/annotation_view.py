@@ -758,3 +758,22 @@ class AnnotationView(QWidget):
         """Väntar in en pågående sparning (tester och stängning)."""
         if self._save_task is not None:
             self._save_task.wait(timeout_ms)
+
+    def is_saving(self) -> bool:
+        """Sant medan en sparning skriver i arbetstråden (TASK-112)."""
+        return self._save_task is not None
+
+    def discard_pending(self) -> None:
+        """Kastar den osparade fångsten (TASK-112).
+
+        Pending-gruppen skrivs vid Fånga för att en krasch inte ska tappa
+        bilderna. När annoteringen lämnas utan att sparas finns det ingen
+        osparad fångst kvar att återuppta, så gruppen tas bort i stället för
+        att ligga kvar som ett bildpar i datasetvyn.
+        """
+        if self.pending_group_id:
+            self.dataset_service.remove_pending(self.pending_group_id)
+        self.pending_group_id = None
+        self.dataset_ids = []
+        self._save_requires_change = False
+        self.mark_clean()

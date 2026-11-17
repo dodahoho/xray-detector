@@ -84,6 +84,8 @@ def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
     # avbryt (cancel) utan sparande
     window.annotation_view.cancelled.emit()
     assert service.load_dataset()["images"] == []
+    # fångsten kastas i stället för att ligga kvar som osparad (TASK-112)
+    assert service.pending_captures() == []
 
 
 def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):
