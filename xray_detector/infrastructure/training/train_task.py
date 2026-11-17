@@ -291,7 +291,27 @@ def _finish_state(state: _RunState, stop: _StopSignal) -> None:
         state.status = "completed"
 
 
+def _use_utf8_output() -> None:
+    """Kopplar om stdout och stderr till UTF-8 (TASK-113).
+
+    rfdetr ritar tabeller med rich, som använder box-tecken som cp1252 inte kan
+    koda: med stdout kopplad till en pipe kraschade träningen på
+    UnicodeEncodeError. GUI:t läser dessutom processens stdout som UTF-8, så
+    teckenkodningen måste vara densamma oavsett vilken konsol processen fick —
+    annars blir svenska tecken i träningsloggen mojibake.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(encoding="utf-8")
+        except (OSError, ValueError):
+            continue
+
+
 def main() -> None:
+    _use_utf8_output()
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", required=True, help="Sökväg till YOLO data.yaml")
     parser.add_argument("--weights", required=True, help="Basmodell")

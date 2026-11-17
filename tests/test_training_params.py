@@ -2,12 +2,15 @@
 hyperparametrar (TASK-91, TASK-92)."""
 
 import json
+import os
+import subprocess
 import sys
 import types
 from types import SimpleNamespace
 
 import pytest
 
+from xray_detector.domain.config import PROJECT_ROOT
 from xray_detector.domain.training import (
     DEFAULT_BATCH,
     RFDETR_RESOLUTION_DIVISOR,
@@ -446,3 +449,39 @@ def test_the_training_view_names_the_run_from_the_dataset(qapp, tmp_path):
     name = view._trained_name(view._specs["yolo26n"], datetime(2026, 11, 17, 9, 30))
 
     assert name == "YOLO26 nano 2026-11-17 2+0 bildpar 2 klasser"
+
+
+# --- Träningsprocessens teckenkodning (TASK-113) ---
+
+
+def test_the_training_process_writes_utf8_even_with_a_cp1252_stdout():
+    """rich ritar box-tecken som cp1252 inte kan koda (TASK-113).
+
+    GUI:t kopplar processens stdout till en pipe och läser den som UTF-8, så
+    processen måste skriva UTF-8 oavsett vilken konsol den fick.
+    """
+    code = (
+        "from xray_detector.infrastructure.training.train_task import _use_utf8_output;"
+        "_use_utf8_output();"
+        "print('┏━━━┓ Träning på enhet: cuda')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
+        cwd=PROJECT_ROOT,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    assert result.stdout.decode("utf-8").strip() == "┏━━━┓ Träning på enhet: cuda"
+
+
+def test_the_training_process_keeps_working_without_reconfigure(monkeypatch):
+    """En ström utan reconfigure får inte stoppa träningen (TASK-113)."""
+    from xray_detector.infrastructure.training import train_task
+
+    monkeypatch.setattr(train_task.sys, "stdout", object())
+    monkeypatch.setattr(train_task.sys, "stderr", object())
+
+    train_task._use_utf8_output()
