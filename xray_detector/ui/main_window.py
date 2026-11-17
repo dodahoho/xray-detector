@@ -259,7 +259,10 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
             if choice == "save":
-                self.annotation_view.save()
+                # frågan om negativa exempel ställs inte igen: svaret här gäller
+                if not self.annotation_view.save(confirm_empty=False):
+                    event.ignore()
+                    return
             else:
                 self.annotation_view.mark_clean()
         geometry = (self.normalGeometry() if self.isFullScreen() or self.isMaximized() else self.geometry())
@@ -279,5 +282,7 @@ class MainWindow(QMainWindow):
         self.dataset_view.wait_for_refresh()
         self.dataset_view.wait_for_export()
         self.dataset_view.wait_for_variations()
+        self.training_view.history.wait_for_evaluation()
+        self.settings_view.model_section.wait_for_download()
         self.detection_view.stop()
         super().closeEvent(event)

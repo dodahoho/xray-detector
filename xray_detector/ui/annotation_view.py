@@ -719,14 +719,22 @@ class AnnotationView(QWidget):
         if self.save_button.isEnabled():
             self.save()
 
-    def save(self) -> None:
+    def save(self, confirm_empty: bool = True) -> bool:
+        """Sparar bildparet; False när användaren avböjer (TASK-131).
+
+        confirm_empty=False hoppar över frågan om negativa exempel. Den som
+        redan svarat "spara" i stängningsdialogen ska inte få samma fråga en
+        gång till, och svaret ska gälla även när annoteringarna är tomma.
+        """
         if self._save_task is not None:
-            return
+            return True
         samples = [canvas.result() for canvas in self.canvases if canvas.image is not None]
         samples = [sample for sample in samples if sample is not None]
         if not samples:
-            return
-        if not any(canvas.rects for canvas in self.canvases if canvas.image is not None):
+            return True
+        if confirm_empty and not any(
+            canvas.rects for canvas in self.canvases if canvas.image is not None
+        ):
             answer = QMessageBox.question(
                 self,
                 "Negativt exempel",
@@ -734,7 +742,7 @@ class AnnotationView(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
-                return
+                return False
         pending_group_id = self.pending_group_id
         dataset_ids = self.dataset_ids
         # fångsttiden finns i pending-indexet, som skrevs vid knapptrycket
@@ -753,6 +761,7 @@ class AnnotationView(QWidget):
         task.finished.connect(self._on_save_finished)
         self._save_task = task
         task.start()
+        return True
 
     def _write(self, samples, captured, pending_group_id, dataset_ids) -> None:
         """Skriver datasetet i arbetstråden, inklusive städning av pending (TASK-40)."""

@@ -188,3 +188,59 @@ def test_delete_key_removes_the_selected_annotation_in_the_view(qapp, tmp_path):
     assert canvas.rects == []
     assert canvas.selected is None
     assert view.is_dirty()
+
+
+def test_close_with_unsaved_empty_annotations_asks_once_and_saves(qapp, tmp_path, monkeypatch):
+    """Stängning med tomma annoteringar ger en dialog och svaret gäller (TASK-131)."""
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.main_window import MainWindow
+
+    questions: list[str] = []
+
+    def question(parent, title, text, *args, **kwargs):
+        questions.append(title)
+        return QMessageBox.StandardButton.Save
+
+    monkeypatch.setattr(QMessageBox, "question", staticmethod(question))
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    window = MainWindow(config)
+    window.annotation_view.load_captures([StreamFrame("l", synthetic_frame(), [], "k")])
+    window.tabs.setTabEnabled(1, True)
+    window.tabs.setCurrentIndex(1)
+    window.annotation_view.canvases[0]._mark_dirty()
+
+    window.closeEvent(QCloseEvent())
+    window.annotation_view.wait_for_save()
+
+    assert questions == ["Osparade annoteringar"], f"fler dialoger än en: {questions}"
+    # svaret "spara" gäller även tomma annoteringar: bilden skrevs som negativt exempel
+    assert window.dataset_service.metadata()["num_images"] == 1
+    assert window.dataset_service.metadata()["num_objects"] == 0
+
+
+def test_close_waits_for_the_evaluation_and_the_download(qapp, tmp_path, monkeypatch):
+    """closeEvent väntar även på utvärderingen och modellnedladdningen (TASK-131)."""
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.main_window import MainWindow
+
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    window = MainWindow(config)
+    waited: list[str] = []
+    monkeypatch.setattr(
+        window.training_view.history,
+        "wait_for_evaluation",
+        lambda *a, **k: waited.append("evaluation"),
+    )
+    monkeypatch.setattr(
+        window.settings_view.model_section,
+        "wait_for_download",
+        lambda *a, **k: waited.append("download"),
+    )
+
+    window.closeEvent(QCloseEvent())
+
+    assert waited == ["evaluation", "download"]
