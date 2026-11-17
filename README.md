@@ -104,13 +104,13 @@ Allt som går att klicka på går också att nå från tangentbordet. Genvägen 
 | --- | --- |
 | Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+L Inställningar |
 | Vyernas inställningar | Alt+I öppnar den aktiva vyns inställningar; avstängd när vyn inte har några |
-| Detektion | Alt+F Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
+| Detektion | Alt+F eller Space Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
 | Annotation | Alt+P Spara till dataset, Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
 | Dataset | Alt+U Utöka med bildvariationer, Alt+R Återställ till original, Alt+E Exportera COCO, Alt+Y Exportera YOLO, Alt+B Ta bort markerade, Alt+K Ta bort oanvända klasser |
 | Träning | Alt+R Starta träning (Alt+S Schemalägg träning när ett schema är valt), Alt+U Utvärdera, Alt+E Exportera modell, Esc Avbryt |
 | Övrigt | F11 helskärm, Delete/Backspace tar bort markerad rektangel, Ctrl+hjul zoomar |
 
-Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. Fliken Inställningar använder därför Alt+L i stället för Alt+I: inställningarna för vyn man arbetar i nås oftare än de globala, så Alt+I hör till vyernas inställningsknappar. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+- binds med `WindowShortcut` på vyn. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.
+Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. Fliken Inställningar använder därför Alt+L i stället för Alt+I: inställningarna för vyn man arbetar i nås oftare än de globala, så Alt+I hör till vyernas inställningsknappar. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+-/Space binds med `WindowShortcut` på vyn. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.
 
 
 Modellväljaren är avstängd medan en modell laddas, så två laddningar inte kan köra samtidigt. En misslyckad laddning ger samma felmeddelande som förut och lämnar detektorn avstängd. Mätt på RTX 5080 tar RF-DETR nano 6,3 s att ladda; under hela den tiden animeras snurran och fönstret ritas om. Datasetvyns bildavkodning var den dyra delen av omladdningen (826 av 870 ms för 200 bilder) och ligger därför i arbetstråden, medan widgetbygget (cirka 45 ms) sker i GUI-tråden. Enhetskontrollen, som initierar CUDA-kontexten på cirka 1 s, har ingen indikator: den flyttades bara bort från `MainWindow.__init__` så fönstret kan visas direkt.

@@ -82,7 +82,7 @@ def test_button_labels_show_underline_or_hint(window):
     annotation = window.annotation_view
     training = window.training_view
 
-    assert detection.capture_button.text() == "&Fånga bilder"
+    assert detection.capture_button.text() == "&Fånga bilder (Space)"
     assert detection.detection_button.text() == "Detekti&on av"
     assert detection.left.retry_button.text() == "Försök i&gen"
     assert detection.right.retry_button.text() == "Försök ige&n"
@@ -224,6 +224,31 @@ def test_shortcut_on_inactive_tab_does_not_fire(qapp, window):
     assert messages == ["Ingen videokälla att fånga ifrån"]
 
 
+def test_space_captures_like_the_button(qapp, window):
+    """Space hör till Fånga bilder-knappen (TASK-114)."""
+    messages = []
+    window.detection_view.error_occurred.connect(messages.append)
+    window.tabs.setCurrentIndex(0)
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    qapp.processEvents()
+
+    assert messages == ["Ingen videokälla att fånga ifrån"]
+
+
+def test_space_does_not_fire_on_inactive_tab(qapp, window):
+    messages = []
+    window.detection_view.error_occurred.connect(messages.append)
+    window.tabs.setCurrentIndex(2)
+    qapp.processEvents()
+
+    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    qapp.processEvents()
+
+    assert messages == []
+
+
 def test_escape_cancels_annotation_view(qapp, window):
     cancelled = []
     window.annotation_view.cancelled.connect(lambda: cancelled.append(True))
@@ -316,4 +341,4 @@ def test_class_list_shortcuts(qapp, window, monkeypatch):
 def test_shortcuts_do_not_collide_with_the_canvas(window):
     sequences = {shortcut.key().toString() for shortcut in window.findChildren(QShortcut)}
 
-    assert sequences == {"F11", "Esc", "Ctrl++", "Ctrl+-"}
+    assert sequences == {"F11", "Esc", "Ctrl++", "Ctrl+-", "Space"}

@@ -40,7 +40,7 @@ from xray_detector.ui.settings_dialog import (
     ClassFilterSection,
     settings_button,
 )
-from xray_detector.ui.shortcuts import mnemonic
+from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.style import button
 from xray_detector.ui.video_file_dialog import remember_video_file, video_file_dir
 from xray_detector.ui.video_settings import (
@@ -531,9 +531,13 @@ class DetectionView(QWidget):
         for meter in self.resource_meters.values():
             bar.addWidget(meter)
         bar.addStretch(1)
-        self.capture_button = button(mnemonic("Fånga bilder", "F"), primary=True)
+        self.capture_button = button(
+            with_hint(mnemonic("Fånga bilder", "F"), "Space"), primary=True
+        )
         self.capture_button.clicked.connect(self._on_capture)
         bar.addWidget(self.capture_button)
+        # Space fångar som knappen, men bara när detektionsvyn är den aktiva fliken
+        bind_shortcut(self, "Space", self._on_capture)
         self.detection_button = button(DETECTION_TURN_OFF)
         self.detection_button.setCheckable(True)
         self.detection_button.setChecked(True)
