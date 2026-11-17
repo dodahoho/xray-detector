@@ -36,7 +36,6 @@ from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import (
     ERROR_COLOR,
     MUTED_TEXT,
-    PANEL_BACKGROUND,
     class_color,
     device_color,
 )
@@ -383,9 +382,9 @@ class StreamPanel(QFrame):
     def _show_message(self, text: str) -> None:
         """Visar en text i stället för bilden och släpper senaste ramen."""
         self.display.setText(text)
-        self.display.setStyleSheet(
-            f"color: {MUTED_TEXT}; font-size: 24px; background: {PANEL_BACKGROUND};"
-        )
+        # bakgrunden kommer ur paletten, så ljust tema inte får en svart ruta (TASK-144)
+        self.display.setStyleSheet(f"color: {MUTED_TEXT}; font-size: 24px;")
+        self.display.setAutoFillBackground(True)
         self.display.show()
         self.lost_widget.hide()
         self.fps_label.clear()

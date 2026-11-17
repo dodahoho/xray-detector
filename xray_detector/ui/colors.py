@@ -34,7 +34,6 @@ IDLE_BACKGROUND = "#2b2b2b"
 HEADER_BACKGROUND = "#10202e"
 PENDING_COLOR = "#e5a52a"
 ERROR_COLOR = "#c33"
-PANEL_BACKGROUND = "#222"
 #: Enhetsraden i detektionsvyn: grönt när CUDA används, rött annars.
 DEVICE_CUDA_COLOR = "#2a8"
 DEVICE_CPU_COLOR = "#c33"
