@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-18T13:45:00Z'
-updated_date: '2026-11-18T14:17:00Z'
+updated_date: '2026-11-18T14:18:00Z'
 labels: []
 dependencies: []
 type: feature
@@ -43,7 +43,7 @@ Om det vid import av dataset redan finns bilder i applikationens dataset bör ma
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
