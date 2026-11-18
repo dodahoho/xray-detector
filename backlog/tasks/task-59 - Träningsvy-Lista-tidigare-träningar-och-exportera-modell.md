@@ -15,7 +15,7 @@ modified_files:
   - xray_detector/ui/training_view.py
   - tests/test_training_history.py
 type: feature
-ordinal: 57000
+ordinal: 241000
 ---
 
 ## Description

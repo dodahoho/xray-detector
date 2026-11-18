@@ -24,7 +24,7 @@ modified_files:
   - tests/test_detector_threading.py
 priority: high
 type: bug
-ordinal: 126000
+ordinal: 165000
 ---
 
 ## Description

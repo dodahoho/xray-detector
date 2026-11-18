@@ -13,7 +13,7 @@ modified_files:
   - tests/test_class_filter.py
   - README.md
 type: bug
-ordinal: 73000
+ordinal: 225000
 ---
 
 ## Description

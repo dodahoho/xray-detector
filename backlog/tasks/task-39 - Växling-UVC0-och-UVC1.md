@@ -25,7 +25,7 @@ modified_files:
   - tests/test_sample_video.py
   - README.md
   - groma/systems/xray-detector/containers/gui-app/components/video-settings.md
-ordinal: 37000
+ordinal: 261000
 ---
 
 ## Description

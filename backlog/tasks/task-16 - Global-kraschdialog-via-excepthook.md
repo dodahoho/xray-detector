@@ -18,7 +18,7 @@ modified_files:
   - tests/test_crash_dialog.py
 priority: low
 type: enhancement
-ordinal: 1000
+ordinal: 282000
 ---
 
 ## Description

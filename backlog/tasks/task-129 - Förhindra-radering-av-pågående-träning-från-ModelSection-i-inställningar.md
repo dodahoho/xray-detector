@@ -22,7 +22,7 @@ modified_files:
   - tests/test_model_settings.py
 priority: high
 type: bug
-ordinal: 127000
+ordinal: 166000
 ---
 
 ## Description

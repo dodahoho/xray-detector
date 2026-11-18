@@ -20,7 +20,7 @@ modified_files:
   - tests/test_training_scheduler.py
 priority: medium
 type: feature
-ordinal: 7000
+ordinal: 292000
 ---
 
 ## Description

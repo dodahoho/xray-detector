@@ -12,7 +12,7 @@ modified_files:
   - tests/test_class_filter.py
   - README.md
 type: enhancement
-ordinal: 75000
+ordinal: 223000
 ---
 
 ## Description

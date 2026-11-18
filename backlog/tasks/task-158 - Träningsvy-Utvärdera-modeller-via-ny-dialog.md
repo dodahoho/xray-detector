@@ -1,9 +1,11 @@
 ---
 id: TASK-158
 title: Träningsvy - Utvärdera modeller via ny dialog
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-18T12:21:00Z'
+updated_date: '2026-11-18T12:37:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -33,3 +35,14 @@ Finns det andra sätt att lösa det eller andra relevanta metrics för utvärder
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. metrics.py: track_lengths() och stability_summary() för spårlängder mellan bildrutor (ren numpy, testbar).
+2. evaluation.py: EvaluationSource (dataset/mapp/video), bildruteströmmar per källtyp, evaluate_detections() för källor utan annoteringar (detektioner/bild, per klass, andel bilder med träff, medelkonfidens, konfidenshistogram, stabilitet), evaluate_source() och compare_runs().
+3. ui/evaluation_chart.py: BarChart med grupperade staplar, ritad med QPainter och palettfärger som LineChart.
+4. ui/evaluation_dialog.py: EvaluationDialog med källväljare (dataset + delmängd, bildmapp, videofil), sammanfattningstabell, grafer och bakgrundskörning.
+5. ui/training_history.py: kryssruta först i varje rad, 'Markera alla', knappen 'Utvärdera valda...' som öppnar dialogen. Den infogade delmängdslistan, utvärderingsknappen och körningen flyttas till dialogen; etiketten med sparad utvärdering blir kvar som information.
+6. Tester för metrics, källtyper, dialog och historikvyns kryssrutor. docs/beteende.md uppdateras.
+<!-- SECTION:PLAN:END -->

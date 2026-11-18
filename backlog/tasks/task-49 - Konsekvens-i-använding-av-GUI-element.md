@@ -18,7 +18,7 @@ modified_files:
   - tests/test_style.py
   - README.md
   - groma/systems/xray-detector/containers/gui-app/components/style.md
-ordinal: 20000
+ordinal: 251000
 ---
 
 ## Description

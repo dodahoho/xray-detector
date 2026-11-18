@@ -21,7 +21,7 @@ modified_files:
   - tests/test_settings_dialog.py
 priority: high
 type: bug
-ordinal: 123000
+ordinal: 176000
 ---
 
 ## Description

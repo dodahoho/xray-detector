@@ -16,7 +16,7 @@ modified_files:
   - xray_detector/infrastructure/dataset_store/store.py
 priority: medium
 type: enhancement
-ordinal: 139000
+ordinal: 160000
 ---
 
 ## Description

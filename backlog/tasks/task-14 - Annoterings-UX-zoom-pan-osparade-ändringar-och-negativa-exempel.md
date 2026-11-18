@@ -18,7 +18,7 @@ modified_files:
   - tests/test_annotation_ux.py
 priority: medium
 type: enhancement
-ordinal: 8000
+ordinal: 280000
 ---
 
 ## Description

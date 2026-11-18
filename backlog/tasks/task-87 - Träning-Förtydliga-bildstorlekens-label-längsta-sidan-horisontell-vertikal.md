@@ -16,7 +16,7 @@ modified_files:
   - tests/test_training_imgsz.py
   - README.md
 type: enhancement
-ordinal: 85000
+ordinal: 213000
 ---
 
 ## Description

@@ -14,7 +14,7 @@ modified_files:
   - xray_detector/infrastructure/video/camera_service.py
   - tests/test_stream_worker.py
 type: feature
-ordinal: 36000
+ordinal: 262000
 ---
 
 ## Description

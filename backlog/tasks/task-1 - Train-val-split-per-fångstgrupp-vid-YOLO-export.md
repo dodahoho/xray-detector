@@ -19,7 +19,7 @@ modified_files:
   - xray_detector/ui/training_view.py
 priority: high
 type: feature
-ordinal: 1000
+ordinal: 294000
 ---
 
 ## Description

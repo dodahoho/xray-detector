@@ -21,7 +21,7 @@ modified_files:
   - .github/workflows/ci.yml
 priority: high
 type: chore
-ordinal: 121000
+ordinal: 174000
 ---
 
 ## Description
