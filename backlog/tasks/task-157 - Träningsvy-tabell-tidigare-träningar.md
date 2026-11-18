@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-18T12:04:00Z'
-updated_date: '2026-11-18T13:22:00Z'
+updated_date: '2026-11-18T13:56:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -48,6 +48,8 @@ Kolumner: Datum, Modellnamn, Checkpoint, Epoker, Tid, mAP50-95, Status, Notering
 Verifiering: 901 passed, 1 skipped (pytest -n 4). ruff check utan anmärkning. Vyn renderad offscreen med två körningar: kolumnerna och raden under tabellen visar de nya begreppen.
 
 Uppföljning efter testkörning: första kolumnen tog allt överskott eftersom den låg i Stretch. Nu får varje kolumn sin innehållsbredd plus en jämn del av det som blir över (_distribute_columns), och fördelningen räknas om när tabellens synliga yta byter bredd via ett eventfilter på viewporten. Ryms inte innehållet behåller kolumnerna sin bredd och tabellen rullar i sidled. Commit fd21d8f.
+
+Uppföljning 2: kryssrutans kolumn tar ingen del av överskottsbredden utan håller sig till kryssrutans bredd (40 px), medan de åtta datakolumnerna delar resten. Ett klick var som helst i kryssrutecellen slår nu om kryssrutan och väljer raden; Qt får inte sköta rutan själv (ItemIsUserCheckable borttagen), eftersom ett klick på indikatorn då hade slagit om två gånger. Verifierat med QTest.mouseClick på cellens högra del: krysset slås om, raden blir vald och Markera alla följer med. Hela sviten seriellt: 954 passed, 1 skipped. Commit f1d3d31.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
