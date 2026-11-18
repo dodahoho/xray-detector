@@ -92,4 +92,5 @@ uv run ruff check --fix .
 
 - [docs/arkitektur.md](docs/arkitektur.md) – lager, trådar, modeller, filer och CI
 - [docs/beteende.md](docs/beteende.md) – lägen, videokälla, inställningar, GUI och tangentbord
+- [docs/rapporter/bildvariationer.md](docs/rapporter/bildvariationer.md) – utvärdering av syntetiska bildvariationer vid ett tiotal bildpar
 - [docs/historik/specs.md](docs/historik/specs.md) – den ursprungliga kravspecifikationen
