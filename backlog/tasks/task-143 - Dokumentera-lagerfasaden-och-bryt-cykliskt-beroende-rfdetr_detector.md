@@ -1,10 +1,10 @@
 ---
 id: TASK-143
 title: Dokumentera lagerfasaden och bryt cykliskt beroende rfdetr_detector
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
-updated_date: '2026-11-18T07:41:00Z'
+updated_date: '2026-11-18T07:50:00Z'
 labels:
   - refactor
   - review-followup
@@ -27,18 +27,18 @@ ui importerar infrastructure på fem ställen, application importerar infrastruc
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 README/groma beskriver tydligt att application är en fasad och vilka importregler som gäller
-- [ ] #2 Inget cykliskt beroende infrastructure -> application finns kvar
-- [ ] #3 MIN_SCALE/MAX_SCALE/describe ligger i domain/dataset.py och ui importerar dem därifrån
+- [x] #1 README/groma beskriver tydligt att application är en fasad och vilka importregler som gäller
+- [x] #2 Inget cykliskt beroende infrastructure -> application finns kvar
+- [x] #3 MIN_SCALE/MAX_SCALE/describe ligger i domain/dataset.py och ui importerar dem därifrån
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -54,3 +54,9 @@ ui importerar infrastructure på fem ställen, application importerar infrastruc
 <!-- SECTION:NOTES:BEGIN -->
 Genomfört: infrastructure/logging.py äger loggfångsten; app_config importerar capture_third_party_logs därifrån och rfdetr_detector importerar den direkt, så det lokala application-importet i infrastructure är borta. grep efter xray_detector.application i xray_detector/infrastructure/ är tomt. MIN_SCALE/MAX_SCALE/describe ligger i domain/dataset.py; dataset_view och variation_dialog importerar dem därifrån och augment.py importerar dem för klämningen. README har en ny Kodstruktur-sektion med lagerreglerna. ui importerar fortfarande infrastructure på tre ställen i detection_view (BaseDetector, ResourceMonitor, list_device_modes); det är dokumenterat som tillåtet för rena typer och enhetslistor som saknar fasad.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Loggfångsten flyttade från application/app_config.py till infrastructure/logging.py, så infrastructure inte längre importerar application; rfdetr_detector importerar capture_third_party_logs därifrån och grep efter xray_detector.application i xray_detector/infrastructure/ är tomt. MIN_SCALE, MAX_SCALE och describe ligger i domain/dataset.py; dataset_view och variation_dialog importerar dem därifrån och augment.py importerar dem för klämningen. README har en ny Kodstruktur-sektion som beskriver att application är en fasad över infrastructure, att infrastructure aldrig importerar application, och att ui bara importerar infrastructure för rena typer och enhetslistor som saknar fasad. Verifierat med uv run ruff check . och uv run pytest -q (889 passed, 1 skipped).
+<!-- SECTION:FINAL_SUMMARY:END -->

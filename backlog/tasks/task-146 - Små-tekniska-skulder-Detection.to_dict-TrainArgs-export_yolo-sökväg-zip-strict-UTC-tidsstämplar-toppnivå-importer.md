@@ -3,10 +3,10 @@ id: TASK-146
 title: >-
   Små tekniska skulder: Detection.to_dict, TrainArgs, export_yolo-sökväg, zip
   strict, UTC-tidsstämplar, toppnivå-importer
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-17T20:53:00Z'
-updated_date: '2026-11-18T07:39:00Z'
+updated_date: '2026-11-18T07:50:00Z'
 labels:
   - refactor
   - review-followup
@@ -27,19 +27,19 @@ Från review_vibe_deepseek41_flash.md: pending.py handskriver Detection<->dict (
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Detection har to_dict/from_dict i domain och pending.py använder dem
-- [ ] #2 zip(..., strict=...) används där längderna ska matcha
-- [ ] #3 Alla sparade tidsstämplar använder UTC
-- [ ] #4 Inga obefogade PLC0415 kvar enligt ruff
+- [x] #1 Detection har to_dict/from_dict i domain och pending.py använder dem
+- [x] #2 zip(..., strict=...) används där längderna ska matcha
+- [x] #3 Alla sparade tidsstämplar använder UTC
+- [x] #4 Inga obefogade PLC0415 kvar enligt ruff
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -56,3 +56,9 @@ Från review_vibe_deepseek41_flash.md: pending.py handskriver Detection<->dict (
 <!-- SECTION:NOTES:BEGIN -->
 Genomfört: Detection.to_dict/from_dict i domain/detection.py; pending.py använder dem. zip strict=True i metrics.recall_at och metrics._class_ap; strict=False kvar i epoch_metrics (Lightning skriver rader kortare än headern, se test_rfdetr_row_without_values) och annotation_view (fler canvases än captures). pending.saved_at och training_view:s now() använder datetime.now(UTC); nattfönstret i training_service jämför lokal tid och lämnas medvetet. PLC0415 är aktiverad i ruff med per-file-ignores för tests/**, och de lata importen är märkta med noqa. Kvar från beskrivningen (utanför AC): TrainArgs-dataclass i train_task.main och att låta export_yolo returnera data.yaml-sökvägen.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Detection har to_dict/from_dict i domain/detection.py och pending.py använder dem i stället för att handskriva dicten. zip använder strict=True där längderna måste matcha (metrics.recall_at, metrics._class_ap) och strict=False där de inte gör det (epoch_metrics läser Lightning-rader som kan vara kortare än headern, annotation_view har fler canvases än captures). pending.saved_at och träningskörningens tidsstämpel sparar datetime.now(UTC); nattfönstret jämför lokal tid och lämnades medvetet. PLC0415 är aktiverad i ruff (per-file-ignores för tests/**), obefogade lokala importer är flyttade till toppnivå och torch/ultralytics/rfdetr/pygrabber/ctypes.wintypes är märkta med noqa. Dessutom: TrainArgs-dataclass i train_task.main och export_yolo returnerar data.yaml-sökvägen. Verifierat med uv run ruff check . och uv run pytest -q (889 passed, 1 skipped).
+<!-- SECTION:FINAL_SUMMARY:END -->
