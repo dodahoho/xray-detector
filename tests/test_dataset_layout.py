@@ -15,9 +15,9 @@ from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import (
     UNKNOWN_DATE,
     DatasetView,
-    FlowLayout,
     Thumbnail,
 )
+from xray_detector.ui.flow_layout import FlowLayout
 from xray_detector.ui.settings_dialog import SORT_KEY, SORT_OLDEST
 
 
