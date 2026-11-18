@@ -1,9 +1,10 @@
 ---
 id: TASK-145
 title: Dela upp stora vyfiler inkrementellt (först efter att CI är på plats)
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
+updated_date: '2026-11-18T09:05:00Z'
 labels:
   - refactor
   - review-followup
@@ -16,7 +17,7 @@ references:
   - review_vibe_deepseek41_flash.md
 priority: medium
 type: enhancement
-ordinal: 143000
+ordinal: 2000
 ---
 
 ## Description

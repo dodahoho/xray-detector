@@ -1,9 +1,10 @@
 ---
 id: TASK-155
 title: Ersätt QtCharts med QPainter-graf, byt fourcc-anrop, utvärdera opencv-headless
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:54:00Z'
+updated_date: '2026-11-18T09:04:00Z'
 labels:
   - refactor
   - review-followup
@@ -14,7 +15,7 @@ references:
   - utvärdering_hydrogen.md
 priority: low
 type: enhancement
-ordinal: 153000
+ordinal: 1000
 ---
 
 ## Description

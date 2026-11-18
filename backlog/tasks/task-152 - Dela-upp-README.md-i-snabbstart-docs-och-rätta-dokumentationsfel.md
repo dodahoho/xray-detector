@@ -1,9 +1,10 @@
 ---
 id: TASK-152
 title: Dela upp README.md i snabbstart + docs/ och rätta dokumentationsfel
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:54:00Z'
+updated_date: '2026-11-18T09:05:00Z'
 labels:
   - docs
   - review-followup
@@ -15,7 +16,7 @@ references:
   - review_vibe_deepseek41_flash.md
 priority: low
 type: docs
-ordinal: 150000
+ordinal: 3000
 ---
 
 ## Description
