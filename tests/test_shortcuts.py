@@ -138,6 +138,7 @@ def test_buttons_register_their_mnemonic(window):
         window.dataset_view.delete_button: "Alt+B",
         window.dataset_view.export_coco_button: "Alt+E",
         window.dataset_view.export_yolo_button: "Alt+Y",
+        window.dataset_view.import_button: "Alt+M",
         window.dataset_view.variation_button: "Alt+U",
         window.dataset_view.reset_button: "Alt+R",
         window.training_view.start_button: "Alt+R",

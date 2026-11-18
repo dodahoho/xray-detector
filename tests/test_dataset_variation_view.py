@@ -316,6 +316,9 @@ def test_variation_buttons_form_their_own_group_on_the_right(
     assert gap is not None
     assert gap.sizeHint().width() == BUTTON_GROUP_GAP
     assert bar.itemAt(4).widget() is view.export_coco_button
+    assert bar.itemAt(5).widget() is view.export_yolo_button
+    # importen hör till samma grupp som exporterna (TASK-159)
+    assert bar.itemAt(6).widget() is view.import_button
 
 
 def test_synthetic_icon_lists_every_variation(qapp, config, tmp_path, settings):

@@ -301,6 +301,7 @@ class MainWindow(QMainWindow):
         self.annotation_view.wait_for_save()
         self.dataset_view.wait_for_refresh()
         self.dataset_view.wait_for_export()
+        self.dataset_view.wait_for_import()
         self.dataset_view.wait_for_variations()
         self.training_view.history.wait_for_evaluation()
         self.detection_view.model_section.wait_for_download()

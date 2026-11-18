@@ -1,6 +1,7 @@
 import json
 import logging
 import random
+import shutil
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -390,6 +391,35 @@ class DatasetStore:
 
     def metadata(self) -> dict:
         return self._load_metadata()["info"]
+
+    def metadata_document(self) -> dict:
+        """Hela dataset.json som den ligger på disk (TASK-159).
+
+        Exporten skriver filen vidare oförändrad, så en import kan återställa
+        bild-id, fångstgrupp, fångsttid och den syntetiska bildens ursprung.
+        """
+        return self._load_metadata()
+
+    def replace_images(self, images: list[dict]) -> None:
+        """Ersätter bildposterna i dataset.json i ett svep (TASK-159).
+
+        Importen skriver alla poster på en gång i stället för en operation per
+        bild, så metadata, antal bilder och antal objekt räknas om en gång.
+        """
+        metadata = self._load_metadata()
+        metadata["images"] = images
+        self._save_metadata(metadata)
+
+    def clear(self) -> None:
+        """Tömmer datasetet: bilder, labels, klasslista och metadata (TASK-159).
+
+        Katalogerna tas bort helt, så filer som inte finns i dataset.json inte
+        ligger kvar och dyker upp i en senare omladdning.
+        """
+        shutil.rmtree(self.images_dir, ignore_errors=True)
+        shutil.rmtree(self.labels_dir, ignore_errors=True)
+        self.data_yaml.unlink(missing_ok=True)
+        self.metadata_path.unlink(missing_ok=True)
 
     def dataset_counts(self) -> tuple[int, int]:
         """Antal ursprungsbildpar och antal syntetiska bildpar (TASK-108).

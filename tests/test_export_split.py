@@ -59,8 +59,8 @@ def test_split_is_reproducible():
     assert [image["id"] for image in first[1]] == [image["id"] for image in second[1]]
 
 
-def test_export_yolo_writes_split_lists_and_yaml(tmp_path):
-    """Exporten listar bilderna i train.txt/val.txt i stället för att kopiera dem (TASK-151)."""
+def test_export_yolo_writes_a_complete_dataset(tmp_path):
+    """Exporten kopierar bilder, labels och metadata så den går att importera (TASK-159)."""
     svc = make_service(tmp_path)
     add_groups(svc, 6)
     out = export_yolo(svc, tmp_path / "exports").parent
@@ -69,18 +69,24 @@ def test_export_yolo_writes_split_lists_and_yaml(tmp_path):
     val_lines = (out / "val.txt").read_text(encoding="utf-8").splitlines()
     assert len(train_lines) == 10
     assert len(val_lines) == 2
-    # listan pekar på datasetets egna filer, så inga bilder kopieras
+    # listan pekar på exportens egna kopior, så exporten är en egen samling
     assert all(Path(line).is_file() for line in train_lines + val_lines)
-    assert all(Path(line).parent == svc.images_dir.resolve() for line in train_lines)
-    assert not (out / "images").exists()
+    assert all(Path(line).parent == (out / "images").resolve() for line in train_lines)
+    assert len(list((out / "images").glob("*.png"))) == 12
+    assert len(list((out / "labels").glob("*.txt"))) == 12
 
     yaml_text = (out / "data.yaml").read_text(encoding="utf-8")
     assert "train: train.txt" in yaml_text
     assert "val: val.txt" in yaml_text
     assert 'names: ["kniv", "pistol"]' in yaml_text
 
-    # label-filen ligger kvar i datasetet, där ultralytics hittar den
-    label = (svc.labels_dir / "img_000001.txt").read_text(encoding="utf-8")
+    # dataset.json följer med, eftersom YOLO-formatet saknar bildpar
+    metadata = json.loads((out / "dataset.json").read_text(encoding="utf-8"))
+    assert len(metadata["images"]) == 12
+    assert {image["group"] for image in metadata["images"]} == {1, 2, 3, 4, 5, 6}
+
+    # label-filen ligger i exporten, där ultralytics hittar den
+    label = (out / "labels" / "img_000001.txt").read_text(encoding="utf-8")
     assert label.startswith("0 ")
     assert len(label.strip().splitlines()) == 1
 

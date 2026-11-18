@@ -5,8 +5,8 @@ from pathlib import Path
 
 from xray_detector.domain.dataset import group_images
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
-from xray_detector.infrastructure.dataset_store.store import DatasetStore
-from xray_detector.infrastructure.dataset_store.yolo import write_data_yaml
+from xray_detector.infrastructure.dataset_store.store import METADATA_NAME, DatasetStore
+from xray_detector.infrastructure.dataset_store.yolo import label_name, write_data_yaml
 
 SPLIT_RATIO = 0.8
 SPLIT_SEED = 42
@@ -217,24 +217,36 @@ def _write_image_list(path: Path, images_dir: Path, images: list[dict]) -> None:
 
 
 def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
-    """Skriver train/val-listorna för datasetet och en data.yaml (TASK-78, TASK-151).
+    """Skriver ett komplett YOLO-dataset som går att importera tillbaka (TASK-78, TASK-151, TASK-159).
 
-    Datasetet ligger redan i YOLO-format med images/ och labels/ sida vid sida,
-    så ultralytics hittar label-filen ur bildsökvägen. Exporten behöver därför
-    bara lista vilka bilder som hör till train respektive val: inga bilder
-    kopieras. Returnerar sökvägen till data.yaml, så anroparen slipper bygga
-    layouten själv (TASK-146).
+    Bilderna och label-filerna kopieras till exporten, så den är en egen
+    samling som kan flyttas till en annan maskin och läsas av ultralytics
+    direkt. dataset.json följer med eftersom YOLO-formatet saknar bildpar:
+    filen bär bild-id, fångstgrupp, fångsttid och den syntetiska bildens
+    ursprung, så importen kan återställa datasetet som det var före exporten.
+    train.txt och val.txt listar de kopierade bilderna. Returnerar sökvägen
+    till data.yaml, så anroparen slipper bygga layouten själv (TASK-146).
     """
     dataset = store.load_dataset()
     out_dir = _fresh_dir(export_root / "yolo")
+    images_dir = out_dir / "images"
+    labels_dir = out_dir / "labels"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    labels_dir.mkdir(parents=True, exist_ok=True)
+    for image in dataset["images"]:
+        shutil.copy2(
+            store.images_dir / image["file_name"], images_dir / image["file_name"]
+        )
+        label = store.labels_dir / label_name(image["file_name"])
+        if label.is_file():
+            shutil.copy2(label, labels_dir / label.name)
     train_images, val_images = train_val_split(dataset["images"], ratio)
-    _write_image_list(out_dir / "train.txt", store.images_dir, train_images)
+    _write_image_list(out_dir / "train.txt", images_dir, train_images)
     # Tom val-uppsättning (enda gruppen): låt val peka på train så att
     # ultralytics kan starta, men notera det i manifestet.
-    _write_image_list(
-        out_dir / "val.txt", store.images_dir, val_images or train_images
-    )
+    _write_image_list(out_dir / "val.txt", images_dir, val_images or train_images)
     write_data_yaml(out_dir / "data.yaml", dataset["classes"], "train.txt", "val.txt")
+    atomic_write_json(out_dir / METADATA_NAME, store.metadata_document())
     write_manifest(
         out_dir,
         dataset,

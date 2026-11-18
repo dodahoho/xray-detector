@@ -2,17 +2,25 @@
 
 import threading
 import time
+from pathlib import Path
 
+import cv2
 import numpy as np
 import pytest
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QFileDialog
 
 from tests.conftest import FakeDetector, synthetic_frame
 from xray_detector.application import model_registry
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.import_dataset import MODE_EXTEND, MODE_REPLACE
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
+from xray_detector.infrastructure.dataset_store.yolo import (
+    label_name,
+    write_data_yaml,
+    write_labels,
+)
 from xray_detector.ui.annotation_view import AnnotationView, RectItem
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.dataset_view import DatasetView
@@ -315,6 +323,163 @@ def test_export_keeps_the_indicator_while_the_list_reloads(
     release.set()
     view.wait_for_export()
 
+    assert not view.busy.is_busy()
+
+
+# --- Datasetvyn: import (TASK-159) ---
+
+
+def _plain_dataset(root: Path, names: list[str], images: dict[str, list[tuple]]) -> Path:
+    """Ett YOLO-dataset utan appens dataset.json, som ett externt dataset."""
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    for file_name, rows in images.items():
+        cv2.imwrite(str(root / "images" / file_name), np.full((40, 50, 3), 90, np.uint8))
+        write_labels(root / "labels" / label_name(file_name), rows)
+    write_data_yaml(root / "data.yaml", names)
+    return root / "data.yaml"
+
+
+def _pick_file(monkeypatch, path: Path) -> None:
+    """Låter filväljaren returnera den givna data.yaml."""
+    monkeypatch.setattr(
+        QFileDialog,
+        "getOpenFileName",
+        staticmethod(lambda *args, **kwargs: (str(path), "")),
+    )
+
+
+def test_import_shows_indicator_and_reports_result(
+    qapp, config, settings, dataset_store, tmp_path, monkeypatch
+):
+    data_yaml = _plain_dataset(tmp_path / "external", ["pistol"], {"a.png": []})
+    _pick_file(monkeypatch, data_yaml)
+    monkeypatch.setattr(
+        "xray_detector.ui.dataset_view._ask_import_mode",
+        lambda parent, pairs: MODE_REPLACE,
+    )
+    view = DatasetView(config, dataset_store, settings)
+    view.wait_for_refresh()
+    messages: list = []
+    view.status_changed.connect(messages.append)
+
+    view._on_import()
+
+    assert view.busy.is_busy()
+    assert not view.import_button.isEnabled()
+    view.wait_for_import()
+    view.wait_for_refresh()
+
+    assert not view.busy.is_busy()
+    assert view.import_button.isEnabled()
+    assert messages and messages[0] == "Importerade 1 bild i 1 bildpar"
+
+
+def test_import_asks_before_touching_an_existing_dataset(
+    qapp, config, settings, dataset_store, tmp_path, monkeypatch
+):
+    data_yaml = _plain_dataset(tmp_path / "external", ["pistol"], {"a.png": []})
+    _pick_file(monkeypatch, data_yaml)
+    asked: list = []
+
+    def ask(parent, pairs):
+        asked.append(pairs)
+        return MODE_EXTEND
+
+    monkeypatch.setattr("xray_detector.ui.dataset_view._ask_import_mode", ask)
+    view = DatasetView(config, dataset_store, settings)
+    view.wait_for_refresh()
+
+    view._on_import()
+    view.wait_for_import()
+
+    assert asked == [1]
+    assert len(dataset_store.load_dataset()["images"]) == 3
+
+
+def test_import_cancel_leaves_the_dataset_alone(
+    qapp, config, settings, dataset_store, tmp_path, monkeypatch
+):
+    data_yaml = _plain_dataset(tmp_path / "external", ["pistol"], {"a.png": []})
+    _pick_file(monkeypatch, data_yaml)
+    monkeypatch.setattr(
+        "xray_detector.ui.dataset_view._ask_import_mode", lambda parent, pairs: None
+    )
+    view = DatasetView(config, dataset_store, settings)
+    view.wait_for_refresh()
+    messages: list = []
+    view.status_changed.connect(messages.append)
+
+    view._on_import()
+
+    assert messages == ["Importen avbröts"]
+    assert view._import_task is None
+    assert len(dataset_store.load_dataset()["images"]) == 2
+
+
+def test_import_into_an_empty_dataset_does_not_ask(
+    qapp, config, settings, tmp_path, monkeypatch
+):
+    """Ett tomt dataset ersätts utan fråga, eftersom inget kan gå förlorat (TASK-159)."""
+    data_yaml = _plain_dataset(tmp_path / "external", ["pistol"], {"a.png": []})
+    _pick_file(monkeypatch, data_yaml)
+    asked: list = []
+    monkeypatch.setattr(
+        "xray_detector.ui.dataset_view._ask_import_mode",
+        lambda parent, pairs: asked.append(pairs),
+    )
+    store = DatasetStore(tmp_path / "datasets")
+    view = DatasetView(config, store, settings)
+    view.wait_for_refresh()
+
+    view._on_import()
+    view.wait_for_import()
+
+    assert asked == []
+    assert len(store.load_dataset()["images"]) == 1
+
+
+def test_import_without_a_chosen_file_does_nothing(
+    qapp, config, settings, dataset_store, monkeypatch
+):
+    monkeypatch.setattr(
+        QFileDialog, "getOpenFileName", staticmethod(lambda *args, **kwargs: ("", ""))
+    )
+    view = DatasetView(config, dataset_store, settings)
+    view.wait_for_refresh()
+    messages: list = []
+    view.status_changed.connect(messages.append)
+
+    view._on_import()
+
+    assert messages == []
+    assert view._import_task is None
+
+
+def test_import_failure_is_reported(
+    qapp, config, settings, dataset_store, tmp_path, monkeypatch
+):
+    data_yaml = _plain_dataset(tmp_path / "external", ["pistol"], {"a.png": []})
+    _pick_file(monkeypatch, data_yaml)
+    monkeypatch.setattr(
+        "xray_detector.ui.dataset_view._ask_import_mode",
+        lambda parent, pairs: MODE_REPLACE,
+    )
+
+    def broken(store, path, mode):
+        raise OSError("disken är full")
+
+    monkeypatch.setattr("xray_detector.ui.dataset_view.import_yolo", broken)
+    view = DatasetView(config, dataset_store, settings)
+    view.wait_for_refresh()
+    messages: list = []
+    view.status_changed.connect(messages.append)
+
+    view._on_import()
+    view.wait_for_import()
+
+    assert messages == ["Import misslyckades: disken är full"]
+    assert view.import_button.isEnabled()
     assert not view.busy.is_busy()
 
 

@@ -17,6 +17,19 @@ import yaml
 DATA_YAML = "data.yaml"
 
 
+def read_data(path: Path) -> dict:
+    """data.yaml som dict; en oläsbar fil eller en annan form ger en tom dict.
+
+    Importen läser train/val ur samma dokument som klasslistan, så filen
+    tolkas på ett ställe (TASK-159).
+    """
+    try:
+        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def read_classes(path: Path) -> list[str]:
     """Klassnamnen ur data.yaml:s names-lista.
 
@@ -26,11 +39,7 @@ def read_classes(path: Path) -> list[str]:
     yaml.safe_load, så listposter på egna rader och radslutskommentarer
     fungerar som i vilken YAML-fil som helst (TASK-136).
     """
-    try:
-        data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError):
-        return []
-    names = data.get("names") if isinstance(data, dict) else None
+    names = read_data(path).get("names")
     if isinstance(names, dict):
         return [str(names[key]) for key in sorted(names)]
     if isinstance(names, (list, tuple)):

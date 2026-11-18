@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QDialog,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -24,6 +25,12 @@ from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import capture_group, describe
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.dataset_store.export import export_coco, export_yolo
+from xray_detector.infrastructure.dataset_store.import_dataset import (
+    MODE_EXTEND,
+    MODE_REPLACE,
+    MODES,
+    import_yolo,
+)
 from xray_detector.infrastructure.dataset_store.pending import (
     list_pending,
     remove_pending,
@@ -125,6 +132,41 @@ def _pairs(count: int) -> str:
     if count == 1:
         return "1 syntetiskt bildpar"
     return f"{count} syntetiska bildpar"
+
+
+def _pair_text(count: int) -> str:
+    """'1 bildpar' eller '3 bildpar' till importens dialog och statusrad (TASK-159)."""
+    return "1 bildpar" if count == 1 else f"{count} bildpar"
+
+
+def _image_text(count: int) -> str:
+    """'1 bild' eller '3 bilder' till importens statusrad (TASK-159)."""
+    return "1 bild" if count == 1 else f"{count} bilder"
+
+
+def _ask_import_mode(parent: QWidget, pairs: int) -> str | None:
+    """Frågar vad importen ska göra med de befintliga bilderna (TASK-159).
+
+    Returnerar MODE_REPLACE, MODE_EXTEND eller None när användaren avbryter.
+    """
+    box = QMessageBox(parent)
+    box.setWindowTitle("Importera dataset")
+    box.setIcon(QMessageBox.Icon.Question)
+    box.setText(
+        f"Datasetet innehåller redan {_pair_text(pairs)}. "
+        "Vad ska importen göra med dem?"
+    )
+    replace = box.addButton(MODES[MODE_REPLACE], QMessageBox.ButtonRole.DestructiveRole)
+    extend = box.addButton(MODES[MODE_EXTEND], QMessageBox.ButtonRole.AcceptRole)
+    box.addButton("Avbryt", QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(extend)
+    box.exec()
+    clicked = box.clickedButton()
+    if clicked is replace:
+        return MODE_REPLACE
+    if clicked is extend:
+        return MODE_EXTEND
+    return None
 
 
 def _header_style(color: str, background: str | None = None) -> str:
@@ -264,6 +306,7 @@ class DatasetView(QWidget):
         self._refresh_pending = False
         self._export_task: BackgroundTask | None = None
         self._export_label = ""
+        self._import_task: BackgroundTask | None = None
         self._variation_task: BackgroundTask | None = None
         self._data: dict | None = None
         self._date_bounds_ready = False
@@ -286,6 +329,10 @@ class DatasetView(QWidget):
         self.export_yolo_button = button(mnemonic("Exportera YOLO", "Y"))
         self.export_yolo_button.clicked.connect(self._on_export_yolo)
         bar.addWidget(self.export_yolo_button)
+        # importen hör till samma grupp som exporter: datasetet in och ut (TASK-159)
+        self.import_button = button(mnemonic("Importera", "m"))
+        self.import_button.clicked.connect(self._on_import)
+        bar.addWidget(self.import_button)
         self.delete_button = button(mnemonic("Ta bort markerade", "B"))
         self.delete_button.clicked.connect(self._on_delete)
         bar.addWidget(self.delete_button)
@@ -416,10 +463,11 @@ class DatasetView(QWidget):
             self.refresh()
 
     def _update_busy(self) -> None:
-        """Stänger indikatorn först när ingen omladdning, export eller utökning pågår."""
+        """Stänger indikatorn först när ingen omladdning, export, import eller utökning pågår."""
         if (
             self._refresh_task is None
             and self._export_task is None
+            and self._import_task is None
             and self._variation_task is None
         ):
             self.busy.stop()
@@ -445,7 +493,7 @@ class DatasetView(QWidget):
 
     def _start_export(self, label: str, export) -> None:
         """Exporterar i en arbetstråd medan indikatorn visas (TASK-40)."""
-        if self._export_task is not None:
+        if self._export_task is not None or self._import_task is not None:
             return
         self._export_label = label
         self.busy.start(f"Exporterar {label}...")
@@ -476,6 +524,67 @@ class DatasetView(QWidget):
         """Väntar in en pågående export (tester och stängning)."""
         if self._export_task is not None:
             self._export_task.wait(timeout_ms)
+
+    def _on_import(self) -> None:
+        """Importerar ett YOLO-dataset från disk (TASK-159).
+
+        Filväljaren öppnas i exportkatalogen, eftersom den vanligaste importen
+        är att återställa en tidigare export. Finns det redan bilder i
+        datasetet får användaren välja att ersätta, utöka eller avbryta.
+        """
+        if self._import_task is not None or self._export_task is not None:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Importera YOLO-dataset",
+            str(self.config.export_dir),
+            "YOLO-dataset (data.yaml)",
+        )
+        if not path:
+            return
+        mode = MODE_REPLACE
+        pairs = self._existing_pairs()
+        if pairs:
+            mode = _ask_import_mode(self, pairs)
+            if mode is None:
+                self.status_changed.emit("Importen avbröts")
+                return
+        self.busy.start("Importerar dataset...")
+        self._set_import_enabled(False)
+        task = BackgroundTask(lambda: import_yolo(self.dataset_store, Path(path), mode))
+        task.succeeded.connect(self._on_import_done)
+        task.failed.connect(self._on_import_failed)
+        task.finished.connect(self._on_import_finished)
+        self._import_task = task
+        task.start()
+
+    def _existing_pairs(self) -> int:
+        """Antal bildpar i datasetet just nu (TASK-159)."""
+        images = self.dataset_store.metadata_document()["images"]
+        return len({capture_group(image) for image in images})
+
+    def _set_import_enabled(self, enabled: bool) -> None:
+        self.import_button.setEnabled(enabled)
+
+    def _on_import_done(self, result) -> None:
+        message = f"Importerade {_image_text(result.images)} i {_pair_text(result.pairs)}"
+        if result.skipped:
+            message += f" ({result.skipped} filer gick inte att läsa)"
+        self.status_changed.emit(message)
+        self.refresh()
+
+    def _on_import_failed(self, message: str) -> None:
+        self.status_changed.emit(f"Import misslyckades: {message}")
+
+    def _on_import_finished(self) -> None:
+        self._import_task = None
+        self._update_busy()
+        self._set_import_enabled(True)
+
+    def wait_for_import(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående import (tester och stängning)."""
+        if self._import_task is not None:
+            self._import_task.wait(timeout_ms)
 
     def _on_add_variations(self) -> None:
         """Utökar datasetet med de variationer dialogen valt (TASK-88).
