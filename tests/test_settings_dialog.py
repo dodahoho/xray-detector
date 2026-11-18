@@ -1,5 +1,6 @@
 """Globala inställningar i fliken och egna inställningar per vy (TASK-43)."""
 
+import threading
 from datetime import time
 
 import numpy as np
@@ -216,15 +217,45 @@ def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, mo
     view = TrainingView(config, service, settings)
     ratios: list = []
     monkeypatch.setattr(
-        "xray_detector.ui.training_view.export_yolo",
-        lambda store, root, ratio: ratios.append(ratio)
+        "xray_detector.ui.training_view.export_dataset",
+        lambda store, export_dir, family, ratio: ratios.append(ratio)
+        or config.export_dir / "yolo" / "data.yaml",
+    )
+    monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
+
+    view._on_start()
+    view.wait_for_export()
+
+    assert ratios == [0.5]
+
+
+def test_training_start_does_not_block_on_the_export(qapp, config, settings, monkeypatch):
+    """Exporten körs i bakgrunden, så _on_start återvänder innan den är klar (TASK-151)."""
+    service = DatasetStore(config.dataset_dir)
+    service.set_classes(["kniv"])
+    service.add_samples([
+        AnnotatedImage(
+            np.full((30, 40, 3), 60, np.uint8),
+            [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}],
+        )
+        for _ in range(2)
+    ])
+    view = TrainingView(config, service, settings)
+    release = threading.Event()
+    monkeypatch.setattr(
+        "xray_detector.ui.training_view.export_dataset",
+        lambda store, export_dir, family, ratio: release.wait(5)
         or config.export_dir / "yolo" / "data.yaml",
     )
     monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
 
     view._on_start()
 
-    assert ratios == [0.5]
+    # anropet är tillbaka medan exporten ännu väntar
+    assert view._export_task is not None
+    assert not view._export_task.is_done()
+    release.set()
+    view.wait_for_export()
 
 
 def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatch):
@@ -242,8 +273,8 @@ def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatc
     settings.setValue("training/night_end", "04:45")
     view = TrainingView(config, service, settings)
     monkeypatch.setattr(
-        "xray_detector.ui.training_view.export_yolo",
-        lambda store, root, ratio: config.export_dir / "yolo" / "data.yaml",
+        "xray_detector.ui.training_view.export_dataset",
+        lambda store, export_dir, family, ratio: config.export_dir / "yolo" / "data.yaml",
     )
     monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
     view.run_combo.setCurrentIndex(view.run_combo.findData("night"))
@@ -252,6 +283,8 @@ def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatc
 
     scheduler = view.training_service.scheduler()
     assert scheduler.has_queued()
+    # exporten sparas till starten, inte till klickögonblicket (TASK-151)
+    assert scheduler.export is not None
     assert scheduler.night_start == time(1, 15)
     assert scheduler.night_end == time(4, 45)
 

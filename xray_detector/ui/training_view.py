@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from xray_detector.application import model_registry
 from xray_detector.application.app_config import file_logger, log_path
+from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.training_history import run_epochs
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
@@ -37,8 +38,7 @@ from xray_detector.domain.training import (
     trained_model_name,
 )
 from xray_detector.infrastructure.dataset_store.export import (
-    export_rfdetr,
-    export_yolo,
+    export_dataset,
     train_val_counts,
 )
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
@@ -78,6 +78,8 @@ class TrainingView(QWidget):
         self.settings = settings
         self.training_service = TrainingService()
         self.worker = None
+        # datasetexporten som körs i bakgrunden vid start (TASK-151)
+        self._export_task: BackgroundTask | None = None
         self.training_log = None
         # körningens id, samma sträng i app.log och training.log (TASK-101)
         self.run_id = None
@@ -395,7 +397,6 @@ class TrainingView(QWidget):
         if spec is None:
             self.status_changed.emit("Ingen basmodell vald")
             return
-        weights = spec.weights
         family = spec.family
         ratio = train_ratio(self.settings)
         if family == "rfdetr":
@@ -410,13 +411,16 @@ class TrainingView(QWidget):
             if error is not None:
                 self.status_changed.emit(error)
                 return
-            dataset_path = export_rfdetr(self.dataset_store, self.config.export_dir, ratio)
-        else:
-            dataset_path = export_yolo(self.dataset_store, self.config.export_dir, ratio)
+
+        def export() -> Path:
+            """Exporterar datasetet för körningen; körs när träningen startar (TASK-151)."""
+            return export_dataset(
+                self.dataset_store, self.config.export_dir, family, ratio
+            )
+
         now = datetime.now(UTC)
         config = TrainConfig(
-            dataset_yaml=Path(dataset_path),
-            weights=weights,
+            weights=spec.weights,
             output_dir=self.config.trained_dir / now.strftime("%Y-%m-%d_%H%M%S"),
             epochs=self.epochs_spin.value(),
             imgsz=self.imgsz_spin.value(),
@@ -428,16 +432,49 @@ class TrainingView(QWidget):
         )
         run_mode = self.run_combo.currentData()
         if run_mode == "direct":
-            self.training_service.create_worker(config)
+            self._start_direct(config, export)
             return
         scheduler = self.training_service.scheduler()
         scheduler.queue_job(
             config,
             run_mode,
+            export=export,
             inactivity_minutes=int(self.settings.value("training/inactivity_minutes", 30, type=int)),
             night_start=str(self.settings.value(NIGHT_START_KEY, "")),
             night_end=str(self.settings.value(NIGHT_END_KEY, "")),
         )
+
+    def _start_direct(self, config: TrainConfig, export) -> None:
+        """Exporterar datasetet i bakgrunden och startar sedan träningen (TASK-151).
+
+        Exporten låg tidigare i GUI-tråden och frös vyn medan katalogen tömdes
+        och alla bilder kopierades.
+        """
+        if self._export_task is not None:
+            return
+        self.status_changed.emit("Exporterar datasetet...")
+        task = BackgroundTask(export)
+        task.succeeded.connect(lambda path: self._on_exported(config, path))
+        task.failed.connect(
+            lambda message: self.status_changed.emit(
+                f"Kunde inte exportera datasetet: {message}"
+            )
+        )
+        task.finished.connect(self._on_export_finished)
+        self._export_task = task
+        task.start()
+
+    def _on_exported(self, config: TrainConfig, path) -> None:
+        config.dataset_yaml = Path(path)
+        self.training_service.create_worker(config)
+
+    def _on_export_finished(self) -> None:
+        self._export_task = None
+
+    def wait_for_export(self, timeout_ms: int = 10000) -> None:
+        """Väntar in en pågående datasetexport (tester och stängning)."""
+        if self._export_task is not None:
+            self._export_task.wait(timeout_ms)
 
     def _on_worker_created(self, worker) -> None:
         """Kopplar en (direkt eller schemalagd) worker till loggen och startar den."""

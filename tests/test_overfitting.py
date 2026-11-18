@@ -326,6 +326,7 @@ def test_setting_is_passed_to_the_training_process(qapp, tmp_path):
 
     view.overfitting_check.setChecked(False)
     view._on_start()
+    view.wait_for_export()
 
     assert started[0].overfitting_guard is False
     from xray_detector.infrastructure.training.trainer import TrainingWorker

@@ -1,8 +1,11 @@
 import time
+from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from xray_detector.application.background_task import BackgroundTask
 from xray_detector.domain.training import (
     NIGHT_END_DEFAULT,
     NIGHT_START_DEFAULT,
@@ -29,6 +32,9 @@ class TrainingScheduler(QObject):
         self.service = service
         self.mode: str | None = None
         self.config: TrainConfig | None = None
+        #: datasetexporten som körs när jobbet faktiskt startar (TASK-151)
+        self.export: Callable[[], Path] | None = None
+        self._export_task: BackgroundTask | None = None
         self.inactivity_minutes = 30
         self.night_start = NIGHT_START_DEFAULT
         self.night_end = NIGHT_END_DEFAULT
@@ -42,14 +48,17 @@ class TrainingScheduler(QObject):
         self,
         config: TrainConfig,
         mode: str,
+        export: Callable[[], Path] | None = None,
         inactivity_minutes: int = 30,
         night_start: str = "",
         night_end: str = "",
     ) -> None:
+        """Köar ett jobb; exporten sparas och körs först när jobbet startar (TASK-151)."""
         if mode not in ("night", "inactivity"):
             raise ValueError(f"Oköat schema-läge: {mode}")
         self.config = config
         self.mode = mode
+        self.export = export
         self.inactivity_minutes = max(1, int(inactivity_minutes))
         self.night_start = parse_clock(night_start, self.night_start)
         self.night_end = parse_clock(night_end, self.night_end)
@@ -70,6 +79,7 @@ class TrainingScheduler(QObject):
         if self.mode is not None:
             self.mode = None
             self.config = None
+            self.export = None
             self.status_changed.emit("Köat träningsjobb avbokat")
 
     def record_activity(self) -> None:
@@ -95,7 +105,7 @@ class TrainingScheduler(QObject):
         return False
 
     def _check(self) -> None:
-        if self.mode is None:
+        if self.mode is None or self._export_task is not None:
             return
         active = self.service.active_worker
         if active is not None and active.is_running():
@@ -103,10 +113,39 @@ class TrainingScheduler(QObject):
         if not self.condition_met():
             return
         config = self.config
+        export = self.export
         self.mode = None
         self.config = None
+        self.export = None
         self.status_changed.emit("Schemalagt villkor uppfyllt – startar träning")
+        self._start(config, export)
+
+    def _start(self, config: TrainConfig, export: Callable[[], Path] | None) -> None:
+        """Exporterar datasetet i bakgrunden och startar sedan träningen (TASK-151).
+
+        Exporten låg tidigare i klickögonblicket, så ett schemalagt jobb tränade
+        på de annoteringar som fanns när det köades.
+        """
+        if export is None:
+            self.service.create_worker(config)
+            return
+        task = BackgroundTask(export)
+        task.succeeded.connect(lambda path: self._on_exported(config, path))
+        task.failed.connect(
+            lambda message: self.status_changed.emit(
+                f"Kunde inte exportera datasetet: {message}"
+            )
+        )
+        task.finished.connect(self._on_export_finished)
+        self._export_task = task
+        task.start()
+
+    def _on_exported(self, config: TrainConfig, path) -> None:
+        config.dataset_yaml = Path(path)
         self.service.create_worker(config)
+
+    def _on_export_finished(self) -> None:
+        self._export_task = None
 
 
 class TrainingService(QObject):

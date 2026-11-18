@@ -6,7 +6,7 @@ from pathlib import Path
 from xray_detector.domain.dataset import group_images
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
-from xray_detector.infrastructure.dataset_store.yolo import label_name, write_data_yaml
+from xray_detector.infrastructure.dataset_store.yolo import write_data_yaml
 
 SPLIT_RATIO = 0.8
 SPLIT_SEED = 42
@@ -210,42 +210,31 @@ def train_val_counts(
     return group_count(train), group_count(val)
 
 
-def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
-    """Kopierar datasetet som ett YOLO-dataset med train/val-delning.
+def _write_image_list(path: Path, images_dir: Path, images: list[dict]) -> None:
+    """Skriver en bildlista som ultralytics läser: en absolut sökväg per rad."""
+    lines = [f"{(images_dir / image['file_name']).resolve()}\n" for image in images]
+    path.write_text("".join(lines), encoding="utf-8")
 
-    Datasetet lagras redan i YOLO-format, så exporten kopierar bilder och
-    label-filer och skriver en data.yaml för delningen (TASK-78). Returnerar
-    sökvägen till data.yaml, så anroparen slipper bygga layouten själv
-    (TASK-146).
+
+def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
+    """Skriver train/val-listorna för datasetet och en data.yaml (TASK-78, TASK-151).
+
+    Datasetet ligger redan i YOLO-format med images/ och labels/ sida vid sida,
+    så ultralytics hittar label-filen ur bildsökvägen. Exporten behöver därför
+    bara lista vilka bilder som hör till train respektive val: inga bilder
+    kopieras. Returnerar sökvägen till data.yaml, så anroparen slipper bygga
+    layouten själv (TASK-146).
     """
     dataset = store.load_dataset()
     out_dir = _fresh_dir(export_root / "yolo")
     train_images, val_images = train_val_split(dataset["images"], ratio)
-
-    for split, images in (("train", train_images), ("val", val_images)):
-        images_dir = out_dir / "images" / split
-        labels_dir = out_dir / "labels" / split
-        images_dir.mkdir(parents=True, exist_ok=True)
-        labels_dir.mkdir(parents=True, exist_ok=True)
-        for image in images:
-            shutil.copy2(
-                store.images_dir / image["file_name"],
-                images_dir / image["file_name"],
-            )
-            name = label_name(image["file_name"])
-            source = store.labels_dir / name
-            if source.exists():
-                shutil.copy2(source, labels_dir / name)
-            else:
-                # YOLO kräver en label-fil även för negativa exempel
-                (labels_dir / name).write_text("", encoding="utf-8")
-
+    _write_image_list(out_dir / "train.txt", store.images_dir, train_images)
     # Tom val-uppsättning (enda gruppen): låt val peka på train så att
     # ultralytics kan starta, men notera det i manifestet.
-    val_relative = "images/val" if val_images else "images/train"
-    write_data_yaml(
-        out_dir / "data.yaml", dataset["classes"], "images/train", val_relative
+    _write_image_list(
+        out_dir / "val.txt", store.images_dir, val_images or train_images
     )
+    write_data_yaml(out_dir / "data.yaml", dataset["classes"], "train.txt", "val.txt")
     write_manifest(
         out_dir,
         dataset,
@@ -254,6 +243,18 @@ def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RAT
         num_val=len(val_images),
     )
     return out_dir / "data.yaml"
+
+
+def export_dataset(
+    store: DatasetStore,
+    export_dir: Path,
+    family: str,
+    ratio: float = SPLIT_RATIO,
+) -> Path:
+    """Exporterar datasetet för körningens familj; returnerar data.yaml (TASK-151)."""
+    if family == "rfdetr":
+        return export_rfdetr(store, export_dir, ratio)
+    return export_yolo(store, export_dir, ratio)
 
 
 def export_coco(store: DatasetStore, export_root: Path) -> Path:

@@ -88,9 +88,10 @@ def trained_model_name(
 
 @dataclass
 class TrainConfig:
-    dataset_yaml: Path
     weights: str
     output_dir: Path
+    #: sätts när datasetexporten är klar, alltså strax före start (TASK-151)
+    dataset_yaml: Path | None = None
     epochs: int = 100
     imgsz: int = DEFAULT_SIZE
     batch: int | None = None

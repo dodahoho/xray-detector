@@ -44,6 +44,8 @@ class TrainingWorker(QObject):
 
     def command(self) -> list[str]:
         """Kommandorad för träningsprocessen (testbar)."""
+        if self.config.dataset_yaml is None:
+            raise ValueError("TrainConfig.dataset_yaml är inte satt")
         return [
             sys.executable,
             "-m",

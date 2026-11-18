@@ -80,6 +80,32 @@ def test_inactivity_job_waits_and_starts(qapp, tmp_path):
     assert len(workers) == 1
 
 
+def test_scheduled_job_exports_when_it_starts(qapp, tmp_path):
+    """Exporten körs när jobbet startar, inte när det köas (TASK-151)."""
+    scheduler, service, workers = make_scheduler(qapp)
+    service.create_worker = lambda config: workers.append(config)
+    exported = []
+
+    def export():
+        exported.append(True)
+        return tmp_path / "exports" / "yolo" / "data.yaml"
+
+    scheduler.queue_job(
+        make_config(tmp_path), "inactivity", export=export, inactivity_minutes=30
+    )
+    scheduler.record_activity()
+    scheduler._check()
+    assert exported == [], "exporten far inte köras vid köningen"
+
+    scheduler._last_activity -= 31 * 60
+    scheduler._check()
+    assert scheduler._export_task is not None
+    scheduler._export_task.wait()
+    assert exported == [True]
+    assert len(workers) == 1
+    assert workers[0].dataset_yaml == tmp_path / "exports" / "yolo" / "data.yaml"
+
+
 def test_queued_status_messages(qapp, tmp_path):
     scheduler, _, _ = make_scheduler(qapp)
     messages = []

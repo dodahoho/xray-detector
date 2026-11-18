@@ -294,12 +294,13 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
     view.model_combo.setCurrentIndex(view.model_combo.findData("yolo26m"))
     view.run_combo.setCurrentIndex(view.run_combo.findData("direct"))
     view._on_start()
+    view.wait_for_export()
 
     assert started, "ingen träning startades"
     assert started[0].output_dir.parent == config.trained_dir
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}", started[0].output_dir.name)
     assert started[0].weights == str(config.models_dir / "yolo26m.pt")
-    # starten exporterar datasetet till YOLO innan workern skapas (TASK-58)
+    # starten exporterar datasetet till YOLO innan workern skapas (TASK-58, TASK-151)
     assert (config.export_dir / "yolo" / "data.yaml").exists()
 
 

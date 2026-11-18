@@ -3,9 +3,10 @@ id: TASK-151
 title: >-
   Prestanda: kör datasetexport vid träningsstart i BackgroundTask och vid
   faktisk start för schemalagda jobb
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:54:00Z'
+updated_date: '2026-11-18T07:26:00Z'
 labels:
   - performance
   - review-followup
@@ -15,7 +16,7 @@ references:
   - utvärdering_argon.md
 priority: low
 type: enhancement
-ordinal: 149000
+ordinal: 3000
 ---
 
 ## Description

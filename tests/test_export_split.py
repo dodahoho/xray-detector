@@ -1,6 +1,7 @@
 """Enhetstester för YOLO-export och train/val-delning per fångstgrupp."""
 
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -58,24 +59,28 @@ def test_split_is_reproducible():
     assert [image["id"] for image in first[1]] == [image["id"] for image in second[1]]
 
 
-def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
+def test_export_yolo_writes_split_lists_and_yaml(tmp_path):
+    """Exporten listar bilderna i train.txt/val.txt i stället för att kopiera dem (TASK-151)."""
     svc = make_service(tmp_path)
     add_groups(svc, 6)
     out = export_yolo(svc, tmp_path / "exports").parent
 
-    train_images = list((out / "images" / "train").glob("*.png"))
-    val_images = list((out / "images" / "val").glob("*.png"))
-    assert len(train_images) == 10
-    assert len(val_images) == 2
-    assert len(list((out / "labels" / "train").glob("*.txt"))) == 10
-    assert len(list((out / "labels" / "val").glob("*.txt"))) == 2
+    train_lines = (out / "train.txt").read_text(encoding="utf-8").splitlines()
+    val_lines = (out / "val.txt").read_text(encoding="utf-8").splitlines()
+    assert len(train_lines) == 10
+    assert len(val_lines) == 2
+    # listan pekar på datasetets egna filer, så inga bilder kopieras
+    assert all(Path(line).is_file() for line in train_lines + val_lines)
+    assert all(Path(line).parent == svc.images_dir.resolve() for line in train_lines)
+    assert not (out / "images").exists()
 
     yaml_text = (out / "data.yaml").read_text(encoding="utf-8")
-    assert "train: images/train" in yaml_text
-    assert "val: images/val" in yaml_text
+    assert "train: train.txt" in yaml_text
+    assert "val: val.txt" in yaml_text
     assert 'names: ["kniv", "pistol"]' in yaml_text
 
-    label = (out / "labels" / "train" / "img_000001.txt").read_text(encoding="utf-8")
+    # label-filen ligger kvar i datasetet, där ultralytics hittar den
+    label = (svc.labels_dir / "img_000001.txt").read_text(encoding="utf-8")
     assert label.startswith("0 ")
     assert len(label.strip().splitlines()) == 1
 
@@ -86,10 +91,13 @@ def test_export_yolo_group_integrity(tmp_path):
     out = export_yolo(svc, tmp_path / "exports").parent
 
     dataset = svc.load_dataset()
-    group_of = {image["id"]: image.get("group") for image in dataset["images"]}
-    train_groups = {group_of[int(p.stem.split("_")[1])] for p in (out / "images" / "train").glob("*.png")}
-    val_groups = {group_of[int(p.stem.split("_")[1])] for p in (out / "images" / "val").glob("*.png")}
-    assert not (train_groups & val_groups)
+    group_of = {image["file_name"]: image.get("group") for image in dataset["images"]}
+
+    def groups(name: str) -> set:
+        lines = (out / name).read_text(encoding="utf-8").splitlines()
+        return {group_of[Path(line).name] for line in lines}
+
+    assert not (groups("train.txt") & groups("val.txt"))
 
 
 def test_manifest_contains_split_counts(tmp_path):
@@ -111,7 +119,7 @@ def test_export_coco_copies_images_and_dataset(tmp_path):
     assert len(dataset["images"]) == 4
 
 
-def test_export_replaces_images_from_an_earlier_export(tmp_path):
+def test_export_replaces_the_lists_from_an_earlier_export(tmp_path):
     """En ny export får inte lämna kvar bilder som raderats ur datasetet."""
     svc = make_service(tmp_path)
     add_groups(svc, 2)
@@ -120,8 +128,9 @@ def test_export_replaces_images_from_an_earlier_export(tmp_path):
 
     out = export_yolo(svc, tmp_path / "exports").parent
 
-    assert len(list((out / "images" / "train").glob("*.png"))) == 2
-    assert len(list((out / "labels" / "train").glob("*.txt"))) == 2
+    lines = (out / "train.txt").read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    assert all(Path(line).is_file() for line in lines)
 
 
 def test_split_ratio_controls_the_group_counts():
@@ -139,8 +148,8 @@ def test_export_yolo_uses_the_ratio(tmp_path):
 
     out = export_yolo(svc, tmp_path / "exports", 0.5).parent
 
-    assert len(list((out / "images" / "train").glob("*.png"))) == 6
-    assert len(list((out / "images" / "val").glob("*.png"))) == 6
+    assert len((out / "train.txt").read_text(encoding="utf-8").splitlines()) == 6
+    assert len((out / "val.txt").read_text(encoding="utf-8").splitlines()) == 6
 
 
 def test_export_rfdetr_uses_the_ratio(tmp_path):
