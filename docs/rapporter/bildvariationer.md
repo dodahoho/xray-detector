@@ -6,10 +6,11 @@ Rapporten mäter hur detektionsprestandan påverkas när datasetet utökas med s
 
 ## Sammanfattning
 
-* Med appens standardinställning, alltså överträningsvakten på, stoppade vakten varje körning efter 11–47 epoker. Baslinjen och konfigurationerna med 0–2 variationer per bildpar landar på mAP50-95 0.002–0.003, alltså ingen skillnad som går att mäta.
-* Kombinationen lyfte först vid 5 variationer per bildpar, till 0.079. Orsaken är att datasetet då blir stort nog att träningen hinner lära sig något innan vakten stoppar den, inte att variationerna i sig är bättre.
-* Utan vakt, där alla körningar går 100 epoker, når ingen variationstyp över baslinjens 0.201. Storlek ±50 %, Färg ±20 % ligger på samma nivå (0.202–0.205), medan Rotation ±360°, Vändning (båda riktningarna), Alla fyra, 1 variation ligger under (0.137–0.148).
-* Antalet variationer räddar inte resultatet: 1–20 variationer per bildpar ger 0.070–0.137, alltså under baslinjens 0.201 hela vägen.
+* Med appens standardinställning, alltså överträningsvakten på, stoppade vakten varje körning efter 11–47 epoker. Baslinjen ligger på mAP50-95 0.002 och den bästa variationstypen, Rotation ±360°, på 0.003.
+* Ingen variationstyp går att skilja från baslinjen: den bästa ligger +0.001 ifrån, alltså mindre än spridningen på 0.002.
+* I matrisen med vakten på toppar kurvan vid 20 variationer per bildpar med mAP50-95 0.082, mot baslinjens 0.002.
+* Utan vakt, där alla körningar går 100 epoker, ligger baslinjen på 0.201 och den bästa variationstypen, Storlek ±50 %, på 0.205.
+* Utan vakt ger 1–20 variationer per bildpar 0.070–0.137, alltså under baslinjens 0.201.
 
 ## Metod
 
@@ -22,7 +23,7 @@ Appens dataset innehåller 10 manuellt annoterade bildpar (53 objekt) och inga s
 | train_base | 8 | 16 | 43 | Träning, med eller utan variationer |
 | eval_fixed | 2 | 4 | 10 | Utvärdering, aldrig utökad |
 
-Träningsdelen exporteras med appens `export_yolo`, som delar den i train och val per bildpar. Variationerna läggs till före exporten, så alla variationer av ett bildpar hamnar i samma delmängd och aldrig läcker mellan train och val. Utvärderingsdelen kopieras en gång i `prepare` och rörs sedan aldrig.
+Träningsdelen exporteras med appens `export_yolo`, som delar den i train och val per bildpar. Variationerna läggs till före exporten, så alla variationer av ett bildpar hamnar i samma delmängd och aldrig läcker mellan delmängderna. Utvärderingsdelen kopieras en gång i `prepare` och rörs sedan aldrig.
 
 ### Variationerna
 
@@ -243,8 +244,8 @@ Per vy, mAP50-95 (medel över upprepningarna):
 
 ## Resonemang
 
-* Med överträningsvakten på stoppade den varje körning. Med tolv träningsbilder och batch 8 är en epok två optimeringssteg, så vaktens tio epoker utan förbättring är tjugo steg. Modellen behöver omkring hundra steg innan valvärdet rör sig, så vakten hinner stoppa träningen innan den börjat lära sig. Det syns på att alla enskilda variationstyper hamnar på samma mAP som baslinjen.
-* Kombinationen lyfte först vid 5 variationer per bildpar, där 72 träningsbilder ger 9 steg per epok. Då räcker vaktens tio epoker tillräckligt många steg för att valvärdet ska röra sig, och träningen får fortsätta. Att kurvan planar ut vid 10 och 20 variationer beror på att stegantalet redan är tillräckligt där.
+* Med överträningsvakten på stoppade den varje körning. Med tolv träningsbilder och batch 8 blir det bara ett fåtal optimeringssteg per epok, så vaktens tio epoker utan förbättring räcker inte för att modellen ska hinna lära sig något.
+* Kombinationen lyfte först vid 5 variationer per bildpar, där 72 träningsbilder ger 9 steg per epok. Då räcker vaktens tio epoker tillräckligt många steg för att valvärdet ska röra sig, och träningen får fortsätta.
 * Utan vakt går alla körningar 100 epoker, och då går typerna att jämföra. Varje typ har samma antal träningsbilder som de andra, så skillnaden mellan dem är en skillnad i variationen och inte i stegantal.
 * **Rotation ±360°** ger -0.052 mAP50-95 mot baslinjen utan vakt och ligger under baslinjen även med spridningen inräknad (spridning 0.014).
 * **Vändning (båda riktningarna)** ger -0.054 mAP50-95 mot baslinjen utan vakt och ligger under baslinjen även med spridningen inräknad (spridning 0.018).
@@ -262,13 +263,13 @@ Per vy, mAP50-95 (medel över upprepningarna):
 * Träningen ser bara sex bildpar (tolv bilder) efter appens egen train/val-delning av de åtta paren. Det är den situation uppgiften beskriver, men det gör också att både baslinjen och variationerna ligger på en låg nivå.
 * Utvärderingsuppsättningen saknar bilder utan objekt, så appens falsklarm per bild kan inte skilja konfigurationerna. Falska detektioner per bild är ett komplement som räknar larm som inte matchar något facit.
 * Styrkorna är dialogens standardvärden. Rapporten säger inget om hur en mindre rotationsvinkel eller en svagare färgändring hade fallit ut.
-* Basmodellen är appens standardmodell, YOLO26 medium. En modell som redan är tränad på röntgenbilder kan svara annorlunda på samma variationer.
+* Basmodellen är YOLO26 medium. En annan basmodell kan svara annorlunda på samma variationer.
 * Antalet variationer per bildpar ändrar också antalet optimeringssteg per epok, eftersom träningsmängden växer. Rapporten mäter alltså utökningens samlade effekt, inte en isolerad variationseffekt vid konstant stegantal.
 * Falska detektioner per bild mäts vid driftströskeln. När modellen inte lärt sig något hamnar tröskeln på 0,01 och antalet larm når detektorns tak på 300 rutor per bild, så talet ska läsas som en storleksordning och inte som ett exakt antal.
 
 ## Rekommendation
 
-Ingen av de testade variationstyperna höjer mAP50-95 mer än spridningen mellan upprepningarna. Rotation ±360°, Vändning (båda riktningarna), Alla fyra, 1 variation ligger dessutom under baslinjen även med spridningen inräknad, alltså sämre än att inte utöka alls. Vid ett tiotal bildpar är rekommendationen att träna på de manuellt annoterade bildparen som de är och lägga arbetet på fler annoterade bildpar i stället: en utökning som inte går att skilja från baslinjen kostar träningstid utan att ge något.
+Ingen av de testade variationstyperna slår baslinjen: den bästa ligger på 0.205 mot baslinjens 0.201, och skillnaden är mindre än spridningen på 0.037. Rotation ±360°, Vändning (båda riktningarna) och Alla fyra, 1 variation ligger dessutom under baslinjen även med spridningen inräknad, alltså sämre än att inte utöka alls. Vid ett tiotal bildpar är rekommendationen att träna på de manuellt annoterade bildparen som de är och lägga arbetet på fler annoterade bildpar i stället: en utökning som inte går att skilja från baslinjen kostar träningstid utan att ge något.
 
 ## Underlag
 

@@ -39,7 +39,7 @@ from xray_detector.application.training_history import training_runs
 from xray_detector.domain.config import PROJECT_ROOT
 from xray_detector.domain.dataset import MODE_ALL, VariationSettings
 from xray_detector.infrastructure.dataset_store.export import (
-    export_yolo,
+    export_dataset,
     group_count,
     train_val_counts,
     train_val_split,
@@ -51,33 +51,79 @@ from xray_detector.infrastructure.training.metrics import (
     match_counts,
 )
 
-#: Arbetskatalogen ligger utanför repot, så inga tränade modeller hamnar i git.
-WORK_ROOT = Path.home() / ".xray-detector" / "eval" / "task-160"
-#: Kompletterande matris med överträningsvakten avstängd. Vakten stoppar alla
-#: körningar på det här datasetet innan modellen hunnit lära sig något, så
-#: utan den går variationernas effekt inte att mäta.
-SUPPLEMENT_ROOT = Path.home() / ".xray-detector" / "eval" / "task-160-noguard"
 #: Appens eget dataset, som bara läses.
 SOURCE_DATASET = Path.home() / ".xray-detector" / "datasets"
 #: Samma delning som appens export använder, så train/val räknas lika.
 TRAIN_RATIO = 0.8
-#: Basmodellen är appens standardmodell; den är gemensam för alla körningar.
-BASE_MODEL = "yolo26m"
-BASE_MODEL_LABEL = "YOLO26 medium"
 EPOCHS = 100
-#: Användarens sparade träningsinställning. Appens uträknade default för
-#: 1280x720-bilder är 1280, men den storleken tog 15 gånger längre tid per steg
-#: på det här datasetet utan att modellen lärde sig snabbare.
-IMGSZ = 800
-BATCH = 8
 #: Flera frön per konfiguration, eftersom variationerna dras slumpmässigt.
 VARIATION_SEEDS = (1, 2, 3)
 #: Baslinjen har inga variationer att dra, så den upprepas för att visa att
 #: träningen är deterministisk.
 BASELINE_REPEATS = 2
 RESULTS_NAME = "results.json"
-REPORT_PATH = Path("docs/rapporter/bildvariationer.md")
 CHART_DIR = Path("docs/rapporter/bilder")
+
+
+@dataclass(frozen=True)
+class BaseModel:
+    """Basmodellen och de träningsparametrar som hör till den.
+
+    Arbetskatalogerna ligger utanför repot, så inga tränade modeller hamnar i
+    git. Den kompletterande katalogen hör till matrisen med
+    överträningsvakten avstängd: vakten stoppar alla körningar på det här
+    datasetet innan modellen hunnit lära sig något, så utan den går
+    variationernas effekt inte att mäta.
+    """
+
+    key: str
+    label: str
+    family: str
+    weights: str
+    imgsz: int
+    batch: int
+    work_root: Path
+    supplement_root: Path
+    report_path: Path
+    chart_prefix: str
+    task_id: str
+    #: Kontrollkörningar med vakten av för en dyr basmodell, där hela matrisen
+    #: utan vakt inte ryms i rimlig tid. None när ingen kontroll görs.
+    control_root: Path | None = None
+
+
+#: Bildstorleken är användarens sparade träningsinställning. Appens uträknade
+#: default för 1280x720-bilder är 1280, men den storleken tog 15 gånger längre
+#: tid per steg på det här datasetet utan att modellen lärde sig snabbare.
+BASES: dict[str, BaseModel] = {
+    "yolo": BaseModel(
+        key="yolo26m",
+        label="YOLO26 medium",
+        family="yolo",
+        weights="yolo26m.pt",
+        imgsz=800,
+        batch=8,
+        work_root=Path.home() / ".xray-detector" / "eval" / "task-160",
+        supplement_root=Path.home() / ".xray-detector" / "eval" / "task-160-noguard",
+        report_path=Path("docs/rapporter/bildvariationer.md"),
+        chart_prefix="",
+        task_id="TASK-160",
+    ),
+    "rfdetr": BaseModel(
+        key="checkpoint-best-total",
+        label="RF-DETR large dvxray",
+        family="rfdetr",
+        weights="checkpoint_best_total.pth",
+        imgsz=800,
+        batch=8,
+        work_root=Path.home() / ".xray-detector" / "eval" / "task-160-rfdetr",
+        supplement_root=Path.home() / ".xray-detector" / "eval" / "task-160-rfdetr-noguard",
+        report_path=Path("docs/rapporter/bildvariationer-rfdetr.md"),
+        chart_prefix="rfdetr-",
+        task_id="TASK-161",
+        control_root=Path.home() / ".xray-detector" / "eval" / "task-160-rfdetr-kontroll",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -165,7 +211,7 @@ def _stdev(values: list[float]) -> float:
     return statistics.stdev(values) if len(values) > 1 else 0.0
 
 
-def prepare(work_root: Path = WORK_ROOT, source: Path = SOURCE_DATASET) -> None:
+def prepare(work_root: Path, source: Path = SOURCE_DATASET) -> None:
     """Delar appens dataset i en träningsdel och en fast utvärderingsdel.
 
     Delningen är appens egen (``train_val_split`` med dess seed), så
@@ -274,32 +320,32 @@ def false_positives_per_image(
     return total / images if images else 0.0
 
 
-def _train(run_dir: Path, data_yaml: Path, label: str, guard: str) -> float:
+def _train(run_dir: Path, dataset: Path, label: str, guard: str, base: BaseModel) -> float:
     """Tränar en körning med appens träningsprocess; returnerar körtiden."""
     command = [
         sys.executable,
         "-m",
         "xray_detector.infrastructure.training.train_task",
         "--dataset",
-        str(data_yaml),
+        str(dataset),
         "--weights",
-        str(PROJECT_ROOT / "models" / f"{BASE_MODEL}.pt"),
+        str(PROJECT_ROOT / "models" / base.weights),
         "--output",
         str(run_dir / "model"),
         "--epochs",
         str(EPOCHS),
         "--imgsz",
-        str(IMGSZ),
+        str(base.imgsz),
         "--batch",
-        str(BATCH),
+        str(base.batch),
         "--family",
-        "yolo",
+        base.family,
         "--overfitting-guard",
         guard,
         "--name",
         label,
         "--base-name",
-        BASE_MODEL_LABEL,
+        base.label,
     ]
     started = time.monotonic()
     completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
@@ -314,8 +360,9 @@ def run_one(
     config: Config,
     seed: int | None,
     run_id: str,
-    work_root: Path = WORK_ROOT,
-    guard: str = "on",
+    work_root: Path,
+    guard: str,
+    base: BaseModel,
 ) -> dict:
     """Kör en konfiguration: utöka, exportera, träna och utvärdera."""
     run_dir = work_root / "runs" / run_id
@@ -331,15 +378,15 @@ def run_one(
     synthetic = 0
     if config.settings is not None:
         synthetic = store.add_variations(config.settings, seed=seed)
-    train_pairs, val_pairs = train_val_counts(store, TRAIN_RATIO)
-    data_yaml = export_yolo(store, run_dir / "export", TRAIN_RATIO)
-    exported = _read_json(run_dir / "export" / "yolo" / "manifest.json")
+    train_pairs, val_pairs = train_val_counts(store, TRAIN_RATIO, family=base.family)
+    dataset = export_dataset(store, run_dir / "export", base.family, TRAIN_RATIO)
+    exported = _read_json(run_dir / "export" / base.family / "manifest.json")
 
     print(
         f"{run_id}: {train_pairs} train-grupper, {val_pairs} val-grupper, "
         f"{exported['num_train']} train-bilder, {synthetic} syntetiska"
     )
-    duration = _train(run_dir, data_yaml, config.label, guard)
+    duration = _train(run_dir, dataset, config.label, guard, base)
 
     runs = training_runs(run_dir / "model")
     if not runs:
@@ -394,7 +441,11 @@ def run_one(
 
 
 def run_matrix(
-    work_root: Path = WORK_ROOT, only: list[str] | None = None, guard: str = "on"
+    work_root: Path,
+    only: list[str] | None,
+    guard: str,
+    base: BaseModel,
+    seeds: tuple[int, ...] = VARIATION_SEEDS,
 ) -> None:
     """Kör hela matrisen; ``only`` begränsar den till några konfigurationer."""
     if not (work_root / "datasets" / "train_base").exists():
@@ -405,31 +456,33 @@ def run_matrix(
             continue
         if config.settings is None:
             results.extend(
-                run_one(config, None, f"{config.key}-r{index}", work_root, guard)
+                run_one(config, None, f"{config.key}-r{index}", work_root, guard, base)
                 for index in range(1, BASELINE_REPEATS + 1)
             )
             continue
         results.extend(
-            run_one(config, seed, f"{config.key}-s{seed}", work_root, guard)
-            for seed in VARIATION_SEEDS
+            run_one(config, seed, f"{config.key}-s{seed}", work_root, guard, base)
+            for seed in seeds
         )
     _write_json(
         work_root / RESULTS_NAME,
         {
             "generated": datetime.now(UTC).isoformat(),
-            "base_model": BASE_MODEL,
+            "base_model": base.key,
+            "base_label": base.label,
+            "family": base.family,
             "epochs": EPOCHS,
-            "imgsz": IMGSZ,
-            "batch": BATCH,
+            "imgsz": base.imgsz,
+            "batch": base.batch,
             "train_ratio": TRAIN_RATIO,
             "overfitting_guard": guard,
-            "variation_seeds": list(VARIATION_SEEDS),
+            "variation_seeds": list(seeds),
             "runs": results,
         },
     )
 
 
-def _load_results(work_root: Path) -> dict:
+def _load_results(work_root: Path, family: str) -> dict:
     """Resultaten ur results.json, eller ur körningarnas egna filer."""
     path = work_root / RESULTS_NAME
     if path.exists():
@@ -441,11 +494,11 @@ def _load_results(work_root: Path) -> dict:
                 for result in sorted((work_root / "runs").glob("*/result.json"))
             ]
         }
-    payload["runs"] = _with_image_counts(payload["runs"], work_root)
+    payload["runs"] = _with_image_counts(payload["runs"], work_root, family)
     return payload
 
 
-def _with_image_counts(runs: list[dict], work_root: Path) -> list[dict]:
+def _with_image_counts(runs: list[dict], work_root: Path, family: str) -> list[dict]:
     """Antalet train- och valbilder ur exportens manifest.
 
     Bilderna räknas per bild, inte per fångstgrupp: en grupp bär alla
@@ -455,7 +508,7 @@ def _with_image_counts(runs: list[dict], work_root: Path) -> list[dict]:
     for run in runs:
         if "train_images" in run:
             continue
-        manifest = work_root / "runs" / run["run_id"] / "export" / "yolo" / "manifest.json"
+        manifest = work_root / "runs" / run["run_id"] / "export" / family / "manifest.json"
         try:
             exported = _read_json(manifest)
         except (OSError, ValueError):
@@ -724,23 +777,22 @@ def _chart_link(path: Path, report_path: Path, caption: str) -> str:
     return f"![{caption}]({Path(path).relative_to(report_path.parent).as_posix()})"
 
 
-def report(
-    work_root: Path = WORK_ROOT,
-    report_path: Path = REPORT_PATH,
-    supplement_root: Path = SUPPLEMENT_ROOT,
-) -> None:
+def report(base: BaseModel) -> None:
     """Skriver markdown-rapporten ur resultaten."""
-    payload = _load_results(work_root)
+    work_root = base.work_root
+    report_path = base.report_path
+    supplement_root = base.supplement_root
+    payload = _load_results(work_root, base.family)
     runs = payload["runs"]
     if not runs:
         raise SystemExit("Inga resultat att rapportera")
     grouped = _by_config(runs)
     summaries = {key: _summary(value) for key, value in grouped.items()}
     split = _read_json(work_root / "datasets" / "split.json")
-    charts = _charts(summaries)
+    charts = _charts(summaries, base.chart_prefix)
     baseline = summaries["baseline"]["map50_95"]
     supplement = None
-    supplement_payload = _load_results(supplement_root)
+    supplement_payload = _load_results(supplement_root, base.family)
     if supplement_payload["runs"]:
         supplement_grouped = _by_config(supplement_payload["runs"])
         supplement = {
@@ -749,7 +801,7 @@ def report(
             "summaries": {key: _summary(value) for key, value in supplement_grouped.items()},
             "charts": _charts(
                 {key: _summary(value) for key, value in supplement_grouped.items()},
-                "utan-vakt-",
+                f"{base.chart_prefix}utan-vakt-",
                 with_epochs=False,
             ),
         }
@@ -759,9 +811,9 @@ def report(
     add("# Syntetiska bildvariationer vid ett tiotal annoterade bildpar")
     add("")
     add(
-        f"**Uppgift:** TASK-160 · **Basmodell:** {BASE_MODEL_LABEL} (`{BASE_MODEL}.pt`) · "
+        f"**Uppgift:** {base.task_id} · **Basmodell:** {base.label} (`{base.weights}`) · "
         f"**Epoker:** {payload.get('epochs', EPOCHS)} · **Bildstorlek:** "
-        f"{payload.get('imgsz', IMGSZ)} · **Batch:** {payload.get('batch', BATCH)}"
+        f"{payload.get('imgsz', base.imgsz)} · **Batch:** {payload.get('batch', base.batch)}"
     )
     add("")
     add(
@@ -810,10 +862,12 @@ def report(
         )
     )
     add("")
+    export_name = "export_yolo" if base.family == "yolo" else "export_rfdetr"
+    splits = "train och val" if base.family == "yolo" else "train, valid och test"
     add(
-        "Träningsdelen exporteras med appens `export_yolo`, som delar den i train och val "
+        f"Träningsdelen exporteras med appens `{export_name}`, som delar den i {splits} "
         "per bildpar. Variationerna läggs till före exporten, så alla variationer av ett "
-        "bildpar hamnar i samma delmängd och aldrig läcker mellan train och val. "
+        "bildpar hamnar i samma delmängd och aldrig läcker mellan delmängderna. "
         "Utvärderingsdelen kopieras en gång i `prepare` och rörs sedan aldrig."
     )
     add("")
@@ -842,22 +896,44 @@ def report(
     add("")
     add("### Träningen")
     add("")
+    guard_text = (
+        "ultralytics egen early stopping (patience 10)"
+        if base.family == "yolo"
+        else "rfdetr-paketets egen early stopping (patience 10)"
+    )
     add(
         f"Träningen körs med appens `train_task` i en egen process, precis som träningsvyn "
-        f"startar den: {BASE_MODEL_LABEL} som bas, {payload.get('epochs', EPOCHS)} epoker som "
-        f"tak, bildstorlek {payload.get('imgsz', IMGSZ)} och batch {payload.get('batch', BATCH)}. "
-        "Överträningsvakten är på, så ultralytics egen early stopping (patience 10) kan "
-        "avsluta körningen i förtid. Antalet genomförda epoker redovisas per körning."
+        f"startar den: {base.label} som bas, {payload.get('epochs', EPOCHS)} epoker som "
+        f"tak, bildstorlek {payload.get('imgsz', base.imgsz)} och batch "
+        f"{payload.get('batch', base.batch)}. "
+        f"Överträningsvakten är på, så {guard_text} kan avsluta körningen i förtid. "
+        "Antalet genomförda epoker redovisas per körning."
     )
     add("")
-    add(
-        "Vakten visade sig avgöra hela resultatet på det här datasetet, så matrisen kördes "
-        "en gång till med vakten avstängd. Den kompletterande matrisen står under "
-        "**Kompletterande matris utan överträningsvakt** och är den som svarar på vilka "
-        "variationer som hjälper; den första matrisen visar vad appens standardinställning "
-        "gör med samma data."
-    )
-    add("")
+    if supplement is not None:
+        add(
+            "Vakten visade sig avgöra hela resultatet på det här datasetet, så matrisen "
+            "kördes en gång till med vakten avstängd. Den kompletterande matrisen står under "
+            "**Kompletterande matris utan överträningsvakt** och är den som svarar på vilka "
+            "variationer som hjälper; den första matrisen visar vad appens "
+            "standardinställning gör med samma data."
+        )
+        add("")
+    elif base.control_root is not None:
+        add(
+            "Hela matrisen utan vakt ryms inte i rimlig tid med den här basmodellen, så i "
+            "stället kördes en kontroll med bara de konfigurationer som behövs för att "
+            "avgöra om vakten orsakar resultaten. Den står under **Kontroll med "
+            "överträningsvakten av**."
+        )
+        add("")
+    if base.family != "yolo":
+        add(
+            "RF-DETR-exporten har också en test-del som träningen inte använder. "
+            "Utvärderingen sker mot `eval_fixed`, inte mot exportens valid eller test, så "
+            "den del som styr early stopping är inte samma bilder som mätningen görs på."
+        )
+        add("")
     add("### Mätningen")
     add("")
     add(
@@ -909,12 +985,24 @@ def report(
     add("")
     add("### Spridning mellan upprepningar")
     add("")
-    add(
-        "Baslinjen har inga variationer att dra, så dess två körningar är identiska: "
-        "träningen är deterministisk (seed 42, `deterministic=True`). Spridningen i tabellen "
-        "nedan kommer därför enbart från att variationerna dras olika, och den anger hur "
-        "stor en skillnad mellan två konfigurationer måste vara för att inte vara slump."
-    )
+    baseline_std = summaries["baseline"]["map50_95_std"]
+    if baseline_std == 0:
+        spread_text = (
+            "Baslinjen har inga variationer att dra, så dess två körningar är identiska: "
+            "träningen är deterministisk (seed 42, `deterministic=True`). Spridningen i "
+            "tabellen nedan kommer därför enbart från att variationerna dras olika, och den "
+            "anger hur stor en skillnad mellan två konfigurationer måste vara för att inte "
+            "vara slump."
+        )
+    else:
+        spread_text = (
+            f"Baslinjen har inga variationer att dra, men dess två körningar skiljer sig ändå "
+            f"({baseline_std:.3f} i standardavvikelse): träningen är alltså inte deterministisk "
+            "för den här basmodellen. Spridningen i tabellen nedan är därför en undre gräns "
+            "för hur stor en skillnad mellan två konfigurationer måste vara för att betyda "
+            "något."
+        )
+    add(spread_text)
     add("")
     add(_table(SPREAD_HEADER, _spread_rows(summaries, grouped)))
     add("")
@@ -994,28 +1082,44 @@ def report(
         )
         add("")
 
+    control_summaries = _control_summaries(base)
+    control = _control_section(base, summaries, control_summaries)
+    if control:
+        lines.extend(control)
+        add("")
+
+    comparison = _comparison(base, summaries)
+    if comparison:
+        lines.extend(comparison)
+        add("")
+
     add("## Resonemang")
     add("")
-    add(_reasoning(summaries, baseline, grouped, supplement))
+    add(_reasoning(summaries, baseline, grouped, supplement, base, control_summaries))
     add("")
 
     add("## Begränsningar")
     add("")
-    add(_limitations(split))
+    add(_limitations(split, base))
     add("")
 
     add("## Rekommendation")
     add("")
-    add(_recommendation(summaries, baseline, supplement))
+    add(_recommendation(summaries, baseline, supplement, control_summaries))
     add("")
     add("## Underlag")
     add("")
+    roots = [work_root]
+    if supplement is not None:
+        roots.append(supplement_root)
+    if base.control_root is not None and (base.control_root / "runs").exists():
+        roots.append(base.control_root)
     add(
-        f"Resultatfilerna ligger i `{_display_path(work_root)}` och "
-        f"`{_display_path(supplement_root)}` utanför repot: `results.json` med alla "
-        "körningar, och `runs/<körnings-id>/` med dataset, export, träningsmanifest och "
-        "modell för varje körning. Skriptet som tog fram dem är "
-        "`scripts/variation_eval.py`."
+        "Resultatfilerna ligger i "
+        + " och ".join(f"`{_display_path(root)}`" for root in roots)
+        + " utanför repot: `results.json` med alla körningar, och `runs/<körnings-id>/` med "
+        "dataset, export, träningsmanifest och modell för varje körning. Skriptet som tog "
+        "fram dem är `scripts/variation_eval.py`."
     )
     add("")
 
@@ -1024,66 +1128,253 @@ def report(
     print(f"Rapporten skriven till {report_path}")
 
 
+def _control_summaries(base: BaseModel) -> dict[str, dict] | None:
+    """Sammanfattningen av kontrollkörningarna, eller None när ingen finns."""
+    if base.control_root is None:
+        return None
+    payload = _load_results(base.control_root, base.family)
+    if not payload["runs"]:
+        return None
+    return {key: _summary(value) for key, value in _by_config(payload["runs"]).items()}
+
+
+def _control_section(
+    base: BaseModel, summaries: dict[str, dict], control: dict[str, dict] | None
+) -> list[str]:
+    """Kontrollkörningarna med vakten av, för en basmodell där hela matrisen inte ryms."""
+    if control is None:
+        return []
+    rows = [
+        [
+            CONFIG_BY_KEY[key].label,
+            f"{summaries[key]['map50_95']:.3f}",
+            f"{summaries[key]['epochs']:.0f}",
+            f"{control[key]['map50_95']:.3f}",
+            f"{control[key]['epochs']:.0f}",
+        ]
+        for key in TYPE_KEYS
+        if key in control and key in summaries
+    ]
+    if not rows:
+        return []
+    lines = [
+        "## Kontroll med överträningsvakten av",
+        "",
+        f"Hela matrisen utan vakt skulle ta över tio timmar med {base.label}, eftersom "
+        "varje körning då går 100 epoker. Kontrollen kör därför bara de konfigurationer "
+        "som behövs för att avgöra om vakten orsakar kollapsen: baslinjen, rotation och "
+        "färg, ett frön var.",
+        "",
+        _table(
+            ["Konfiguration", "mAP50-95 med vakt", "Epoker", "mAP50-95 utan vakt", "Epoker"],
+            rows,
+        ),
+        "",
+    ]
+    recovered = [
+        key
+        for key in control
+        if key in summaries and control[key]["map50_95"] > summaries[key]["map50_95"] + 0.05
+    ]
+    if not recovered:
+        lines.append(
+            "Utan vakt stiger ingen av kontrollens konfigurationer tydligt, alltså står sig "
+            "resultatet: variationen skadar modellen även när träningen får gå 100 epoker."
+        )
+        return lines
+    baseline = summaries["baseline"]["map50_95"]
+    level = [key for key in recovered if control[key]["map50_95"] >= baseline - 0.02]
+    below = [key for key in recovered if key not in level]
+    parts = [
+        "Utan vakt stiger "
+        + _join_labels(recovered)
+        + " tydligt, alltså lärde sig modellen mer när träningen fick fortsätta."
+    ]
+    if level:
+        parts.append(
+            f" {_join_labels(level)} når då samma nivå som baslinjen, så kollapsen i "
+            "matrisen med vakt beror helt på att träningen stoppades."
+        )
+    if below:
+        parts.append(
+            f" {_join_labels(below)} återhämtar sig men når inte baslinjen, så den "
+            "variationen skadar modellen även när träningen får gå 100 epoker."
+        )
+    lines.append("".join(parts))
+    return lines
+
+
+def _join_labels(keys: list[str]) -> str:
+    """Konfigurationsetiketterna som en uppräkning med svenskt och."""
+    labels = [CONFIG_BY_KEY[key].label for key in keys]
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels[:-1]) + " och " + labels[-1]
+
+
+def _comparison(base: BaseModel, summaries: dict[str, dict]) -> list[str]:
+    """Jämförelsen med YOLO-körningen i TASK-160, för en annan basmodell."""
+    if base.family == "yolo":
+        return []
+    other = BASES["yolo"]
+    other_payload = _load_results(other.work_root, other.family)
+    if not other_payload["runs"]:
+        return []
+    other_summaries = {
+        key: _summary(value) for key, value in _by_config(other_payload["runs"]).items()
+    }
+    rows = [
+        [
+            CONFIG_BY_KEY[key].label,
+            f"{other_summaries[key]['map50_95']:.3f}",
+            f"{summaries[key]['map50_95']:.3f}",
+        ]
+        for key in TYPE_KEYS
+        if key in summaries and key in other_summaries
+    ]
+    if not rows:
+        return []
+    lines = [
+        "## Jämförelse med YOLO-körningen",
+        "",
+        f"Samma matris kördes i TASK-160 med {other.label}. Tabellen ställer de två "
+        "basmodellerna mot varandra med överträningsvakten på, alltså appens "
+        "standardinställning.",
+        "",
+        _table(["Konfiguration", other.label, base.label], rows),
+        "",
+    ]
+    other_baseline = other_summaries["baseline"]["map50_95"]
+    baseline = summaries["baseline"]["map50_95"]
+    lines.append(
+        f"Baslinjen ligger på {baseline:.3f} för {base.label} mot {other_baseline:.3f} för "
+        f"{other.label}. "
+        + (
+            "Den här basmodellen klarar alltså datasetet betydligt bättre redan utan "
+            "variationer, vilket är väntat: den är tränad på röntgenbilder sedan tidigare."
+            if baseline > other_baseline
+            else "Den här basmodellen klarar alltså datasetet sämre än YOLO26 medium utan "
+            "variationer."
+        )
+    )
+    lines.append("")
+    best = max(
+        (key for key in TYPE_KEYS if key in summaries and key != "baseline"),
+        key=lambda key: summaries[key]["map50_95"],
+    )
+    lines.append(
+        f"För {base.label} är baslinjen {baseline:.3f} och den bästa variationstypen "
+        f"{CONFIG_BY_KEY[best].label} {summaries[best]['map50_95']:.3f}. "
+        + (
+            "Slutsatsen från TASK-160 håller: ingen variationstyp slår baslinjen."
+            if summaries[best]["map50_95"] <= baseline
+            else "Till skillnad från TASK-160 slår en variationstyp baslinjen här."
+        )
+    )
+    lines.append("")
+    lines.append(
+        f"YOLO-siffrorna i tabellen är från matrisen med vakten på, där vakten stoppade "
+        f"varje körning innan modellen lärt sig något; de säger alltså inget om vilken "
+        f"variationstyp som är bäst för {other.label}. Jämförelsen som håller är att "
+        f"baslinjen för {base.label} ligger på en användbar nivå medan "
+        f"{other.label} behöver matrisen utan vakt för att komma dit."
+    )
+    return lines
+
+
 def _summary_bullets(
     summaries: dict[str, dict], baseline: float, supplement: dict | None
 ) -> str:
     """Punktlistan som inleder rapporten."""
     epochs = [summary["epochs"] for summary in summaries.values()]
-    low = [
-        summaries[key]["map50_95"]
-        for key in ("baseline", "rotation", "flip", "scale", "color", "all-1", "all-2")
-        if key in summaries
-    ]
+    ranked = sorted(
+        (key for key in TYPE_KEYS if key in summaries and key != "baseline"),
+        key=lambda key: summaries[key]["map50_95"],
+        reverse=True,
+    )
+    best_key = ranked[0]
+    best = summaries[best_key]["map50_95"]
     bullets = [
         f"* Med appens standardinställning, alltså överträningsvakten på, stoppade vakten "
-        f"varje körning efter {min(epochs):.0f}–{max(epochs):.0f} epoker. Baslinjen och "
-        f"konfigurationerna med 0–2 variationer per bildpar landar på mAP50-95 "
-        f"{min(low):.3f}–{max(low):.3f}, alltså ingen skillnad som går att mäta."
+        f"varje körning efter {min(epochs):.0f}–{max(epochs):.0f} epoker. Baslinjen ligger "
+        f"på mAP50-95 {baseline:.3f} och den bästa variationstypen, "
+        f"{CONFIG_BY_KEY[best_key].label}, på {best:.3f}."
     ]
-    if "all-5" in summaries:
+    difference = best - baseline
+    spread = max(
+        summaries[best_key]["map50_95_std"], summaries["baseline"]["map50_95_std"]
+    )
+    if difference <= spread:
+        if difference < 0:
+            bullets.append(
+                f"* Ingen variationstyp når baslinjen: den bästa ligger {abs(difference):.3f} "
+                f"under, och spridningen är {spread:.3f}."
+            )
+        else:
+            bullets.append(
+                f"* Ingen variationstyp går att skilja från baslinjen: den bästa ligger "
+                f"{difference:+.3f} ifrån, alltså mindre än spridningen på {spread:.3f}."
+            )
+    else:
         bullets.append(
-            f"* Kombinationen lyfte först vid 5 variationer per bildpar, till "
-            f"{summaries['all-5']['map50_95']:.3f}. Orsaken är att datasetet då blir stort "
-            "nog att träningen hinner lära sig något innan vakten stoppar den, inte att "
-            "variationerna i sig är bättre."
+            f"* {CONFIG_BY_KEY[best_key].label} slår baslinjen med {difference:+.3f}, mer än "
+            f"spridningen på {spread:.3f}."
         )
+    counts = [
+        (COUNT_VALUES[key], summaries[key]["map50_95"])
+        for key in COUNT_VALUES
+        if key in summaries
+    ]
+    if counts:
+        best_count, best_value = max(counts, key=lambda item: item[1])
+        unit = "variation" if best_count == 1 else "variationer"
+        if best_value <= baseline:
+            bullets.append(
+                f"* Ingen kombination når baslinjen heller: den bästa, {best_count} {unit} "
+                f"per bildpar, ger {best_value:.3f}."
+            )
+        else:
+            bullets.append(
+                f"* I matrisen med vakten på toppar kurvan vid {best_count} {unit} per "
+                f"bildpar med mAP50-95 {best_value:.3f}, mot baslinjens {baseline:.3f}."
+            )
     if supplement is not None:
         supplement_summaries = supplement["summaries"]
         supplement_baseline = supplement_summaries["baseline"]["map50_95"]
-        level = [key for key in ("scale", "color") if key in supplement_summaries]
-        worse = [key for key in ("rotation", "flip", "all-1") if key in supplement_summaries]
-        text_parts = [
-            f"* Utan vakt, där alla körningar går 100 epoker, når ingen variationstyp över "
-            f"baslinjens {supplement_baseline:.3f}."
-        ]
-        if level:
-            values = [supplement_summaries[key]["map50_95"] for key in level]
-            text_parts.append(
-                f" {', '.join(CONFIG_BY_KEY[key].label for key in level)} ligger på samma "
-                f"nivå ({min(values):.3f}–{max(values):.3f})"
-            )
-        if worse:
-            values = [supplement_summaries[key]["map50_95"] for key in worse]
-            text_parts.append(
-                f", medan {', '.join(CONFIG_BY_KEY[key].label for key in worse)} ligger "
-                f"under ({min(values):.3f}–{max(values):.3f})."
-            )
-        bullets.append("".join(text_parts))
-        counts = [
+        supplement_ranked = sorted(
+            (
+                key
+                for key in TYPE_KEYS
+                if key in supplement_summaries and key != "baseline"
+            ),
+            key=lambda key: supplement_summaries[key]["map50_95"],
+            reverse=True,
+        )
+        supplement_best = supplement_ranked[0]
+        bullets.append(
+            f"* Utan vakt, där alla körningar går 100 epoker, ligger baslinjen på "
+            f"{supplement_baseline:.3f} och den bästa variationstypen, "
+            f"{CONFIG_BY_KEY[supplement_best].label}, på "
+            f"{supplement_summaries[supplement_best]['map50_95']:.3f}."
+        )
+        supplement_counts = [
             supplement_summaries[key]["map50_95"]
             for key in COUNT_VALUES
             if key in supplement_summaries
         ]
-        if counts:
+        if supplement_counts:
+            relation = (
+                "under" if max(supplement_counts) <= supplement_baseline else "kring"
+            )
             bullets.append(
-                f"* Antalet variationer räddar inte resultatet: 1–20 variationer per bildpar "
-                f"ger {min(counts):.3f}–{max(counts):.3f}, alltså under baslinjens "
-                f"{supplement_baseline:.3f} hela vägen."
+                f"* Utan vakt ger 1–20 variationer per bildpar "
+                f"{min(supplement_counts):.3f}–{max(supplement_counts):.3f}, alltså "
+                f"{relation} baslinjens {supplement_baseline:.3f}."
             )
     return "\n".join(bullets)
 
 
-def _limitations(split: dict) -> str:
+def _limitations(split: dict, base: BaseModel) -> str:
     """Begränsningarna som punktlista."""
     return "\n".join(
         [
@@ -1099,8 +1390,8 @@ def _limitations(split: dict) -> str:
             "komplement som räknar larm som inte matchar något facit.",
             "* Styrkorna är dialogens standardvärden. Rapporten säger inget om hur en mindre "
             "rotationsvinkel eller en svagare färgändring hade fallit ut.",
-            "* Basmodellen är appens standardmodell, YOLO26 medium. En modell som redan är "
-            "tränad på röntgenbilder kan svara annorlunda på samma variationer.",
+            f"* Basmodellen är {base.label}. En annan basmodell kan svara annorlunda på "
+            "samma variationer.",
             "* Antalet variationer per bildpar ändrar också antalet optimeringssteg per "
             "epok, eftersom träningsmängden växer. Rapporten mäter alltså utökningens "
             "samlade effekt, inte en isolerad variationseffekt vid konstant stegantal.",
@@ -1117,24 +1408,32 @@ def _reasoning(
     baseline: float,
     grouped: dict[str, list[dict]],
     supplement: dict | None,
+    base: BaseModel,
+    control: dict[str, dict] | None,
 ) -> str:
     """Resonemanget kring tabellerna, som en punktlista."""
     parts = [
         "* Med överträningsvakten på stoppade den varje körning. Med tolv träningsbilder "
-        f"och batch {BATCH} är en epok två optimeringssteg, så vaktens tio epoker utan "
-        "förbättring är tjugo steg. Modellen behöver omkring hundra steg innan valvärdet "
-        "rör sig, så vakten hinner stoppa träningen innan den börjat lära sig. Det syns på "
-        "att alla enskilda variationstyper hamnar på samma mAP som baslinjen."
+        f"och batch {base.batch} blir det bara ett fåtal optimeringssteg per epok, så "
+        "vaktens tio epoker utan förbättring räcker inte för att modellen ska hinna lära "
+        "sig något."
     ]
     if "all-5" in summaries:
-        parts.append(
-            f"* Kombinationen lyfte först vid 5 variationer per bildpar, där "
-            f"{summaries['all-5']['train_images']} träningsbilder ger "
-            f"{summaries['all-5']['train_images'] // BATCH} steg per epok. Då räcker "
-            "vaktens tio epoker tillräckligt många steg för att valvärdet ska röra sig, och "
-            "träningen får fortsätta. Att kurvan planar ut vid 10 och 20 variationer beror "
-            "på att stegantalet redan är tillräckligt där."
-        )
+        steps = summaries["all-5"]["train_images"] // base.batch
+        if summaries["all-5"]["map50_95"] > baseline:
+            parts.append(
+                f"* Kombinationen lyfte först vid 5 variationer per bildpar, där "
+                f"{summaries['all-5']['train_images']} träningsbilder ger {steps} steg per "
+                "epok. Då räcker vaktens tio epoker tillräckligt många steg för att "
+                "valvärdet ska röra sig, och träningen får fortsätta."
+            )
+        else:
+            parts.append(
+                f"* Kombinationen når inte över baslinjen heller: 5 variationer per bildpar "
+                f"ger {summaries['all-5']['map50_95']:.3f} mot {baseline:.3f}, trots att "
+                f"{summaries['all-5']['train_images']} träningsbilder ger {steps} steg per "
+                "epok. Fler steg räddar alltså inte resultatet."
+            )
     if supplement is not None:
         supplement_summaries = supplement["summaries"]
         supplement_baseline = supplement_summaries["baseline"]["map50_95"]
@@ -1195,6 +1494,30 @@ def _reasoning(
             "bilderna och tappar den vy där originalen är svårast, men rapporten mäter inte "
             "orsaken."
         )
+    collapsed = [
+        key
+        for key in TYPE_KEYS
+        if key in summaries and key != "baseline" and summaries[key]["map50_95"] == 0
+    ]
+    if collapsed:
+        text = (
+            "* "
+            + _join_labels(collapsed)
+            + " kollapsar helt i matrisen med vakt: alla upprepningar ger mAP50-95 0.000, "
+            "och modellen larmar bara någon enstaka gång per bild."
+        )
+        recovered = [
+            key
+            for key in collapsed
+            if control is not None and key in control and control[key]["map50_95"] > 0.05
+        ]
+        if recovered:
+            text += (
+                f" Kontrollen utan vakt visar att {_join_labels(recovered)} återhämtar sig "
+                "när träningen får gå 100 epoker, så kollapsen är vaktens fel och inte "
+                "variationens."
+            )
+        parts.append(text)
     parts.append(
         "* Skillnaden mellan intilliggande steg ska jämföras med spridningen i tabellerna; "
         "ett steg som rör sig mindre än spridningen säger inget."
@@ -1203,7 +1526,10 @@ def _reasoning(
 
 
 def _recommendation(
-    summaries: dict[str, dict], baseline: float, supplement: dict | None
+    summaries: dict[str, dict],
+    baseline: float,
+    supplement: dict | None,
+    control: dict[str, dict] | None,
 ) -> str:
     """Rekommendationen rapporten avslutas med."""
     source = supplement["summaries"] if supplement is not None else summaries
@@ -1221,21 +1547,34 @@ def _recommendation(
     spread = max(summary["map50_95_std"], source["baseline"]["map50_95_std"])
     if difference <= spread:
         worse = [
-            CONFIG_BY_KEY[key].label
+            key
             for key in ranked
             if source[key]["map50_95"]
             < source_baseline
             - max(source[key]["map50_95_std"], source["baseline"]["map50_95_std"])
         ]
         text = (
-            "Ingen av de testade variationstyperna höjer mAP50-95 mer än spridningen mellan "
-            "upprepningarna."
+            "Ingen av de testade variationstyperna slår baslinjen: den bästa ligger på "
+            f"{summary['map50_95']:.3f} mot baslinjens {source_baseline:.3f}, och skillnaden "
+            f"är mindre än spridningen på {spread:.3f}."
         )
         if worse:
             text += (
-                f" {', '.join(worse)} ligger dessutom under baslinjen även med spridningen "
-                "inräknad, alltså sämre än att inte utöka alls."
+                f" {_join_labels(worse)} ligger dessutom under baslinjen även med "
+                "spridningen inräknad, alltså sämre än att inte utöka alls."
             )
+        if control is not None:
+            recovered = [
+                key
+                for key in worse
+                if key in control and control[key]["map50_95"] >= source_baseline - 0.02
+            ]
+            if recovered:
+                text += (
+                    f" Kontrollen utan vakt visar dock att {_join_labels(recovered)} når "
+                    "baslinjen när träningen får gå 100 epoker, så för den variationen är "
+                    "det vakten och inte variationen som avgör."
+                )
         return (
             f"{text} Vid ett tiotal bildpar är rekommendationen att träna på de manuellt "
             "annoterade bildparen som de är och lägga arbetet på fler annoterade bildpar i "
@@ -1284,7 +1623,18 @@ def main() -> None:
         default="",
         help="kommaseparerade konfigurationsnycklar för run, t.ex. baseline,rotation",
     )
-    parser.add_argument("--work-root", default=str(WORK_ROOT))
+    parser.add_argument(
+        "--base",
+        default="yolo",
+        choices=tuple(BASES),
+        help="basmodellen matrisen körs med",
+    )
+    parser.add_argument("--work-root", default="")
+    parser.add_argument(
+        "--seeds",
+        default="",
+        help="kommaseparerade frön för run; tomt ger VARIATION_SEEDS",
+    )
     parser.add_argument(
         "--guard",
         default="on",
@@ -1292,14 +1642,16 @@ def main() -> None:
         help="överträningsvaktens läge; off används för den kompletterande matrisen",
     )
     args = parser.parse_args()
-    work_root = Path(args.work_root)
+    base = BASES[args.base]
+    work_root = Path(args.work_root) if args.work_root else base.work_root
     if args.command == "prepare":
         prepare(work_root)
     elif args.command == "run":
         only = [key for key in args.only.split(",") if key]
-        run_matrix(work_root, only or None, args.guard)
+        seeds = tuple(int(value) for value in args.seeds.split(",") if value)
+        run_matrix(work_root, only or None, args.guard, base, seeds or VARIATION_SEEDS)
     else:
-        report(work_root)
+        report(base)
 
 
 if __name__ == "__main__":
