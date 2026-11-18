@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-18T12:04:00Z'
-updated_date: '2026-11-18T12:33:00Z'
+updated_date: '2026-11-18T13:22:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -46,6 +46,8 @@ ordinal: 153000
 Kolumner: Datum, Modellnamn, Checkpoint, Epoker, Tid, mAP50-95, Status, Notering. Datum är starttiden omräknad till lokal tid (TrainingRun.started_text), Modellnamn är manifestets name med '-' för äldre manifest (TrainingRun.model_name), Checkpoint är vikfilens namn. Status visar status_label och Notering visar verdict.label. Radan under tabellen och docs/beteende.md använder checkpoint/notering.
 
 Verifiering: 901 passed, 1 skipped (pytest -n 4). ruff check utan anmärkning. Vyn renderad offscreen med två körningar: kolumnerna och raden under tabellen visar de nya begreppen.
+
+Uppföljning efter testkörning: första kolumnen tog allt överskott eftersom den låg i Stretch. Nu får varje kolumn sin innehållsbredd plus en jämn del av det som blir över (_distribute_columns), och fördelningen räknas om när tabellens synliga yta byter bredd via ett eventfilter på viewporten. Ryms inte innehållet behåller kolumnerna sin bredd och tabellen rullar i sidled. Commit fd21d8f.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary

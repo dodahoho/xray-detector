@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-18T12:21:00Z'
-updated_date: '2026-11-18T12:50:00Z'
+updated_date: '2026-11-18T13:22:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -57,6 +57,8 @@ Historikvyn: kryssruta i kolumn 'Val' först i varje rad, 'Markera alla' med tri
 Val: stabilitet räknas bara för videofil, eftersom spår kräver att bildrutorna kommer i tidsordning; en mapp sorteras på namn och ger därför ingen meningsfull spårlängd. Källor utan facit räknas vid appens egen konfidenströskel 0.4. Datasetrapporten sparas som evaluation.json; mapp- och videorapporterna lever bara i dialogen.
 
 Verifiering: 938 passed, 1 skipped (pytest -n 4). ruff check utan anmärkning. Dialogen renderad offscreen för alla tre källtyperna: rätt kolumner (8 för dataset, 7 för mapp, 10 för video) och rätt grafer. Ett smoke-test genom MainWindow visar att kryssrutan aktiverar knappen och att dialogen öppnas. tests/test_shortcuts.py är instabil under -n 4 även på en orörd HEAD (två andra tester i samma fil föll där), så det är en känd svaghet i sviten och inte i den här ändringen.
+
+Uppföljning efter testkörning: (1) utvärderingen stänger av videoströmmarna och detektionen medan modellerna går igenom källan och tänder dem igen när den är klar, via evaluation_started/evaluation_finished som dialogen sänder och MainWindow lyssnar på; knappen Utvärdera valda är dessutom avstängd medan en träning pågår. (2) Datasetkällan kan peka ut ett annat YOLO-dataset på disk (data.yaml, images/ och labels/) via infrastructure/dataset_store/external.py; tomt fält betyder applikationens eget dataset, och compare_runs läser det externa datasetet en gång per jämförelse. Ett dataset utan fångstpar hoppar över uppdelningen per vy. Commit fd21d8f.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
