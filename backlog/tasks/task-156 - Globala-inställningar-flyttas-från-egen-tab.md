@@ -1,7 +1,7 @@
 ---
 id: TASK-156
 title: Globala inställningar flyttas från egen tab
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-18T11:54:00Z'
@@ -49,11 +49,11 @@ Den andra delen av de globala inställningarna som rör modeller flyttas till vy
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -74,3 +74,9 @@ Den andra delen av de globala inställningarna som rör modeller flyttas till vy
 <!-- SECTION:NOTES:BEGIN -->
 Temat växlas nu med ThemeToggle i varje vys överkant: grå sol i mörkt läge, grå måne i ljust, och en gemensam theme_changed-signal gör att alla knappar byter ikon samtidigt. Inställningsfliken är borta; SettingsView och ThemeSection är borttagna. Modellistan ligger i en dialog som öppnas med Hantera modeller (Alt+H) till höger om modellväljaren, och träningsvyns active_run_dir kopplas in så en pågående träning inte kan tas bort. Detektionsvyns översta rad har fått luft före tröskeln, mellan tröskeln och enheten och mellan enheten och resursstaplarna. Testerna är uppdaterade och hela sviten ger 893 passed, 4 failed, där de fyra felen är desamma som på HEAD.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Temat växlas nu med en ikonknapp till höger om varje vys inställningsknapp: en grå sol i mörkt läge och en grå måne i ljust. Alla knappar lyssnar på samma signal, så en växling slår igenom i alla vyer, och valet sparas i ui/theme. Inställningsfliken är borta tillsammans med SettingsView och ThemeSection. Modellistan ligger i en dialog som öppnas med Hantera modeller (Alt+H) till höger om modellväljaren; dialogen återanvänder SettingsDialog och ModelSection, och träningsvyns active_run_dir kopplas in så en pågående träning inte kan tas bort. Detektionsvyns översta rad har fått luft före tröskeln, mellan tröskeln och enheten och mellan enheten och resursstaplarna. Verifiering: ruff check . är ren och pytest -q -n auto ger 893 passed, 4 failed; de fyra felen (test_app_icon och tre i test_detection_badge) finns även på HEAD och beror på att miljön saknar teckensnitt. Dokumentationen i docs/beteende.md och docs/arkitektur.md samt Groma-kartan är uppdaterad.
+<!-- SECTION:FINAL_SUMMARY:END -->
