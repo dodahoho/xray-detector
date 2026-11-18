@@ -152,6 +152,26 @@ def test_replace_samples_keeps_the_id_and_rewrites_the_annotations(tmp_path):
     assert svc.metadata()["num_objects"] == 2
 
 
+def test_replace_samples_leaves_the_png_file_untouched(tmp_path):
+    """En redigering ändrar bara annoteringarna, inte bilden (TASK-150)."""
+    svc = make_service(tmp_path)
+    svc.add_samples([sample()])
+    image = svc.load_dataset()["images"][0]
+    path = svc.images_dir / image["file_name"]
+    before = path.stat().st_mtime_ns
+
+    svc.replace_samples(
+        [image["id"]],
+        [AnnotatedImage(np.full((40, 50, 3), 90, np.uint8),
+                        [{"class_name": "pistol", "bbox": [4, 4, 8, 8]}])],
+    )
+
+    assert path.stat().st_mtime_ns == before
+    assert [a["class_name"] for a in svc.load_dataset()["images"][0]["annotations"]] == [
+        "pistol"
+    ]
+
+
 def test_replace_samples_keeps_the_synthetic_origin(tmp_path):
     """En redigerad variation fortsätter höra till sitt ursprung (TASK-110)."""
     from xray_detector.domain.dataset import VariationSettings

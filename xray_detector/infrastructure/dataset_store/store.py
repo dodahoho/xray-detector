@@ -271,12 +271,14 @@ class DatasetStore:
         image_ids: list[int],
         samples: list[AnnotatedImage],
     ) -> None:
-        """Skriver om sparade bilder på plats i stället för att lägga till kopior (TASK-110).
+        """Uppdaterar annoteringarna för sparade bilder på plats (TASK-110, TASK-150).
 
         Bild-id, fångstgrupp, fångsttid och synthetic/source behålls, så ett
         redigerat bildpar ligger kvar på samma plats i datasetet och en
-        variation fortsätter höra till sitt ursprung. Stämmer antalet bilder
-        inte med antalet id:n raderas de gamla och bilderna läggs till som nya.
+        variation fortsätter höra till sitt ursprung. Bara label-filerna och
+        dataset.json skrivs: en redigering ändrar rektanglar och klasser, inte
+        bildinnehållet, så PNG-filen lämnas orörd. Stämmer antalet bilder inte
+        med antalet id:n raderas de gamla och bilderna läggs till som nya.
         """
         metadata = self._load_metadata()
         by_id = {image["id"]: image for image in metadata["images"]}
@@ -285,16 +287,22 @@ class DatasetStore:
             self.delete_images(image_ids)
             self.add_samples(samples)
             return
-        self.images_dir.mkdir(parents=True, exist_ok=True)
         self.labels_dir.mkdir(parents=True, exist_ok=True)
         names = self.classes()
         known = list(names)
         for image, sample in zip(targets, samples, strict=True):
-            width, height = self._write_sample(
-                image["file_name"], sample.frame, sample.annotations, names
-            )
-            image["width"] = width
-            image["height"] = height
+            width = int(image["width"])
+            height = int(image["height"])
+            rows = [
+                from_pixels(
+                    self._class_index(names, annotation["class_name"]),
+                    annotation["bbox"],
+                    width,
+                    height,
+                )
+                for annotation in sample.annotations
+            ]
+            write_labels(self._label_path(image["file_name"]), rows)
         if names != known:
             write_data_yaml(self.data_yaml, names)
         self._save_metadata(metadata)

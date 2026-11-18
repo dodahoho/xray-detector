@@ -59,6 +59,8 @@ class AnnotationCanvas(QWidget):
         self.title = title
         self.setMinimumSize(2, 2)
         self.image: QImage | None = None
+        # originalramen i BGR, så en sparning slipper konvertera fram och tillbaka (TASK-150)
+        self.frame: np.ndarray | None = None
         self.rects: list[RectItem] = []
         self.selected: RectItem | None = None
         self._drag_start = QPoint()
@@ -82,6 +84,7 @@ class AnnotationCanvas(QWidget):
             self.update()
 
     def load_frame(self, stream_frame: StreamFrame, default_class: str) -> None:
+        self.frame = stream_frame.frame
         self.image = bgr_to_qimage(stream_frame.frame)
         self.rects = [
             RectItem(
@@ -97,14 +100,13 @@ class AnnotationCanvas(QWidget):
         self.update()
 
     def result(self) -> AnnotatedImage | None:
-        if self.image is None:
+        """Bildens originalram plus de rutor användaren ritat (TASK-150).
+
+        Ramen lämnas orörd: en redigering ändrar bara rektanglar och klasser,
+        så bilden behöver aldrig konverteras BGR -> QImage -> BGR igen.
+        """
+        if self.frame is None:
             return None
-        image = self.image.convertToFormat(QImage.Format.Format_RGB888)
-        raw = np.frombuffer(image.constBits(), dtype=np.uint8)[: image.sizeInBytes()]
-        stride = image.bytesPerLine()
-        frame = raw[: image.height() * stride].reshape(image.height(), stride)
-        frame = frame[:, : image.width() * 3].reshape(image.height(), image.width(), 3)
-        frame = np.ascontiguousarray(frame[:, :, ::-1])
         annotations = [
             {
                 "class_name": rect.class_name,
@@ -112,7 +114,7 @@ class AnnotationCanvas(QWidget):
             }
             for rect in self.rects
         ]
-        return AnnotatedImage(frame=frame, annotations=annotations)
+        return AnnotatedImage(frame=self.frame, annotations=annotations)
 
     def _base_scale(self) -> float:
         if self.image is None:
@@ -662,6 +664,7 @@ class AnnotationView(QWidget):
             canvas.load_frame(capture, self.class_combo.currentText())
         for canvas in self.canvases[len(captures):]:
             canvas.image = None
+            canvas.frame = None
             canvas.rects = []
             canvas.selected = None
             canvas.update()
@@ -780,6 +783,7 @@ class AnnotationView(QWidget):
         self.mark_clean()
         for canvas in self.canvases:
             canvas.image = None
+            canvas.frame = None
             canvas.rects = []
             canvas.reset_view()
             canvas.update()

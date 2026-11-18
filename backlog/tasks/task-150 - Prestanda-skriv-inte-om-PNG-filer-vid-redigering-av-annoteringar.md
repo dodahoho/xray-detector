@@ -1,9 +1,10 @@
 ---
 id: TASK-150
 title: 'Prestanda: skriv inte om PNG-filer vid redigering av annoteringar'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:54:00Z'
+updated_date: '2026-11-18T07:25:00Z'
 labels:
   - performance
   - review-followup
@@ -13,7 +14,7 @@ references:
   - utvärdering_argon.md
 priority: low
 type: enhancement
-ordinal: 148000
+ordinal: 2000
 ---
 
 ## Description
