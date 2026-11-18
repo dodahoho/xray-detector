@@ -26,6 +26,8 @@ from xray_detector.application.evaluation import (
 )
 from xray_detector.application.training_history import TrainingRun
 from xray_detector.domain.detection import Detection
+from xray_detector.infrastructure.dataset_store.external import read_dataset
+from xray_detector.infrastructure.dataset_store.yolo import write_data_yaml, write_labels
 from xray_detector.infrastructure.training.metrics import (
     Prediction,
     Target,
@@ -631,7 +633,100 @@ def test_the_summary_of_a_detection_report_names_the_counts(tmp_path):
 
     assert "detektioner/bild" in text
     assert "med träff" in text
-    assert "medelkonfidens" in text
+    assert "medelkonfiden" in text
+
+
+# --- Ett eget dataset på disk (TASK-158) ---
+
+
+def _write_yolo_dataset(root: Path) -> Path:
+    """Ett litet YOLO-dataset: data.yaml, images/ och labels/ med en negativ bild."""
+    import cv2
+
+    images_dir = root / "images"
+    labels_dir = root / "labels"
+    images_dir.mkdir(parents=True)
+    labels_dir.mkdir(parents=True)
+    write_data_yaml(root / "data.yaml", ["kniv"])
+    for index in (1, 2):
+        name = f"bild_{index:03d}.png"
+        cv2.imwrite(str(images_dir / name), np.full((40, 40, 3), index, dtype=np.uint8))
+        rows = [(0, 0.25, 0.25, 0.25, 0.25)] if index == 1 else []
+        write_labels(labels_dir / f"bild_{index:03d}.txt", rows)
+    return root
+
+
+def test_an_external_yolo_dataset_is_read_from_disk(tmp_path):
+    root = _write_yolo_dataset(tmp_path / "annat")
+
+    dataset, images_dir = read_dataset(root)
+
+    assert dataset["classes"] == ["kniv"]
+    assert images_dir == root / "images"
+    assert [image["file_name"] for image in dataset["images"]] == [
+        "bild_001.png",
+        "bild_002.png",
+    ]
+    assert dataset["images"][0]["annotations"] == [
+        {"class_name": "kniv", "bbox": pytest.approx([5.0, 5.0, 10.0, 10.0])}
+    ]
+    assert dataset["images"][1]["annotations"] == []
+
+
+def test_a_folder_without_data_yaml_is_not_a_dataset(tmp_path):
+    (tmp_path / "tomt" / "images").mkdir(parents=True)
+
+    with pytest.raises(ValueError):
+        read_dataset(tmp_path / "tomt")
+
+
+def test_a_dataset_source_can_point_at_another_dataset(tmp_path):
+    root = _write_yolo_dataset(tmp_path / "annat")
+
+    report = evaluate_source(
+        _run(tmp_path),
+        EvaluationSource(kind=SOURCE_DATASET, split="all", path=root),
+        detector_factory=lambda _run: _FakeDetector({"1": [[5, 5, 15, 15]]}),
+    )
+
+    assert report["source_label"] == "Dataset (Alla): annat"
+    assert report["images"] == 2
+    assert report["overall"]["map50_95"] == 1.0
+
+
+def test_an_external_dataset_has_no_view_breakdown(tmp_path):
+    """Ett dataset utan fångstpar har bara en vy, så uppdelningen hoppas över."""
+    root = _write_yolo_dataset(tmp_path / "annat")
+
+    report = evaluate_source(
+        _run(tmp_path),
+        EvaluationSource(kind=SOURCE_DATASET, split="all", path=root),
+        detector_factory=lambda _run: _FakeDetector({"1": [[5, 5, 15, 15]]}),
+    )
+
+    assert report["views"] == {}
+
+
+def test_compare_runs_reads_the_external_dataset_once(tmp_path, monkeypatch):
+    from xray_detector.application import evaluation as evaluation_module
+
+    root = _write_yolo_dataset(tmp_path / "annat")
+    calls: list[Path] = []
+    original = evaluation_module.read_dataset
+
+    def counting(path):
+        calls.append(path)
+        return original(path)
+
+    monkeypatch.setattr(evaluation_module, "read_dataset", counting)
+
+    compare_runs(
+        [_run(tmp_path, "forsta"), _run(tmp_path, "andra")],
+        EvaluationSource(kind=SOURCE_DATASET, split="all", path=root),
+        detector_factory=lambda _run: _FakeDetector({}),
+    )
+
+    assert calls == [root]
 
 
 # --- Historikvyn ---

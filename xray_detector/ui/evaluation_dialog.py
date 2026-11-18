@@ -12,6 +12,7 @@ inte hör till någon delmängd av datasetet.
 
 from pathlib import Path
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -72,6 +73,13 @@ STABILITY_COLUMNS = ("Spår", "Medellängd", "Stabila")
 NO_RUNS = "Markera minst en träning i listan."
 NO_PATH = "Välj en mapp eller en videofil."
 NO_DATASET = "Datasetet är inte tillgängligt."
+#: Vad sökvägsfältet betyder för respektive källa. Tomt fält vid dataset
+#: betyder applikationens eget dataset.
+PLACEHOLDERS = {
+    SOURCE_DATASET: "Applikationens eget dataset (lämna tomt för det egna)",
+    SOURCE_FOLDER: "Välj en mapp med bilder",
+    SOURCE_VIDEO: "Välj en videofil",
+}
 RUNNING = "Utvärderar modellerna..."
 DONE = "Utvärderingen klar: {count} modeller mot {source}."
 FAILED = "Utvärderingen misslyckades"
@@ -100,6 +108,11 @@ class EvaluationDialog(QDialog):
     överst, och en datasetkörning sparas i körningens katalog så historikvyn
     kan visa den efteråt.
     """
+
+    #: En utvärdering startade, så detektionen kan släppa GPU:n (TASK-158).
+    evaluation_started = Signal()
+    #: Utvärderingen är klar och detektionen kan återupptas.
+    evaluation_finished = Signal()
 
     def __init__(
         self,
@@ -164,6 +177,7 @@ class EvaluationDialog(QDialog):
         self.path_edit = QLineEdit()
         self.path_edit.setReadOnly(True)
         self.path_edit.setPlaceholderText(NO_PATH)
+        self.path_edit.textChanged.connect(self._on_path_changed)
         row.addWidget(self.path_edit, 1)
         self.browse_button = button(mnemonic("Bläddra...", "B"))
         self.browse_button.clicked.connect(self._on_browse)
@@ -243,13 +257,12 @@ class EvaluationDialog(QDialog):
         if kind != getattr(self, "_kind", kind):
             self.path_edit.clear()
         self._kind = kind
-        is_dataset = kind == SOURCE_DATASET
-        self.split_combo.setVisible(is_dataset)
-        self.path_edit.setVisible(not is_dataset)
-        self.browse_button.setVisible(not is_dataset)
-        self.path_edit.setPlaceholderText(
-            "Välj en mapp med bilder" if kind == SOURCE_FOLDER else "Välj en videofil"
-        )
+        self.split_combo.setVisible(kind == SOURCE_DATASET)
+        self.path_edit.setPlaceholderText(PLACEHOLDERS[kind])
+        self.run_button.setEnabled(self._source_ready())
+
+    def _on_path_changed(self, _text: str) -> None:
+        """En vald sökväg avgör om utvärderingen kan köras."""
         self.run_button.setEnabled(self._source_ready())
 
     def _source_ready(self) -> bool:
@@ -258,22 +271,27 @@ class EvaluationDialog(QDialog):
             return False
         kind = self.source_combo.currentData()
         if kind == SOURCE_DATASET:
-            return self.dataset is not None
+            # tom sökväg betyder applikationens eget dataset
+            return self.dataset is not None or bool(self.path_edit.text())
         return bool(self.path_edit.text())
 
     def _on_browse(self) -> None:
-        """Väljer mapp eller videofil beroende på källan."""
-        if self.source_combo.currentData() == SOURCE_FOLDER:
-            chosen = QFileDialog.getExistingDirectory(
-                self, "Välj en mapp med bilder", str(Path.home())
-            )
-        else:
+        """Väljer dataset, mapp eller videofil beroende på källan."""
+        kind = self.source_combo.currentData()
+        if kind == SOURCE_VIDEO:
             chosen, _filter = QFileDialog.getOpenFileName(
                 self,
                 "Välj en videofil",
                 str(Path.home()),
                 "Videofiler (*.mp4 *.avi *.mov *.mkv *.wmv);;Alla filer (*)",
             )
+        else:
+            title = (
+                "Välj ett YOLO-dataset (data.yaml och images/)"
+                if kind == SOURCE_DATASET
+                else "Välj en mapp med bilder"
+            )
+            chosen = QFileDialog.getExistingDirectory(self, title, str(Path.home()))
         if chosen:
             self.path_edit.setText(chosen)
             self.run_button.setEnabled(self._source_ready())
@@ -281,9 +299,12 @@ class EvaluationDialog(QDialog):
     def current_source(self) -> EvaluationSource:
         """Källan fälten beskriver."""
         kind = self.source_combo.currentData()
+        path = Path(self.path_edit.text()) if self.path_edit.text() else None
         if kind == SOURCE_DATASET:
-            return EvaluationSource(kind=kind, split=self.split_combo.currentData())
-        return EvaluationSource(kind=kind, path=Path(self.path_edit.text()))
+            return EvaluationSource(
+                kind=kind, split=self.split_combo.currentData(), path=path
+            )
+        return EvaluationSource(kind=kind, path=path)
 
     def run_evaluation(self) -> None:
         """Kör jämförelsen i bakgrunden; gör inget när källan inte är komplett."""
@@ -299,10 +320,18 @@ class EvaluationDialog(QDialog):
         task.finished.connect(self._on_finished)
         self._task = task
         task.start()
+        # detektionen släpper GPU:n medan modellerna går igenom källan
+        self.evaluation_started.emit()
 
     def _evaluate(self, source: EvaluationSource) -> list[dict]:
-        """Kör jämförelsen och sparar datasetrapporterna i körningarnas kataloger."""
-        dataset = self.dataset.load_dataset() if self.dataset is not None else None
+        """Kör jämförelsen och sparar datasetrapporterna i körningarnas kataloger.
+
+        Ett eget dataset på disk läses av compare_runs, så appens eget dataset
+        bara läses när källan faktiskt är det egna.
+        """
+        dataset = None
+        if source.kind == SOURCE_DATASET and source.path is None:
+            dataset = self.dataset.load_dataset() if self.dataset is not None else None
         reports = compare_runs(
             self.runs,
             source,
@@ -330,6 +359,7 @@ class EvaluationDialog(QDialog):
         self._task = None
         self.busy.stop()
         self.run_button.setEnabled(self._source_ready())
+        self.evaluation_finished.emit()
 
     def wait_for_evaluation(self, timeout_ms: int = 60000) -> None:
         """Väntar in en pågående utvärdering (tester och stängning)."""

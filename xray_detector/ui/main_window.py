@@ -76,6 +76,13 @@ class MainWindow(QMainWindow):
         self.annotation_view.cancelled.connect(self._on_annotation_cancelled)
         self.training_view.training_started.connect(self._on_training_started)
         self.training_view.training_finished.connect(self._on_training_finished)
+        # utvärderingen får GPU:n för sig själv, som träningen (TASK-158)
+        self.training_view.history.evaluation_started.connect(
+            self._on_evaluation_started
+        )
+        self.training_view.history.evaluation_finished.connect(
+            self._on_evaluation_finished
+        )
         self.training_view.status_changed.connect(self._show_status)
         self.dataset_view.open_annotation_requested.connect(self._on_open_from_dataset)
         self.dataset_view.status_changed.connect(self._show_status)
@@ -240,6 +247,17 @@ class MainWindow(QMainWindow):
         self._show_status(
             "Träning avslutad – videoströmmar och detektion återupptagna; "
             "modellväljaren uppdaterad"
+        )
+
+    def _on_evaluation_started(self) -> None:
+        """Utvärderingen får hela maskinen, som träningen (TASK-158)."""
+        self.detection_view.pause_detection()
+        self._show_status("Utvärdering pågår – videoströmmar och detektion avstängda")
+
+    def _on_evaluation_finished(self) -> None:
+        self.detection_view.resume_detection()
+        self._show_status(
+            "Utvärderingen klar – videoströmmar och detektion återupptagna"
         )
 
     def closeEvent(self, event) -> None:

@@ -30,6 +30,10 @@ from xray_detector.infrastructure.dataset_store.export import (
     train_val_split,
     train_val_test_split,
 )
+from xray_detector.infrastructure.dataset_store.external import (
+    IMAGE_SUFFIXES,
+    read_dataset,
+)
 from xray_detector.infrastructure.training.metrics import (
     TARGET_RECALL,
     Prediction,
@@ -65,13 +69,15 @@ DETECTION_CONFIDENCE = 0.4
 VIDEO_STRIDE = 5
 #: Antalet staplar i konfidenshistogrammet, över 0.0-1.0.
 CONFIDENCE_BINS = 10
-#: Ändelserna en bildmapp läses med.
-IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp")
 
 
 @dataclass(frozen=True)
 class EvaluationSource:
-    """Det utvärderingen körs mot: en delmängd av datasetet, en mapp eller en video."""
+    """Det utvärderingen körs mot: ett dataset, en mapp eller en video.
+
+    path är satt när användaren pekar ut ett eget dataset i YOLO-format; utan
+    path används applikationens eget dataset.
+    """
 
     kind: str = SOURCE_DATASET
     split: str | None = None
@@ -82,7 +88,10 @@ class EvaluationSource:
         """Källan som den visas i rapporten och i dialogens rubrik."""
         if self.kind == SOURCE_DATASET:
             split = self.split or ""
-            return f"Dataset ({SPLIT_LABELS.get(split, split)})"
+            name = SPLIT_LABELS.get(split, split)
+            if self.path is not None:
+                return f"Dataset ({name}): {Path(self.path).name}"
+            return f"Dataset ({name})"
         name = Path(self.path).name if self.path else "-"
         return f"{SOURCE_LABELS.get(self.kind, self.kind)}: {name}"
 
@@ -279,21 +288,24 @@ def evaluate_run(
         "overall": mean_average_precision(predictions, targets),
         "views": {},
     }
-    for view in sorted(set(views.values())):
-        index = [
-            position
-            for position, image in enumerate(evaluated)
-            if views[image["id"]] == view
-        ]
-        if not index:
-            continue
-        report["views"][view] = {
-            "images": len(index),
-            **mean_average_precision(
-                [predictions[position] for position in index],
-                [targets[position] for position in index],
-            ),
-        }
+    # Ett dataset utan fångstpar har bara en vy, och då säger uppdelningen
+    # inget utöver helheten (TASK-158).
+    if len(set(views.values())) > 1:
+        for view in sorted(set(views.values())):
+            index = [
+                position
+                for position, image in enumerate(evaluated)
+                if views[image["id"]] == view
+            ]
+            if not index:
+                continue
+            report["views"][view] = {
+                "images": len(index),
+                **mean_average_precision(
+                    [predictions[position] for position in index],
+                    [targets[position] for position in index],
+                ),
+            }
 
     positive_predictions = [predictions[position] for position in positives]
     positive_targets = [targets[position] for position in positives]
@@ -400,10 +412,13 @@ def evaluate_source(
     """Utvärderar en körning mot den valda källan (TASK-158).
 
     Datasetkällan har annoteringar och går till evaluate_run, som ger mAP och
-    falsklarm. Mappen och videon saknar facit och går till
+    falsklarm. Pekar källan ut ett eget dataset på disk läses det i stället för
+    appens eget. Mappen och videon saknar facit och går till
     evaluate_detections, som räknar detektioner i stället.
     """
     if source.kind == SOURCE_DATASET:
+        if dataset is None and source.path is not None:
+            dataset, images_dir = read_dataset(source.path)
         if dataset is None:
             raise ValueError("Dataset-utvärderingen kräver ett dataset")
         report = evaluate_run(
@@ -434,7 +449,13 @@ def compare_runs(
     ratio: float = SPLIT_RATIO,
     seed: int = SPLIT_SEED,
 ) -> list[dict]:
-    """Utvärderar varje körning mot samma källa, så talen går att jämföra."""
+    """Utvärderar varje körning mot samma källa, så talen går att jämföra.
+
+    Ett eget dataset på disk läses en gång och delas av alla körningarna, så
+    bilderna bara behöver slås upp en gång per jämförelse.
+    """
+    if source.kind == SOURCE_DATASET and source.path is not None:
+        dataset, images_dir = read_dataset(source.path)
     return [
         evaluate_source(run, source, dataset, images_dir, detector_factory, ratio, seed)
         for run in runs

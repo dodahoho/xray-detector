@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -90,6 +90,10 @@ class TrainingHistoryView(QWidget):
     run_selected = Signal(object)
     #: En körning har tagits bort med sina filer (TASK-119).
     run_deleted = Signal()
+    #: En utvärdering startade, så detektionen kan släppa GPU:n (TASK-158).
+    evaluation_started = Signal()
+    #: Utvärderingen är klar och detektionen kan återupptas.
+    evaluation_finished = Signal()
 
     def __init__(
         self, trained_dir: Path, dataset=None, parent=None, active_run_dir=None
@@ -113,14 +117,14 @@ class TrainingHistoryView(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(False)
+        # alla kolumner delar på överskottet, så ingen kolumn tar allt (TASK-157)
         self.table.horizontalHeader().setSectionResizeMode(
-            0, QHeaderView.ResizeMode.ResizeToContents
-        )
-        self.table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
+            QHeaderView.ResizeMode.Interactive
         )
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         self.table.itemChanged.connect(self._on_item_changed)
+        # kolumnbredderna följer den yta tabellen faktiskt har (TASK-157)
+        self.table.viewport().installEventFilter(self)
         layout.addWidget(self.table, 1)
         self.details = QLabel(NO_SELECTION)
         self.details.setWordWrap(True)
@@ -186,11 +190,46 @@ class TrainingHistoryView(QWidget):
             ):
                 self.table.setItem(row, column, QTableWidgetItem(value))
         self.table.blockSignals(False)
-        self.table.resizeColumnsToContents()
+        self._distribute_columns()
         if selected is not None:
             self._select(selected.run_id)
         self._on_selection_changed()
         self._update_check_state()
+
+    def _distribute_columns(self) -> None:
+        """Ger varje kolumn sin innehållsbredd plus en jämn del av överskottet.
+
+        Den första kolumnen låg tidigare i Stretch och tog allt utrymme som
+        blev över, så tabellen blev bred med tomma kolumner till höger
+        (TASK-157). Nu får varje kolumn lika stor del av det som blir över,
+        och när innehållet inte ryms behåller kolumnerna sin bredd och
+        tabellen rullar i sidled i stället.
+        """
+        header = self.table.horizontalHeader()
+        self.table.resizeColumnsToContents()
+        columns = header.count()
+        if not columns:
+            return
+        available = self.table.viewport().width()
+        used = sum(header.sectionSize(column) for column in range(columns))
+        share = (available - used) // columns
+        if share <= 0:
+            return
+        for column in range(columns):
+            header.resizeSection(column, header.sectionSize(column) + share)
+
+    def eventFilter(self, obj, event) -> bool:
+        """Fördelar om överskottet när tabellens synliga yta byter bredd.
+
+        Vyns egen resizeEvent hinner före tabellens, så den ser den gamla
+        bredden. Ytan under rubriken är den bredd kolumnerna faktiskt delar på.
+        """
+        if obj is self.table.viewport() and event.type() == QEvent.Type.Resize:
+            width = self.table.viewport().width()
+            if width != getattr(self, "_distributed_width", None):
+                self._distributed_width = width
+                self._distribute_columns()
+        return super().eventFilter(obj, event)
 
     def checked_runs(self) -> list[TrainingRun]:
         """Körningarna vars kryssruta är satt, i listans ordning (TASK-158)."""
@@ -206,6 +245,11 @@ class TrainingHistoryView(QWidget):
         if item.column() == CHECK_COLUMN:
             self._update_check_state()
 
+    def set_training_active(self, active: bool) -> None:
+        """En pågående träning stänger av jämförelsen, så GPU:n inte delas (TASK-158)."""
+        self._training_active = active
+        self._update_check_state()
+
     def _update_check_state(self) -> None:
         """Håller 'Markera alla' i takt med raderna och knappen i takt med valet."""
         checked = len(self.checked_runs())
@@ -219,7 +263,15 @@ class TrainingHistoryView(QWidget):
         self.select_all.setTristate(state == Qt.CheckState.PartiallyChecked)
         self.select_all.setCheckState(state)
         self.select_all.blockSignals(False)
-        self.evaluate_button.setEnabled(checked > 0 and self.dataset is not None)
+        training = getattr(self, "_training_active", False)
+        self.evaluate_button.setEnabled(
+            checked > 0 and self.dataset is not None and not training
+        )
+        self.evaluate_button.setToolTip(
+            "En träning pågår; jämförelsen väntar tills den är klar"
+            if training
+            else NO_CHECKED
+        )
 
     def _on_select_all(self, state: int) -> None:
         """Sätter alla rader till samma läge som 'Markera alla'."""
@@ -275,6 +327,8 @@ class TrainingHistoryView(QWidget):
             getattr(self.dataset, "images_dir", None),
             self,
         )
+        self.dialog.evaluation_started.connect(self.evaluation_started.emit)
+        self.dialog.evaluation_finished.connect(self.evaluation_finished.emit)
         self.dialog.finished.connect(self._on_dialog_finished)
         self.dialog.open()
 

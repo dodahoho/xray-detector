@@ -1,11 +1,11 @@
 ---
 id: TASK-158
 title: Träningsvy - Utvärdera modeller via ny dialog
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-18T12:21:00Z'
-updated_date: '2026-11-18T12:37:00Z'
+updated_date: '2026-11-18T12:50:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -29,11 +29,11 @@ Finns det andra sätt att lösa det eller andra relevanta metrics för utvärder
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -46,3 +46,27 @@ Finns det andra sätt att lösa det eller andra relevanta metrics för utvärder
 5. ui/training_history.py: kryssruta först i varje rad, 'Markera alla', knappen 'Utvärdera valda...' som öppnar dialogen. Den infogade delmängdslistan, utvärderingsknappen och körningen flyttas till dialogen; etiketten med sparad utvärdering blir kvar som information.
 6. Tester för metrics, källtyper, dialog och historikvyns kryssrutor. docs/beteende.md uppdateras.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Nytt: ui/evaluation_dialog.py (EvaluationDialog), ui/evaluation_chart.py (BarChart med grupperade staplar, QPainter och palettfärger), metrics.track_lengths/stability_summary, evaluation.EvaluationSource + dataset_frames/folder_frames/video_frames + evaluate_detections/evaluate_source/compare_runs/detection_summary_text.
+
+Historikvyn: kryssruta i kolumn 'Val' först i varje rad, 'Markera alla' med tristate när bara en del är markerad, knappen 'Utvärdera valda...' öppnar dialogen. Den infogade delmängdslistan, utvärderingsknappen och bakgrundskörningen flyttade in i dialogen; raden under tabellen visar kvar den sparade utvärderingen. wait_for_evaluation finns kvar och delegerar till dialogen, så closeEvent väntar in en pågående körning.
+
+Val: stabilitet räknas bara för videofil, eftersom spår kräver att bildrutorna kommer i tidsordning; en mapp sorteras på namn och ger därför ingen meningsfull spårlängd. Källor utan facit räknas vid appens egen konfidenströskel 0.4. Datasetrapporten sparas som evaluation.json; mapp- och videorapporterna lever bara i dialogen.
+
+Verifiering: 938 passed, 1 skipped (pytest -n 4). ruff check utan anmärkning. Dialogen renderad offscreen för alla tre källtyperna: rätt kolumner (8 för dataset, 7 för mapp, 10 för video) och rätt grafer. Ett smoke-test genom MainWindow visar att kryssrutan aktiverar knappen och att dialogen öppnas. tests/test_shortcuts.py är instabil under -n 4 även på en orörd HEAD (två andra tester i samma fil föll där), så det är en känd svaghet i sviten och inte i den här ändringen.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Utvärderingen är nu en egen dialog som jämför flera modeller mot samma källa. Historiktabellen har en kryssruta först i varje rad och en 'Markera alla'-toggle, och knappen 'Utvärdera valda...' öppnar dialogen med de markerade träningarna. Den infogade delmängdslistan och utvärderingsknappen flyttade in i dialogen; raden under tabellen visar kvar den sparade utvärderingen.
+
+Källan väljs i dialogen: en delmängd av datasetet (Test/Val/Alla), en mapp med bilder eller en videofil. Datasetkällan ger mAP50-95 och mAP50 totalt och per vy samt falsklarm per bild vid tröskeln för 95 % recall, som tidigare. Mappen och videon saknar facit, så där räknas i stället detektioner per bild och per klass, andelen bilder med minst en träff, medelkonfidensen och ett konfidenshistogram vid appens egen tröskel 0.4. En videofil ger dessutom stabiliteten: varje detektion matchas mot föregående bildrutas spår med IoU 0.5 och samma klass, och rapporten visar antal spår, medellängd i bildrutor och andel spår som håller minst tre rutor. Dialogen visar en sammanfattande tabell och staplar för mAP, falsklarm, detektioner per bild, konfidensfördelning och andel stabila spår.
+
+Två val värda att känna till: stabiliteten räknas bara för video, eftersom en mapp sorteras på namn och därför inte har någon tidsordning att följa spår i; och bara datasetrapporten sparas som evaluation.json, eftersom mapp- och videorapporterna inte hör till någon delmängd av datasetet.
+
+Verifierat med 938 passerade tester (1 skippat) och ruff check utan anmärkning. Dialogen renderades offscreen för alla tre källtyperna med rätt kolumner och grafer, och ett smoke-test genom MainWindow visar att kryssrutan aktiverar knappen och att dialogen öppnas. tests/test_shortcuts.py är instabil under parallell körning även på en orörd HEAD, så den flakinessen hör inte till den här ändringen.
+<!-- SECTION:FINAL_SUMMARY:END -->

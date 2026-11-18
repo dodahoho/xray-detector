@@ -503,6 +503,8 @@ class TrainingView(QWidget):
         self._progress_timer.start()
         # en ny träning tar över grafen, så ett gammalt val i listan släpps
         self.history.table.clearSelection()
+        # jämförelsen väntar medan träningen har GPU:n (TASK-158)
+        self.history.set_training_active(True)
         self.chart.clear()
         self.chart.setVisible(True)
         header = (
@@ -625,6 +627,7 @@ class TrainingView(QWidget):
         self._clear_epoch_progress()
         self.training_finished.emit()
         self.refresh_dataset_info()
+        self.history.set_training_active(False)
         self.history.refresh()
 
 

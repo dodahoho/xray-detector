@@ -107,7 +107,9 @@ def _dialog(runs, dataset=None, images_dir=None, **kwargs):
 
 def _wait(dialog) -> None:
     dialog.wait_for_evaluation()
-    dialog._on_finished()
+    # den köade finished-signalen hinner oftast fram, men inte alltid
+    if dialog._task is not None:
+        dialog._on_finished()
 
 
 def test_the_dialog_offers_the_splits_of_the_family(qapp, tmp_path):
@@ -352,3 +354,169 @@ def test_a_failing_evaluation_is_reported(qapp, tmp_path, monkeypatch):
 
     assert messages == ["modellen gick inte att läsa"]
     assert dialog.table.rowCount() == 0
+
+
+# --- Eget dataset på disk (TASK-158) ---
+
+
+def _write_yolo_dataset(root: Path) -> Path:
+    """Ett litet YOLO-dataset: data.yaml, images/ och labels/."""
+    import cv2
+
+    from xray_detector.infrastructure.dataset_store.yolo import (
+        write_data_yaml,
+        write_labels,
+    )
+
+    images_dir = root / "images"
+    labels_dir = root / "labels"
+    images_dir.mkdir(parents=True)
+    labels_dir.mkdir(parents=True)
+    write_data_yaml(root / "data.yaml", ["kniv"])
+    for index in (1, 2):
+        name = f"bild_{index:03d}.png"
+        cv2.imwrite(str(images_dir / name), np.full((40, 40, 3), index, dtype=np.uint8))
+        rows = [(0, 0.25, 0.25, 0.25, 0.25)] if index == 1 else []
+        write_labels(labels_dir / f"bild_{index:03d}.txt", rows)
+    return root
+
+
+def test_the_dataset_source_can_point_at_another_dataset(qapp, tmp_path):
+    root = _write_yolo_dataset(tmp_path / "annat")
+    dialog = _dialog(
+        [_run(tmp_path)],
+        _StubDataset(tmp_path / "bilder"),
+        tmp_path / "bilder",
+        detector_factory=lambda _run: _FakeDetector({"1": [[5, 5, 15, 15]]}),
+        auto_run=False,
+    )
+    dialog.split_combo.setCurrentIndex(dialog.split_combo.findData("all"))
+    dialog.path_edit.setText(str(root))
+
+    dialog.run_evaluation()
+    _wait(dialog)
+
+    assert dialog.current_source().path == root
+    assert dialog.current_source().label == "Dataset (Alla): annat"
+    assert dialog.table.item(0, 2).text() == "2"
+    assert dialog.table.item(0, 3).text() == "1.000"
+
+
+def test_an_empty_dataset_path_means_the_applications_own_dataset(qapp, tmp_path):
+    dialog = _dialog(
+        [_run(tmp_path)], _StubDataset(tmp_path / "bilder"), auto_run=False
+    )
+
+    assert dialog.current_source().path is None
+    assert dialog.current_source().label == "Dataset (Val)"
+
+
+def test_the_dataset_source_needs_a_dataset_or_a_path(qapp, tmp_path):
+    dialog = _dialog([_run(tmp_path)], None, auto_run=False)
+
+    assert not dialog.run_button.isEnabled()
+
+    dialog.path_edit.setText(str(tmp_path / "annat"))
+
+    assert dialog.run_button.isEnabled()
+
+
+# --- Detektionen släpper GPU:n (TASK-158) ---
+
+
+def test_the_dialog_reports_when_the_evaluation_starts_and_ends(qapp, tmp_path):
+    _write_images(tmp_path / "bilder", 2)
+    dialog = _dialog(
+        [_run(tmp_path)],
+        _StubDataset(tmp_path / "bilder"),
+        tmp_path / "bilder",
+        detector_factory=lambda _run: _FakeDetector({}),
+        auto_run=False,
+    )
+    events: list[str] = []
+    dialog.evaluation_started.connect(lambda: events.append("start"))
+    dialog.evaluation_finished.connect(lambda: events.append("klar"))
+
+    dialog.run_evaluation()
+    _wait(dialog)
+
+    assert events == ["start", "klar"]
+
+
+def test_the_history_view_passes_the_evaluation_signals_on(qapp, tmp_path, monkeypatch):
+    from PySide6.QtCore import QObject, Qt, Signal
+
+    from xray_detector.ui import training_history as history_module
+
+    _run(tmp_path)
+    view = history_module.TrainingHistoryView(
+        tmp_path / "trained", _StubDataset(tmp_path / "bilder")
+    )
+
+    class _FakeDialog(QObject):
+        finished = Signal(int)
+        evaluation_started = Signal()
+        evaluation_finished = Signal()
+
+        def __init__(self, *_args, **_kwargs) -> None:
+            super().__init__()
+
+        def open(self) -> None:
+            pass
+
+    monkeypatch.setattr(history_module, "EvaluationDialog", _FakeDialog)
+    view.table.item(0, history_module.CHECK_COLUMN).setCheckState(
+        Qt.CheckState.Checked
+    )
+    events: list[str] = []
+    view.evaluation_started.connect(lambda: events.append("start"))
+    view.evaluation_finished.connect(lambda: events.append("klar"))
+
+    view.evaluate_button.click()
+    view.dialog.evaluation_started.emit()
+    view.dialog.evaluation_finished.emit()
+
+    assert events == ["start", "klar"]
+
+
+def test_the_evaluate_button_waits_while_training_runs(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from xray_detector.ui.training_history import CHECK_COLUMN, TrainingHistoryView
+
+    _run(tmp_path)
+    view = TrainingHistoryView(tmp_path / "trained", _StubDataset(tmp_path / "bilder"))
+    view.table.item(0, CHECK_COLUMN).setCheckState(Qt.CheckState.Checked)
+    assert view.evaluate_button.isEnabled()
+
+    view.set_training_active(True)
+
+    assert not view.evaluate_button.isEnabled()
+
+    view.set_training_active(False)
+
+    assert view.evaluate_button.isEnabled()
+
+
+def test_the_main_window_pauses_the_detection_during_the_evaluation(
+    qapp, tmp_path, monkeypatch
+):
+    from xray_detector.domain.config import AppConfig
+    from xray_detector.ui.main_window import MainWindow
+
+    config = AppConfig()
+    config.data_dir = tmp_path
+    config.ensure_dirs()
+    window = MainWindow(config)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        window.detection_view, "pause_detection", lambda: calls.append("paus")
+    )
+    monkeypatch.setattr(
+        window.detection_view, "resume_detection", lambda: calls.append("igång")
+    )
+
+    window.training_view.history.evaluation_started.emit()
+    window.training_view.history.evaluation_finished.emit()
+
+    assert calls == ["paus", "igång"]
