@@ -4,21 +4,25 @@ import json
 
 import numpy as np
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.export import (
+    export_coco,
+    export_rfdetr,
+    export_yolo,
     group_count,
+    train_val_counts,
     train_val_split,
 )
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
-def make_service(tmp_path) -> DatasetService:
-    service = DatasetService(tmp_path / "datasets")
+def make_service(tmp_path) -> DatasetStore:
+    service = DatasetStore(tmp_path / "datasets")
     service.set_classes(["kniv", "pistol"])
     return service
 
 
-def add_groups(svc: DatasetService, groups: int, per_group: int = 2) -> None:
+def add_groups(svc: DatasetStore, groups: int, per_group: int = 2) -> None:
     for group in range(groups):
         samples = [
             AnnotatedImage(
@@ -57,7 +61,7 @@ def test_split_is_reproducible():
 def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(tmp_path / "exports").parent
+    out = export_yolo(svc, tmp_path / "exports").parent
 
     train_images = list((out / "images" / "train").glob("*.png"))
     val_images = list((out / "images" / "val").glob("*.png"))
@@ -79,7 +83,7 @@ def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
 def test_export_yolo_group_integrity(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(tmp_path / "exports").parent
+    out = export_yolo(svc, tmp_path / "exports").parent
 
     dataset = svc.load_dataset()
     group_of = {image["id"]: image.get("group") for image in dataset["images"]}
@@ -91,7 +95,7 @@ def test_export_yolo_group_integrity(tmp_path):
 def test_manifest_contains_split_counts(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(tmp_path / "exports").parent
+    out = export_yolo(svc, tmp_path / "exports").parent
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_train"] == 10
     assert manifest["num_val"] == 2
@@ -101,7 +105,7 @@ def test_manifest_contains_split_counts(tmp_path):
 def test_export_coco_copies_images_and_dataset(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 2)
-    out = svc.export_coco(tmp_path / "exports")
+    out = export_coco(svc, tmp_path / "exports")
     assert len(list((out / "images").glob("*.png"))) == 4
     dataset = json.loads((out / "dataset.json").read_text(encoding="utf-8"))
     assert len(dataset["images"]) == 4
@@ -111,10 +115,10 @@ def test_export_replaces_images_from_an_earlier_export(tmp_path):
     """En ny export får inte lämna kvar bilder som raderats ur datasetet."""
     svc = make_service(tmp_path)
     add_groups(svc, 2)
-    svc.export_yolo(tmp_path / "exports")
+    export_yolo(svc, tmp_path / "exports")
     svc.delete_images([image["id"] for image in svc.load_dataset()["images"][:2]])
 
-    out = svc.export_yolo(tmp_path / "exports").parent
+    out = export_yolo(svc, tmp_path / "exports").parent
 
     assert len(list((out / "images" / "train").glob("*.png"))) == 2
     assert len(list((out / "labels" / "train").glob("*.txt"))) == 2
@@ -133,7 +137,7 @@ def test_export_yolo_uses_the_ratio(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
 
-    out = svc.export_yolo(tmp_path / "exports", 0.5).parent
+    out = export_yolo(svc, tmp_path / "exports", 0.5).parent
 
     assert len(list((out / "images" / "train").glob("*.png"))) == 6
     assert len(list((out / "images" / "val").glob("*.png"))) == 6
@@ -143,7 +147,7 @@ def test_export_rfdetr_uses_the_ratio(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
 
-    out = svc.export_rfdetr(tmp_path / "exports", 0.5)
+    out = export_rfdetr(svc, tmp_path / "exports", 0.5)
 
     train = json.loads((out / "train" / "_annotations.coco.json").read_text(encoding="utf-8"))
     valid = json.loads((out / "valid" / "_annotations.coco.json").read_text(encoding="utf-8"))
@@ -157,8 +161,8 @@ def test_service_train_val_counts(tmp_path):
     """Träningsvyns redovisning räknar bildpar, inte enskilda bilder (TASK-72)."""
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    assert svc.train_val_counts() == (5, 1)
-    assert svc.train_val_counts(0.5) == (3, 3)
+    assert train_val_counts(svc) == (5, 1)
+    assert train_val_counts(svc, 0.5) == (3, 3)
 
 
 # --- RF-DETR:s test-del (TASK-93) ---
@@ -174,7 +178,7 @@ def test_rfdetr_test_split_is_not_a_copy_of_valid(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
 
-    out = svc.export_rfdetr(tmp_path / "exports")
+    out = export_rfdetr(svc, tmp_path / "exports")
 
     train, valid, test = (_split_ids(out, name) for name in ("train", "valid", "test"))
     assert test, "test-delen är tom"
@@ -187,7 +191,7 @@ def test_rfdetr_manifest_counts_the_test_split(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
 
-    out = svc.export_rfdetr(tmp_path / "exports")
+    out = export_rfdetr(svc, tmp_path / "exports")
 
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_test"] == len(_split_ids(out, "test"))
@@ -198,8 +202,8 @@ def test_rfdetr_split_is_reproducible(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 8)
 
-    first = svc.export_rfdetr(tmp_path / "a")
-    second = svc.export_rfdetr(tmp_path / "b")
+    first = export_rfdetr(svc, tmp_path / "a")
+    second = export_rfdetr(svc, tmp_path / "b")
 
     for split in ("train", "valid", "test"):
         assert _split_ids(first, split) == _split_ids(second, split)
@@ -209,7 +213,7 @@ def test_rfdetr_split_keeps_the_image_pairs_together(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
 
-    out = svc.export_rfdetr(tmp_path / "exports")
+    out = export_rfdetr(svc, tmp_path / "exports")
 
     dataset = svc.load_dataset()
     group_of = {image["id"]: image.get("group") for image in dataset["images"]}
@@ -227,7 +231,7 @@ def test_rfdetr_with_two_groups_has_no_test_split(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 2)
 
-    out = svc.export_rfdetr(tmp_path / "exports")
+    out = export_rfdetr(svc, tmp_path / "exports")
 
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_test"] == 0

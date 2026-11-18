@@ -4,10 +4,10 @@ import json
 
 import numpy as np
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.model_input import DEFAULT_SIZE, MAX_SIZE, MIN_SIZE
 from xray_detector.domain.training import imgsz_for
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.style import FormCard
 from xray_detector.ui.training_view import TrainingView
 
@@ -20,7 +20,7 @@ def _sample(width: int, height: int, fill: int = 100) -> AnnotatedImage:
 
 
 def _view(config, settings) -> TrainingView:
-    return TrainingView(config, DatasetService(config.dataset_dir), settings)
+    return TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
 
 def test_imgsz_keeps_the_longest_side_of_the_resolution():
@@ -36,7 +36,7 @@ def test_imgsz_rounds_up_to_the_stride_and_stays_within_the_limits():
 
 
 def test_image_sizes_are_counted_most_common_first(tmp_path):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample(640, 480), _sample(640, 480)])
     service.add_samples([_sample(1920, 1080)])
 
@@ -44,7 +44,7 @@ def test_image_sizes_are_counted_most_common_first(tmp_path):
 
 
 def test_image_sizes_prefer_the_larger_image_on_a_tie(tmp_path):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample(640, 480)])
     service.add_samples([_sample(1920, 1080)])
 
@@ -53,17 +53,17 @@ def test_image_sizes_prefer_the_larger_image_on_a_tie(tmp_path):
 
 def test_image_sizes_ignore_images_without_dimensions(tmp_path):
     """Ett äldre dataset.json kan sakna width/height och får inte krascha vyn."""
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample(640, 480)])
     dataset = service.load_dataset()
     dataset["images"].append({"id": 99, "file_name": "gammal.png"})
-    (service.store.root / "dataset.json").write_text(json.dumps(dataset), encoding="utf-8")
+    (service.root / "dataset.json").write_text(json.dumps(dataset), encoding="utf-8")
 
     assert service.image_sizes() == [(640, 480, 1)]
 
 
 def test_training_view_defaults_to_the_most_common_resolution(qapp, config, settings):
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.add_samples([_sample(1920, 1080), _sample(1920, 1080)])
     service.add_samples([_sample(640, 480)])
 
@@ -95,7 +95,7 @@ def test_imgsz_label_and_tooltip_name_the_longest_side(qapp, config, settings):
 
 
 def test_user_choice_survives_a_new_dataset_resolution(qapp, config, settings):
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.add_samples([_sample(1920, 1080)])
     view = _view(config, settings)
 
@@ -108,7 +108,7 @@ def test_user_choice_survives_a_new_dataset_resolution(qapp, config, settings):
 
 
 def test_saved_choice_is_restored_and_kept(qapp, config, settings):
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.add_samples([_sample(1920, 1080)])
     settings.setValue("training/imgsz", 512)
 
@@ -120,7 +120,7 @@ def test_saved_choice_is_restored_and_kept(qapp, config, settings):
 
 
 def test_default_is_not_saved_so_it_keeps_following_the_dataset(qapp, config, settings):
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.add_samples([_sample(1920, 1080)])
     view = _view(config, settings)
 

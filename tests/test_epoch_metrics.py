@@ -503,8 +503,8 @@ def test_command_passes_the_overfitting_guard(tmp_path):
 def test_training_view_shows_progress_and_values(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -512,7 +512,7 @@ def test_training_view_shows_progress_and_values(qapp, tmp_path):
     config.ensure_dirs()
     view = TrainingView(
         config,
-        DatasetService(config.dataset_dir),
+        DatasetStore(config.dataset_dir),
         QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat),
     )
 

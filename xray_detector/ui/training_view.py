@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
 
 from xray_detector.application import model_registry
 from xray_detector.application.app_config import file_logger, log_path
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.training_history import run_epochs
 from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
@@ -37,6 +36,12 @@ from xray_detector.domain.training import (
     rfdetr_resolution_error,
     trained_model_name,
 )
+from xray_detector.infrastructure.dataset_store.export import (
+    export_rfdetr,
+    export_yolo,
+    train_val_counts,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.model_combo import ModelComboBox
 from xray_detector.ui.settings_dialog import (
@@ -66,10 +71,10 @@ class TrainingView(QWidget):
     #: Modellistan ändrades, som när en träning togs bort (TASK-119).
     models_changed = Signal()
 
-    def __init__(self, config: AppConfig, dataset: DatasetService, settings, parent=None) -> None:
+    def __init__(self, config: AppConfig, dataset: DatasetStore, settings, parent=None) -> None:
         super().__init__(parent)
         self.config = config
-        self.dataset_service = dataset
+        self.dataset_store = dataset
         self.settings = settings
         self.training_service = TrainingService()
         self.worker = None
@@ -118,7 +123,7 @@ class TrainingView(QWidget):
         self.log.setReadOnly(True)
         self.history = TrainingHistoryView(
             self.config.trained_dir,
-            self.dataset_service,
+            self.dataset_store,
             active_run_dir=self.active_run_dir,
         )
         self.history.run_selected.connect(self._on_history_selected)
@@ -353,16 +358,16 @@ class TrainingView(QWidget):
         Train/val räknas i bildpar, eftersom delningen sker per fångstgrupp (TASK-72).
         Bildstorlekens default följer datasetets vanligaste upplösning (TASK-80).
         """
-        info = self.dataset_service.metadata()
-        num_train, num_val = self.dataset_service.train_val_counts(
-            train_ratio(self.settings), family=self._family()
+        info = self.dataset_store.metadata()
+        num_train, num_val = train_val_counts(
+            self.dataset_store, train_ratio(self.settings), family=self._family()
         )
         self.dataset_info.setText(
             f"Bilder: {info['num_images']}  Objekt: {info['num_objects']}  "
             f"Train/val: {num_train}/{num_val} par  "
             f"Uppdaterad: {info['updated'][:10]}"
         )
-        sizes = self.dataset_service.image_sizes()
+        sizes = self.dataset_store.image_sizes()
         self.imgsz_info.setText(_format_image_sizes(sizes))
         if sizes and not self._imgsz_user_set:
             self._set_imgsz(imgsz_for(sizes[0][0], sizes[0][1]), user=False)
@@ -373,17 +378,17 @@ class TrainingView(QWidget):
         Basmodellens namn ärvs när basen är en egen tränad modell, så en
         vidareträning på samma dataset bara byter datum.
         """
-        pairs, synthetic = self.dataset_service.dataset_counts()
+        pairs, synthetic = self.dataset_store.dataset_counts()
         return trained_model_name(
             base_name=spec.base_name or spec.label,
             date=now.strftime("%Y-%m-%d"),
             pairs=pairs,
             synthetic=synthetic,
-            classes=len(self.dataset_service.classes()),
+            classes=len(self.dataset_store.classes()),
         )
 
     def _on_start(self) -> None:
-        if self.dataset_service.metadata()["num_images"] == 0:
+        if self.dataset_store.metadata()["num_images"] == 0:
             self.status_changed.emit("Datasetet är tomt")
             return
         spec = self._specs.get(self.model_combo.currentData())
@@ -405,11 +410,9 @@ class TrainingView(QWidget):
             if error is not None:
                 self.status_changed.emit(error)
                 return
-            dataset_path = self.dataset_service.export_rfdetr(
-                self.config.export_dir, ratio
-            )
+            dataset_path = export_rfdetr(self.dataset_store, self.config.export_dir, ratio)
         else:
-            dataset_path = self.dataset_service.export_yolo(self.config.export_dir, ratio)
+            dataset_path = export_yolo(self.dataset_store, self.config.export_dir, ratio)
         now = datetime.now(UTC)
         config = TrainConfig(
             dataset_yaml=Path(dataset_path),

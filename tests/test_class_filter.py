@@ -45,7 +45,7 @@ def view(qapp, tmp_path, monkeypatch, model_classes) -> DetectionView:
         config, QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     )
     view._detector_calls = []
-    view.video_service.set_detector = view._detector_calls.append
+    view.camera_service.set_detector = view._detector_calls.append
     view._on_model_changed()
     view.wait_for_background()
     return view

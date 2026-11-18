@@ -292,8 +292,8 @@ def test_export_selected_writes_the_model(qapp, tmp_path):
 def test_history_view_refreshes_after_training(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -302,7 +302,7 @@ def test_history_view_refreshes_after_training(qapp, tmp_path):
     config.ensure_dirs()
     view = TrainingView(
         config,
-        DatasetService(config.dataset_dir),
+        DatasetStore(config.dataset_dir),
         QSettings(str(config.data_dir / "s.ini"), QSettings.Format.IniFormat),
     )
     assert view.history.table.rowCount() == 0
@@ -316,8 +316,8 @@ def test_history_view_refreshes_after_training(qapp, tmp_path):
 def test_history_is_a_tab_next_to_the_log(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -326,7 +326,7 @@ def test_history_is_a_tab_next_to_the_log(qapp, tmp_path):
     config.ensure_dirs()
     view = TrainingView(
         config,
-        DatasetService(config.dataset_dir),
+        DatasetStore(config.dataset_dir),
         QSettings(str(config.data_dir / "s.ini"), QSettings.Format.IniFormat),
     )
 

@@ -10,6 +10,9 @@ from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.export import (
+    group_count,
+)
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import SettingsDialog
 from xray_detector.ui.variation_dialog import VariationDialog
@@ -166,7 +169,7 @@ def test_alt_letter_toggles_detection(qapp, window):
 
 
 def test_alt_letter_deletes_in_dataset_view(qapp, window, monkeypatch):
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [])])
     view = window.dataset_view
     view.refresh()
     view.wait_for_refresh()
@@ -405,7 +408,7 @@ def test_enter_saves_the_annotation(qapp, window, monkeypatch):
     window.annotation_view.wait_for_save()
     qapp.processEvents()
 
-    assert window.dataset_service.image_pair_count() == 1
+    assert group_count(window.dataset_store.load_dataset()["images"]) == 1
     assert window.tabs.currentIndex() == 0
 
 
@@ -424,14 +427,14 @@ def test_enter_in_the_class_field_saves_the_class_name(qapp, window):
     qapp.processEvents()
 
     assert combo.findText("ny_klass") >= 0
-    assert window.dataset_service.classes() == ["ny_klass"]
-    assert window.dataset_service.image_pair_count() == 0
+    assert window.dataset_store.classes() == ["ny_klass"]
+    assert group_count(window.dataset_store.load_dataset()["images"]) == 0
     assert window.tabs.currentIndex() == 1
 
 
 def test_enter_does_not_save_a_pair_that_is_already_in_the_dataset(qapp, window):
     """Enter följer knappens läge, så ett sparat bildpar sparas inte om (TASK-116)."""
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [])])
     view = window.dataset_view
     view.refresh()
     view.wait_for_refresh()
@@ -442,12 +445,12 @@ def test_enter_does_not_save_a_pair_that_is_already_in_the_dataset(qapp, window)
     QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
     qapp.processEvents()
 
-    assert window.dataset_service.image_pair_count() == 1
+    assert group_count(window.dataset_store.load_dataset()["images"]) == 1
 
 
 def test_enter_opens_the_selected_pair(qapp, window):
     """Enter öppnar det markerade bildparet för annotering (TASK-116)."""
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [])])
     view = window.dataset_view
     view.refresh()
     view.wait_for_refresh()
@@ -463,7 +466,7 @@ def test_enter_opens_the_selected_pair(qapp, window):
 
 
 def test_enter_without_a_selection_opens_nothing(qapp, window):
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [])])
     view = window.dataset_view
     view.refresh()
     view.wait_for_refresh()
@@ -484,7 +487,7 @@ def test_delete_key_removes_the_selected_pairs(qapp, window, monkeypatch, key):
         "question",
         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes),
     )
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [])])
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [])])
     view = window.dataset_view
     view.refresh()
     view.wait_for_refresh()
@@ -496,7 +499,7 @@ def test_delete_key_removes_the_selected_pairs(qapp, window, monkeypatch, key):
     view.wait_for_refresh()
     qapp.processEvents()
 
-    assert window.dataset_service.image_pair_count() == 0
+    assert group_count(window.dataset_store.load_dataset()["images"]) == 0
 
 
 def test_enter_in_a_field_confirms_the_field(qapp, window):

@@ -9,13 +9,13 @@ import pytest
 from PySide6.QtWidgets import QLabel, QMessageBox
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.pending import (
     pending_saved_at,
     save_pending,
 )
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import DatasetView, Thumbnail
 
 # testerna startar MainWindow och tar därför sekunder (TASK-154)
@@ -30,8 +30,8 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 
@@ -137,7 +137,7 @@ def test_card_has_only_a_title_row_and_thumbnails(qapp, config, service, setting
 def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
     """Äldre dataset saknar 'captured': då används bildfilens tidsstämpel."""
     service.add_samples([_sample()])
-    path = service.store.root / "dataset.json"
+    path = service.root / "dataset.json"
     metadata = json.loads(path.read_text(encoding="utf-8"))
     for image in metadata["images"]:
         image.pop("captured", None)
@@ -157,7 +157,7 @@ def test_header_falls_back_to_file_mtime(qapp, config, service, settings):
 
 
 def test_pending_header_shows_saved_at(qapp, config, tmp_path, settings):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     group_id = save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
@@ -195,6 +195,6 @@ def test_saved_capture_keeps_pending_timestamp(qapp, tmp_path, monkeypatch):
     window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
-    images = window.dataset_service.load_dataset()["images"]
+    images = window.dataset_store.load_dataset()["images"]
     assert images
     assert all(image["captured"] == saved_at for image in images)

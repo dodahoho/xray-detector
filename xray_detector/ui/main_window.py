@@ -11,8 +11,10 @@ from PySide6.QtWidgets import (
     QTabWidget,
 )
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.config import AppConfig
+from xray_detector.infrastructure.dataset_store.export import group_count
+from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.annotation_view import AnnotationView
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.detection_view import DetectionView
@@ -26,7 +28,8 @@ class MainWindow(QMainWindow):
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
         self.setWindowTitle("X-ray detector")
-        self.dataset_service = DatasetService(config.dataset_dir)
+        self.config = config
+        self.dataset_store = DatasetStore(config.dataset_dir)
         self.settings = QSettings(
             str(config.data_dir / "settings.ini"), QSettings.Format.IniFormat
         )
@@ -46,12 +49,12 @@ class MainWindow(QMainWindow):
         # annoteringsvyns standardklasser är vald modells klasser (TASK-61)
         self.annotation_view = AnnotationView(
             config,
-            self.dataset_service,
+            self.dataset_store,
             self.settings,
             model_classes=self.detection_view.model_class_names,
         )
-        self.dataset_view = DatasetView(config, self.dataset_service, self.settings)
-        self.training_view = TrainingView(config, self.dataset_service, self.settings)
+        self.dataset_view = DatasetView(config, self.dataset_store, self.settings)
+        self.training_view = TrainingView(config, self.dataset_store, self.settings)
         self.settings_view = SettingsView(
             config, self.settings, active_run_dir=self.training_view.active_run_dir
         )
@@ -106,8 +109,8 @@ class MainWindow(QMainWindow):
         """Loggar läget appen startar i: datasetets storlek och klasser (TASK-101)."""
         logging.getLogger("xray").info(
             "Dataset: %d bildpar, klasser=%s",
-            self.dataset_service.image_pair_count(),
-            self.dataset_service.classes(),
+            group_count(self.dataset_store.load_dataset()["images"]),
+            self.dataset_store.classes(),
         )
 
     def show_window(self) -> None:
@@ -189,7 +192,7 @@ class MainWindow(QMainWindow):
 
     def _on_capture(self, captures) -> None:
         # TASK-12: krascsaker skrivning av fangsten direkt vid knapptryck
-        pending_group_id = self.dataset_service.save_pending(captures)
+        pending_group_id = save_pending(self.config.data_dir, captures)
         self._annotation_origin = self.tabs.indexOf(self.detection_view)
         # vyn växlas före laddningen, så klassdialogerna hamnar i annoteringsvyn (TASK-71)
         self.tabs.setTabEnabled(self._annotation_tab, True)

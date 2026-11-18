@@ -5,10 +5,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import CaptureCard, DatasetView, Thumbnail
 
 
@@ -19,8 +19,8 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 
@@ -78,7 +78,7 @@ def test_click_on_the_header_selects_the_capture(qapp, config, service, settings
 
 
 def test_click_on_a_pending_card_selects_the_capture(qapp, config, tmp_path, settings):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),

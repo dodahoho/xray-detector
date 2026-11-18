@@ -130,3 +130,16 @@ class FileSource(VideoSource):
         else:
             # vi ligger efter: borja om fran nu i stallet for att spara skuld
             self._deadline = time.perf_counter()
+
+
+def build_source(
+    kind: str,
+    value: object,
+    mode: VideoMode | None = None,
+) -> VideoSource | None:
+    """Bygger källan för en källtyp; None när värdet saknas (TASK-142)."""
+    if kind == "uvc" and value is not None:
+        return UvcSource(int(value), mode)
+    if kind == "file" and value:
+        return FileSource(Path(value))
+    return None

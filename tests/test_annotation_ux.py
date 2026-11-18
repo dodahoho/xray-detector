@@ -97,13 +97,13 @@ def test_canvas_reset_view(qapp):
 def _make_view(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     view = AnnotationView(config, service, settings)
     return view, service
@@ -220,8 +220,8 @@ def test_close_with_unsaved_empty_annotations_asks_once_and_saves(qapp, tmp_path
 
     assert questions == ["Osparade annoteringar"], f"fler dialoger än en: {questions}"
     # svaret "spara" gäller även tomma annoteringar: bilden skrevs som negativt exempel
-    assert window.dataset_service.metadata()["num_images"] == 1
-    assert window.dataset_service.metadata()["num_objects"] == 0
+    assert window.dataset_store.metadata()["num_images"] == 1
+    assert window.dataset_store.metadata()["num_objects"] == 0
 
 
 def test_close_waits_for_the_evaluation_and_the_download(qapp, tmp_path, monkeypatch):

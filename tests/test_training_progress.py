@@ -233,15 +233,15 @@ def test_worker_finds_the_progress_event_after_a_progress_bar(qapp, tmp_path):
 def _view(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    return TrainingView(config, DatasetService(config.dataset_dir), settings)
+    return TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
 
 def test_training_view_shows_the_epoch_progress(qapp, tmp_path):

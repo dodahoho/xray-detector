@@ -3,8 +3,8 @@
 import pytest
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.colors import class_color
 from xray_detector.ui.dataset_view import DatasetView
 
@@ -14,8 +14,8 @@ def _sample(annotations: list[dict]) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 

@@ -5,11 +5,11 @@ from PySide6.QtCore import QDate
 from PySide6.QtWidgets import QLabel
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import ALL_CLASSES, NO_MATCHES, DatasetView
 
 
@@ -20,8 +20,8 @@ def _sample(class_name: str) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 
@@ -136,7 +136,7 @@ def test_filter_without_matches_shows_a_message(qapp, config, service, settings)
 
 
 def test_pending_captures_are_filtered_by_class(qapp, config, tmp_path, settings):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample("pistol")], captured="2026-11-01T09:00:00")
     save_pending(tmp_path, [
         StreamFrame(
@@ -157,7 +157,7 @@ def test_pending_captures_are_filtered_by_class(qapp, config, tmp_path, settings
 
 def test_pending_classes_are_filterable(qapp, config, tmp_path, settings):
     """En klass som bara finns i en osparad fångst går också att filtrera på."""
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     save_pending(tmp_path, [
         StreamFrame(
             "left",

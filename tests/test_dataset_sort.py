@@ -6,11 +6,11 @@ from types import SimpleNamespace
 import pytest
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store import pending as pending_module
 from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.settings_dialog import SORT_KEY, SORT_OLDEST
 
@@ -22,8 +22,8 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 
@@ -81,7 +81,7 @@ def test_changing_the_setting_rebuilds_the_list(qapp, config, service, settings)
 
 
 def test_pending_captures_follow_the_same_order(qapp, config, tmp_path, monkeypatch, settings):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     older = _save_pending_at(tmp_path, monkeypatch, 1_700_000_000.0)
     newer = _save_pending_at(tmp_path, monkeypatch, 1_700_000_100.0)
 

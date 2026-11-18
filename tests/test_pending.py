@@ -63,7 +63,7 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     # (som vid en krasch; Avbryt kastar fangsten enligt TASK-112)
     window = MainWindow(config)
     window._on_capture(frames_two())
-    assert window.dataset_service.pending_captures()
+    assert list_pending(window.dataset_store.root.parent)
 
     # "omstart": ny MainWindow ser den osparade fangsten
     window2 = MainWindow(config)
@@ -84,12 +84,12 @@ def test_pending_survives_restart_and_can_be_annotated(qapp, tmp_path, monkeypat
     assert window2.annotation_view.pending_group_id == pending_thumb.group_id
     window2.annotation_view.save()
     window2.annotation_view.wait_for_save()
-    assert window2.dataset_service.pending_captures() == []
+    assert list_pending(window2.dataset_store.root.parent) == []
     view.refresh()
     view.wait_for_refresh()
     assert not any(t.pending for t in view._thumbs)
     # datan hamnade i datasetet
-    assert window2.dataset_service.metadata()["num_images"] >= 1
+    assert window2.dataset_store.metadata()["num_images"] >= 1
 
 
 def test_pending_can_be_deleted_from_view(qapp, tmp_path, monkeypatch):
@@ -108,4 +108,4 @@ def test_pending_can_be_deleted_from_view(qapp, tmp_path, monkeypatch):
     thumb = next(t for t in window.dataset_view._thumbs if t.pending)
     thumb.set_selected(True)
     window.dataset_view._on_delete()
-    assert window.dataset_service.pending_captures() == []
+    assert list_pending(window.dataset_store.root.parent) == []

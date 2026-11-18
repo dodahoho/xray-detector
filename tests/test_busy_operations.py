@@ -10,9 +10,9 @@ from PySide6.QtWidgets import QDialog
 
 from tests.conftest import FakeDetector, synthetic_frame
 from xray_detector.application import model_registry
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.annotation_view import AnnotationView, RectItem
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.dataset_view import DatasetView
@@ -38,8 +38,8 @@ def _spin_until(qapp, predicate, timeout_s: float = 5.0) -> bool:
 
 
 @pytest.fixture
-def dataset_service(tmp_path) -> DatasetService:
-    service = DatasetService(tmp_path / "datasets")
+def dataset_store(tmp_path) -> DatasetStore:
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([
         AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
                        [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),
@@ -138,7 +138,7 @@ def test_failed_load_reports_the_same_message_and_detaches(
     messages: list = []
     detection_view.error_occurred.connect(messages.append)
     detached: list = []
-    detection_view.video_service.set_detector = detached.append
+    detection_view.camera_service.set_detector = detached.append
 
     def broken(spec, threshold):
         raise RuntimeError("trasig modell")
@@ -211,9 +211,9 @@ def test_main_window_opens_before_the_device_check_finishes(qapp, config, monkey
 
 
 def test_dataset_refresh_shows_indicator_and_builds_list(
-    qapp, config, dataset_service, settings
+    qapp, config, dataset_store, settings
 ):
-    view = DatasetView(config, dataset_service, settings)
+    view = DatasetView(config, dataset_store, settings)
     view.refresh()
 
     assert view.busy.is_busy()
@@ -224,7 +224,7 @@ def test_dataset_refresh_shows_indicator_and_builds_list(
 
 
 def test_dataset_refresh_decodes_off_the_gui_thread(
-    qapp, config, dataset_service, settings, monkeypatch
+    qapp, config, dataset_store, settings, monkeypatch
 ):
     threads: list = []
     original = DatasetView._load
@@ -234,7 +234,7 @@ def test_dataset_refresh_decodes_off_the_gui_thread(
         return original(self)
 
     monkeypatch.setattr(DatasetView, "_load", recording)
-    view = DatasetView(config, dataset_service, settings)
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
 
     assert threads
@@ -244,8 +244,8 @@ def test_dataset_refresh_decodes_off_the_gui_thread(
 # --- Datasetvyn: export (AC 9) ---
 
 
-def test_export_shows_indicator_and_reports_result(qapp, config, settings, dataset_service):
-    view = DatasetView(config, dataset_service, settings)
+def test_export_shows_indicator_and_reports_result(qapp, config, settings, dataset_store):
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
@@ -262,9 +262,9 @@ def test_export_shows_indicator_and_reports_result(qapp, config, settings, datas
 
 
 def test_export_yolo_shows_indicator_and_reports_result(
-    qapp, config, settings, dataset_service
+    qapp, config, settings, dataset_store
 ):
-    view = DatasetView(config, dataset_service, settings)
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
@@ -275,16 +275,16 @@ def test_export_yolo_shows_indicator_and_reports_result(
     assert messages and messages[0].startswith("Exporterade YOLO till ")
 
 
-def test_export_failure_is_reported(qapp, config, settings, dataset_service, monkeypatch):
-    view = DatasetView(config, dataset_service, settings)
+def test_export_failure_is_reported(qapp, config, settings, dataset_store, monkeypatch):
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
 
-    def broken(export_root, ratio):
+    def broken(store, export_root, ratio):
         raise OSError("disken är full")
 
-    monkeypatch.setattr(dataset_service, "export_yolo", broken)
+    monkeypatch.setattr("xray_detector.ui.dataset_view.export_yolo", broken)
     view._on_export_yolo()
     view.wait_for_export()
 
@@ -294,17 +294,17 @@ def test_export_failure_is_reported(qapp, config, settings, dataset_service, mon
 
 
 def test_export_keeps_the_indicator_while_the_list_reloads(
-    qapp, config, settings, dataset_service, monkeypatch
+    qapp, config, settings, dataset_store, monkeypatch
 ):
     """Export och omladdning delar indikatorn: den släcks först när båda är klara."""
     release = threading.Event()
 
-    def slow_export(export_root):
+    def slow_export(store, export_root):
         release.wait(5)
         return export_root / "coco"
 
-    monkeypatch.setattr(dataset_service, "export_coco", slow_export)
-    view = DatasetView(config, dataset_service, settings)
+    monkeypatch.setattr("xray_detector.ui.dataset_view.export_coco", slow_export)
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
 
     view._on_export_coco()
@@ -328,10 +328,10 @@ def _accept_with_rotation(dialog):
 
 
 def test_variations_show_indicator_and_report_result(
-    qapp, config, settings, dataset_service, monkeypatch
+    qapp, config, settings, dataset_store, monkeypatch
 ):
     monkeypatch.setattr(VariationDialog, "exec", _accept_with_rotation)
-    view = DatasetView(config, dataset_service, settings)
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
@@ -349,14 +349,14 @@ def test_variations_show_indicator_and_report_result(
 
 
 def test_variation_failure_is_reported(
-    qapp, config, settings, dataset_service, monkeypatch
+    qapp, config, settings, dataset_store, monkeypatch
 ):
     def broken(settings, seed=None):
         raise OSError("disken är full")
 
     monkeypatch.setattr(VariationDialog, "exec", _accept_with_rotation)
-    monkeypatch.setattr(dataset_service, "add_variations", broken)
-    view = DatasetView(config, dataset_service, settings)
+    monkeypatch.setattr(dataset_store, "add_variations", broken)
+    view = DatasetView(config, dataset_store, settings)
     view.wait_for_refresh()
     messages: list = []
     view.status_changed.connect(messages.append)
@@ -372,16 +372,16 @@ def test_variation_failure_is_reported(
 # --- Annoteringsvyn: sparning (AC 10) ---
 
 
-def _dirty_annotation_view(config, dataset_service, settings) -> AnnotationView:
-    view = AnnotationView(config, dataset_service, settings)
+def _dirty_annotation_view(config, dataset_store, settings) -> AnnotationView:
+    view = AnnotationView(config, dataset_store, settings)
     view.load_captures([StreamFrame("left", synthetic_frame(), [], "kamera")])
     view.canvases[0].rects.append(RectItem(5, 5, 30, 30, "kniv"))
     view.canvases[0]._mark_dirty()
     return view
 
 
-def test_save_shows_indicator_and_writes_dataset(qapp, config, settings, dataset_service):
-    view = _dirty_annotation_view(config, dataset_service, settings)
+def test_save_shows_indicator_and_writes_dataset(qapp, config, settings, dataset_store):
+    view = _dirty_annotation_view(config, dataset_store, settings)
 
     view.save()
 
@@ -392,19 +392,19 @@ def test_save_shows_indicator_and_writes_dataset(qapp, config, settings, dataset
     assert not view.busy.is_busy()
     assert view.save_button.isEnabled()
     assert not view.is_dirty()
-    assert dataset_service.metadata()["num_images"] == 3
+    assert dataset_store.metadata()["num_images"] == 3
 
 
-def test_save_runs_off_the_gui_thread(qapp, config, settings, dataset_service, monkeypatch):
+def test_save_runs_off_the_gui_thread(qapp, config, settings, dataset_store, monkeypatch):
     threads: list = []
-    original = dataset_service.add_samples
+    original = dataset_store.add_samples
 
     def recording(*args, **kwargs):
         threads.append(threading.get_ident())
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(dataset_service, "add_samples", recording)
-    view = _dirty_annotation_view(config, dataset_service, settings)
+    monkeypatch.setattr(dataset_store, "add_samples", recording)
+    view = _dirty_annotation_view(config, dataset_store, settings)
 
     view.save()
     view.wait_for_save()
@@ -416,11 +416,11 @@ def test_save_runs_off_the_gui_thread(qapp, config, settings, dataset_service, m
 
 
 def test_views_share_the_busy_indicator_component(
-    qapp, config, settings, dataset_service
+    qapp, config, settings, dataset_store
 ):
     detection = DetectionView(config, settings)
-    annotation = AnnotationView(config, dataset_service, settings)
-    dataset = DatasetView(config, dataset_service, settings)
+    annotation = AnnotationView(config, dataset_store, settings)
+    dataset = DatasetView(config, dataset_store, settings)
     try:
         for view in (detection, annotation, dataset):
             assert isinstance(view.busy, BusyIndicator)

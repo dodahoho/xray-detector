@@ -5,12 +5,15 @@ import logging
 
 import numpy as np
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import MODE_ALL, AnnotatedImage, VariationSettings
+from xray_detector.infrastructure.dataset_store.export import (
+    group_count,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
-def make_service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def make_service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 def sample(fill: int = 100, class_name: str = "kniv") -> AnnotatedImage:
@@ -27,10 +30,10 @@ def test_add_samples_writes_images_labels_and_classes(tmp_path):
     assert dataset["classes"] == ["kniv", "pistol"]
     assert (svc.images_dir / "img_000001.png").exists()
     assert (svc.images_dir / "img_000002.png").exists()
-    labels = svc.store.labels_dir
+    labels = svc.labels_dir
     assert (labels / "img_000001.txt").read_text(encoding="utf-8").startswith("0 ")
     assert (labels / "img_000002.txt").read_text(encoding="utf-8").startswith("1 ")
-    assert 'names: ["kniv", "pistol"]' in svc.store.data_yaml.read_text(encoding="utf-8")
+    assert 'names: ["kniv", "pistol"]' in svc.data_yaml.read_text(encoding="utf-8")
 
 
 def test_label_is_normalised_to_the_image_size(tmp_path):
@@ -38,7 +41,7 @@ def test_label_is_normalised_to_the_image_size(tmp_path):
     svc = make_service(tmp_path)
     svc.add_samples([sample()])
 
-    row = (svc.store.labels_dir / "img_000001.txt").read_text(encoding="utf-8").split()
+    row = (svc.labels_dir / "img_000001.txt").read_text(encoding="utf-8").split()
     assert [round(float(value), 6) for value in row[1:]] == [0.14, 0.225, 0.2, 0.3]
 
 
@@ -73,7 +76,7 @@ def test_delete_images_removes_entries_files_and_labels(tmp_path):
     after = svc.load_dataset()
     assert [image["id"] for image in after["images"]] == [before["images"][0]["id"]]
     assert not (svc.images_dir / "img_000002.png").exists()
-    assert not (svc.store.labels_dir / "img_000002.txt").exists()
+    assert not (svc.labels_dir / "img_000002.txt").exists()
     assert svc.metadata()["num_objects"] == 1
 
 
@@ -107,7 +110,7 @@ def test_remove_unused_classes_keeps_the_annotations_of_the_used_ones(tmp_path):
     assert svc.classes() == ["pistol"]
     dataset = svc.load_dataset()
     assert [a["class_name"] for a in dataset["images"][0]["annotations"]] == ["pistol"]
-    assert (svc.store.labels_dir / "img_000001.txt").read_text(
+    assert (svc.labels_dir / "img_000001.txt").read_text(
         encoding="utf-8"
     ).startswith("0 ")
 
@@ -181,7 +184,7 @@ def test_replace_samples_falls_back_to_delete_and_add_on_a_count_mismatch(tmp_pa
 def test_broken_metadata_gives_an_empty_dataset_and_a_warning(tmp_path, caplog):
     """En trasig dataset.json ska inte krascha appen (TASK-124)."""
     svc = make_service(tmp_path)
-    svc.store.metadata_path.write_text("{ inte json", encoding="utf-8")
+    svc.metadata_path.write_text("{ inte json", encoding="utf-8")
 
     with caplog.at_level(logging.WARNING, logger="xray"):
         dataset = svc.load_dataset()
@@ -194,7 +197,7 @@ def test_broken_metadata_gives_an_empty_dataset_and_a_warning(tmp_path, caplog):
 def test_metadata_without_images_is_treated_as_broken(tmp_path, caplog):
     """Giltig JSON med fel form ska ge tomt dataset i stället för KeyError (TASK-124)."""
     svc = make_service(tmp_path)
-    svc.store.metadata_path.write_text('{"info": {}}', encoding="utf-8")
+    svc.metadata_path.write_text('{"info": {}}', encoding="utf-8")
 
     with caplog.at_level(logging.WARNING, logger="xray"):
         dataset = svc.load_dataset()
@@ -206,7 +209,7 @@ def test_metadata_without_images_is_treated_as_broken(tmp_path, caplog):
 def test_broken_metadata_is_replaced_by_the_next_save(tmp_path):
     """Nästa skrivning ska ersätta den trasiga filen i stället för att lägga till (TASK-124)."""
     svc = make_service(tmp_path)
-    svc.store.metadata_path.write_text("{ inte json", encoding="utf-8")
+    svc.metadata_path.write_text("{ inte json", encoding="utf-8")
 
     svc.add_samples([sample()])
 
@@ -219,7 +222,7 @@ def _label_rows(svc) -> int:
     """Antal annoteringar som faktiskt ligger i labels/."""
     return sum(
         len(path.read_text(encoding="utf-8").splitlines())
-        for path in svc.store.labels_dir.glob("*.txt")
+        for path in svc.labels_dir.glob("*.txt")
     )
 
 
@@ -257,9 +260,9 @@ def test_num_objects_ignores_a_stale_stored_value(tmp_path):
     """Ett gammalt värde i dataset.json skrivs över av det räknade (TASK-126)."""
     svc = make_service(tmp_path)
     svc.add_samples([sample()])
-    metadata = json.loads(svc.store.metadata_path.read_text(encoding="utf-8"))
+    metadata = json.loads(svc.metadata_path.read_text(encoding="utf-8"))
     metadata["info"]["num_objects"] = 99
-    svc.store.metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+    svc.metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
 
     svc.add_samples([sample(200)])
 
@@ -311,7 +314,6 @@ def test_capture_grouping_is_shared_by_every_reader(tmp_path):
     """Samma gruppering används av lagring, export, utvärdering och vy (TASK-137)."""
     from xray_detector.application.evaluation import view_labels
     from xray_detector.domain.dataset import capture_group, group_images
-    from xray_detector.infrastructure.dataset_store.export import group_count
 
     images = [
         {"id": 1, "group": 7, "annotations": []},

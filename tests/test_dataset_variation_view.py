@@ -6,7 +6,6 @@ from PySide6.QtCore import QDate, QSize
 from PySide6.QtWidgets import QDialog, QLabel, QMessageBox
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import (
     MODE_ALL,
@@ -15,6 +14,7 @@ from xray_detector.domain.dataset import (
     VariationSettings,
 )
 from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import (
     BUTTON_GROUP_GAP,
     HEADER_MARGINS,
@@ -36,9 +36,9 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
+def service(tmp_path) -> DatasetStore:
     """Ett originalpar och två syntetiska par: en rotation och en vändning."""
-    svc = DatasetService(tmp_path / "datasets")
+    svc = DatasetStore(tmp_path / "datasets")
     svc.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
     svc.add_variations(
         VariationSettings(
@@ -147,7 +147,7 @@ def test_type_filter_can_be_cleared(qapp, config, service, settings):
 
 def test_synthetic_filter_hides_the_pending_captures(qapp, config, tmp_path, settings):
     """Osparade fångster är alltid original, så de göms med de syntetiska."""
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample()], captured="2026-11-01T09:00:00")
     service.add_variations(VariationSettings(count=1, flip_horizontal=True), seed=1)
     save_pending(
@@ -176,7 +176,7 @@ def test_type_filter_combines_with_the_date_filter(qapp, config, service, settin
 def test_reset_button_is_disabled_without_synthetic_images(
     qapp, config, tmp_path, settings
 ):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample()])
 
     view = _built(config, service, settings)
@@ -220,7 +220,7 @@ def test_reset_can_be_cancelled(qapp, config, service, settings, monkeypatch):
 def test_reset_without_synthetic_images_reports_it(
     qapp, config, tmp_path, settings
 ):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample()])
     view = _built(config, service, settings)
     messages = []
@@ -320,7 +320,7 @@ def test_variation_buttons_form_their_own_group_on_the_right(
 
 def test_synthetic_icon_lists_every_variation(qapp, config, tmp_path, settings):
     """En bild med flera variationer visar alla i tooltipen (TASK-106)."""
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample(60), _sample(120)], captured="2026-11-01T09:00:00")
     service.add_variations(
         VariationSettings(

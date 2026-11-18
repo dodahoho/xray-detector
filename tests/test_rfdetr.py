@@ -5,15 +5,18 @@ import json
 import numpy as np
 import pytest
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.training import TrainConfig
+from xray_detector.infrastructure.dataset_store.export import (
+    export_rfdetr,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.infrastructure.training.train_task import TrainArgs
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    svc = DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    svc = DatasetStore(tmp_path / "datasets")
     svc.set_classes(["kniv", "pistol"])
     for group in range(4):
         svc.add_samples([
@@ -25,7 +28,7 @@ def service(tmp_path) -> DatasetService:
 
 
 def test_export_rfdetr_layout(service, tmp_path):
-    out = service.export_rfdetr(tmp_path / "exports")
+    out = export_rfdetr(service, tmp_path / "exports")
     for split in ("train", "valid", "test"):
         split_dir = out / split
         assert (split_dir / "_annotations.coco.json").exists(), split
@@ -83,7 +86,7 @@ def test_training_view_disables_rfdetr_without_package(qapp, tmp_path, monkeypat
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
     import importlib.util
 
@@ -387,7 +390,7 @@ def test_training_view_lists_all_rfdetr_sizes(qapp, tmp_path, monkeypatch):
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
     weights = [view.model_combo.itemData(i) for i in range(view.model_combo.count())]
     for key in RFDETR_SIZES:

@@ -5,7 +5,7 @@ import pytest
 
 from xray_detector.domain.capture import VideoMode
 from xray_detector.infrastructure.video.devices import DeviceInfo, list_device_modes
-from xray_detector.infrastructure.video.source import UvcSource
+from xray_detector.infrastructure.video.source import UvcSource, build_source
 from xray_detector.ui.video_settings import (
     clear_video_mode,
     load_video_mode,
@@ -106,18 +106,18 @@ def test_source_passes_params_to_videocapture(monkeypatch):
     assert cv2.VideoWriter_fourcc(*"MJPG") in calls[0][2]
 
 
-def test_video_service_forwards_mode(monkeypatch):
-    from xray_detector.application.video_service import VideoService
+def test_build_source_forwards_mode(monkeypatch):
+    """Källfabriken skickar panelens läge vidare till UvcSource (TASK-142)."""
+    import xray_detector.infrastructure.video.source as source_module
 
     created = []
     monkeypatch.setattr(
-        "xray_detector.application.video_service.UvcSource",
+        source_module,
+        "UvcSource",
         lambda index, mode=None: created.append((index, mode)) or None,
     )
-    service = VideoService()
-    monkeypatch.setattr(service.camera_service, "set_source", lambda *args: None)
 
-    service.set_source("left", "uvc", 1, VideoMode(1280, 720, "MJPG"))
+    build_source("uvc", 1, VideoMode(1280, 720, "MJPG"))
 
     assert created == [(1, VideoMode(1280, 720, "MJPG"))]
 
@@ -239,8 +239,8 @@ def test_detection_view_passes_panel_mode(qapp, tmp_path, settings, raw_formats,
     from xray_detector.ui.detection_view import DetectionView
 
     monkeypatch.setattr(
-        "xray_detector.application.video_service.VideoService.list_devices",
-        staticmethod(lambda: [DeviceInfo(0, "USB Video")]),
+        "xray_detector.ui.detection_view.list_devices",
+        lambda: [DeviceInfo(0, "USB Video")],
     )
     config = AppConfig()
     config.data_dir = tmp_path
@@ -248,9 +248,9 @@ def test_detection_view_passes_panel_mode(qapp, tmp_path, settings, raw_formats,
     view = DetectionView(config, settings)
     captured = []
     monkeypatch.setattr(
-        view.video_service,
+        view.camera_service,
         "set_source",
-        lambda source_id, kind, value, mode=None: captured.append(mode) or None,
+        lambda source_id, source: captured.append(source) or None,
     )
 
     _select_uvc(view.left)
@@ -259,4 +259,4 @@ def test_detection_view_passes_panel_mode(qapp, tmp_path, settings, raw_formats,
     )
     view.left.format_combo.setCurrentIndex(view.left.format_combo.findData("MJPG"))
 
-    assert captured[-1] == VideoMode(1920, 1080, "MJPG")
+    assert captured[-1].mode == VideoMode(1920, 1080, "MJPG")

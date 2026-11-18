@@ -7,6 +7,9 @@ from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.pending import (
+    list_pending,
+)
 from xray_detector.ui.main_window import MainWindow
 
 # testerna startar MainWindow och tar därför sekunder (TASK-154)
@@ -40,7 +43,7 @@ def open_from_detection(window: MainWindow) -> None:
 
 
 def open_from_dataset(window: MainWindow) -> None:
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [
         {"class_name": "kniv", "bbox": [8, 8, 20, 24]}
     ])])
     window.dataset_view.refresh()
@@ -119,11 +122,11 @@ def pending_thumbs(window: MainWindow) -> list:
 
 def test_cancel_removes_the_pending_capture(window):
     open_from_detection(window)
-    assert window.dataset_service.pending_captures()
+    assert list_pending(window.dataset_store.root.parent)
 
     window.annotation_view.cancelled.emit()
 
-    assert window.dataset_service.pending_captures() == []
+    assert list_pending(window.dataset_store.root.parent) == []
     assert pending_thumbs(window) == []
 
 
@@ -136,7 +139,7 @@ def test_cancel_keeps_the_capture_when_the_dialog_is_aborted(window, monkeypatch
 
     assert window.tabs.currentIndex() == ANNOTATION_TAB
     assert window.tabs.isTabEnabled(ANNOTATION_TAB)
-    assert len(window.dataset_service.pending_captures()) == 1
+    assert len(list_pending(window.dataset_store.root.parent)) == 1
 
 
 def test_cancel_discards_the_changes_when_confirmed(window, monkeypatch):
@@ -147,7 +150,7 @@ def test_cancel_discards_the_changes_when_confirmed(window, monkeypatch):
     window.annotation_view.cancelled.emit()
 
     assert window.tabs.currentIndex() == DETECTION_TAB
-    assert window.dataset_service.pending_captures() == []
+    assert list_pending(window.dataset_store.root.parent) == []
 
 
 def test_switching_tab_removes_the_pending_capture(window):
@@ -155,7 +158,7 @@ def test_switching_tab_removes_the_pending_capture(window):
 
     window.tabs.setCurrentIndex(DATASET_TAB)
 
-    assert window.dataset_service.pending_captures() == []
+    assert list_pending(window.dataset_store.root.parent) == []
     assert pending_thumbs(window) == []
 
 
@@ -167,7 +170,7 @@ def test_switching_tab_keeps_the_capture_when_the_dialog_is_aborted(window, monk
     window.tabs.setCurrentIndex(DATASET_TAB)
 
     assert window.tabs.currentIndex() == ANNOTATION_TAB
-    assert len(window.dataset_service.pending_captures()) == 1
+    assert len(list_pending(window.dataset_store.root.parent)) == 1
 
 
 def test_switching_tab_saves_when_asked(window, monkeypatch):
@@ -178,8 +181,8 @@ def test_switching_tab_saves_when_asked(window, monkeypatch):
     window.tabs.setCurrentIndex(DATASET_TAB)
     window.annotation_view.wait_for_save()
 
-    assert window.dataset_service.pending_captures() == []
-    assert len(window.dataset_service.load_dataset()["images"]) == 1
+    assert list_pending(window.dataset_store.root.parent) == []
+    assert len(window.dataset_store.load_dataset()["images"]) == 1
 
 
 def test_cancel_after_a_saved_pair_keeps_the_dataset(window):
@@ -187,8 +190,8 @@ def test_cancel_after_a_saved_pair_keeps_the_dataset(window):
 
     window.annotation_view.cancelled.emit()
 
-    assert window.dataset_service.pending_captures() == []
-    assert len(window.dataset_service.load_dataset()["images"]) == 1
+    assert list_pending(window.dataset_store.root.parent) == []
+    assert len(window.dataset_store.load_dataset()["images"]) == 1
 
 
 def test_annotation_tab_index_is_looked_up_from_the_tab_order(window):

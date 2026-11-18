@@ -7,8 +7,8 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.settings_dialog import (
     SORT_KEY,
@@ -151,7 +151,7 @@ def test_training_settings_only_open_the_schedule(qapp, window, monkeypatch):
 
 def test_train_ratio_is_read_and_written(qapp, config, settings):
     assert train_ratio(settings) == 0.8
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
     assert view.ratio_spin.value() == 80
 
     view.ratio_spin.setValue(50)
@@ -162,7 +162,7 @@ def test_train_ratio_is_read_and_written(qapp, config, settings):
 
 def test_dataset_card_holds_the_size_and_the_train_val_ratio(qapp, config, settings):
     """Dataset-kortet samlar storleken och andelen train/val (TASK-103)."""
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
     card = view.ratio_spin.parentWidget()
 
     assert isinstance(card, FormCard)
@@ -181,7 +181,7 @@ def test_train_ratio_keeps_a_group_on_each_side(qapp, settings):
 
 def test_training_view_shows_train_val_in_pairs(qapp, config, settings):
     """Redovisningen räknar bildpar och följer den valda andelen (TASK-72)."""
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.set_classes(["kniv"])
     for group in range(6):
         service.add_samples([
@@ -203,7 +203,7 @@ def test_training_view_shows_train_val_in_pairs(qapp, config, settings):
 
 def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, monkeypatch):
     """Starten skickar den valda andelen vidare till exporten (TASK-72)."""
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.set_classes(["kniv"])
     service.add_samples([
         AnnotatedImage(
@@ -216,9 +216,9 @@ def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, mo
     view = TrainingView(config, service, settings)
     ratios: list = []
     monkeypatch.setattr(
-        service,
-        "export_yolo",
-        lambda root, ratio: ratios.append(ratio) or config.export_dir / "yolo" / "data.yaml",
+        "xray_detector.ui.training_view.export_yolo",
+        lambda store, root, ratio: ratios.append(ratio)
+        or config.export_dir / "yolo" / "data.yaml",
     )
     monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
 
@@ -229,7 +229,7 @@ def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, mo
 
 def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatch):
     """Träningsvyn köar nattfönstret med samma "HH:MM"-nycklar som dialogen (TASK-125)."""
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.set_classes(["kniv"])
     service.add_samples([
         AnnotatedImage(
@@ -242,7 +242,8 @@ def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatc
     settings.setValue("training/night_end", "04:45")
     view = TrainingView(config, service, settings)
     monkeypatch.setattr(
-        service, "export_yolo", lambda root, ratio: config.export_dir / "yolo" / "data.yaml"
+        "xray_detector.ui.training_view.export_yolo",
+        lambda store, root, ratio: config.export_dir / "yolo" / "data.yaml",
     )
     monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
     view.run_combo.setCurrentIndex(view.run_combo.findData("night"))

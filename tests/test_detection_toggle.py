@@ -33,7 +33,7 @@ def view(qapp, tmp_path, monkeypatch) -> DetectionView:
     )
     view._create_calls = calls
     view._detector_calls = []
-    view.video_service.set_detector = view._detector_calls.append
+    view.camera_service.set_detector = view._detector_calls.append
     return view
 
 
@@ -113,7 +113,7 @@ def _unstarted_worker(view, monkeypatch, tmp_path):
     worker = StreamWorker("left", FileSource(tmp_path / "saknas.mp4"))
     attached = []
     monkeypatch.setattr(worker, "set_detector", attached.append)
-    monkeypatch.setattr(view.video_service, "set_source", lambda *args: worker)
+    monkeypatch.setattr(view.camera_service, "set_source", lambda *args: worker)
     return attached
 
 

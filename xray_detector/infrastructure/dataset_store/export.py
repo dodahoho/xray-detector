@@ -192,6 +192,24 @@ def _fresh_dir(path: Path) -> Path:
     return path
 
 
+def train_val_counts(
+    store: DatasetStore,
+    ratio: float = SPLIT_RATIO,
+    seed: int = SPLIT_SEED,
+    family: str = "yolo",
+) -> tuple[int, int]:
+    """Antal bildpar i train respektive val för den seedade grupp-delningen (TASK-72).
+
+    RF-DETR:s export har också en test-del, så val blir mindre där (TASK-93).
+    """
+    images = store.load_dataset()["images"]
+    if family == "rfdetr":
+        splits = train_val_test_split(images, ratio, seed)
+        return group_count(splits["train"]), group_count(splits["valid"])
+    train, val = train_val_split(images, ratio, seed)
+    return group_count(train), group_count(val)
+
+
 def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RATIO) -> Path:
     """Kopierar datasetet som ett YOLO-dataset med train/val-delning.
 

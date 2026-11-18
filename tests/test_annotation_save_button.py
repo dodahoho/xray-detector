@@ -7,6 +7,9 @@ from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.pending import (
+    save_pending,
+)
 from xray_detector.ui.main_window import MainWindow
 
 # testerna startar MainWindow och tar därför sekunder (TASK-154)
@@ -37,7 +40,7 @@ def open_from_detection(window: MainWindow) -> None:
 
 def open_from_dataset(window: MainWindow) -> None:
     """Dubbelklick på en fångst som redan ligger i datasetet."""
-    window.dataset_service.add_samples([AnnotatedImage(synthetic_frame(), [
+    window.dataset_store.add_samples([AnnotatedImage(synthetic_frame(), [
         {"class_name": "kniv", "bbox": [8, 8, 20, 24]}
     ])])
     window.dataset_view.refresh()
@@ -47,7 +50,7 @@ def open_from_dataset(window: MainWindow) -> None:
 
 def open_pending_from_dataset(window: MainWindow) -> None:
     """Dubbelklick på en osparad fångst i datasetvyn."""
-    window.dataset_service.save_pending(frames())
+    save_pending(window.dataset_store.root.parent, frames())
     window.dataset_view.refresh()
     window.dataset_view.wait_for_refresh()
     thumb = next(t for t in window.dataset_view._thumbs if t.pending)
@@ -111,14 +114,14 @@ def test_saving_an_edited_pair_replaces_it_instead_of_copying(window):
     window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
-    dataset = window.dataset_service.load_dataset()
+    dataset = window.dataset_store.load_dataset()
     assert len(dataset["images"]) == 1
     assert dataset["images"][0]["id"] == 1
     assert dataset["images"][0]["annotations"] == []
 
 
 def test_saving_an_edited_pair_keeps_its_group_and_capture_time(window):
-    window.dataset_service.add_samples(
+    window.dataset_store.add_samples(
         [AnnotatedImage(synthetic_frame(), [{"class_name": "kniv", "bbox": [8, 8, 20, 24]}])],
         captured="2026-11-01T09:00:00",
     )
@@ -132,7 +135,7 @@ def test_saving_an_edited_pair_keeps_its_group_and_capture_time(window):
     window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
-    image = window.dataset_service.load_dataset()["images"][0]
+    image = window.dataset_store.load_dataset()["images"][0]
     assert image["group"] == 1
     assert image["captured"] == "2026-11-01T09:00:00"
 
@@ -143,4 +146,4 @@ def test_saving_a_new_capture_still_adds_a_pair(window):
     window.annotation_view.save()
     window.annotation_view.wait_for_save()
 
-    assert len(window.dataset_service.load_dataset()["images"]) == 1
+    assert len(window.dataset_store.load_dataset()["images"]) == 1

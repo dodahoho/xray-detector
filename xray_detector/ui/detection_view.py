@@ -20,13 +20,14 @@ from PySide6.QtWidgets import (
 
 from xray_detector.application import model_registry
 from xray_detector.application.background_task import BackgroundTask
-from xray_detector.application.video_service import VideoService
 from xray_detector.domain.capture import StreamFrame, VideoMode
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
-from xray_detector.infrastructure.video.devices import list_device_modes
+from xray_detector.infrastructure.video.camera_service import CameraService
+from xray_detector.infrastructure.video.devices import list_device_modes, list_devices
+from xray_detector.infrastructure.video.source import build_source
 from xray_detector.ui.badge import (
     BadgeTracker,
     badge_delays,
@@ -518,7 +519,7 @@ class DetectionView(QWidget):
         super().__init__(parent)
         self.config = config
         self.settings = settings
-        self.video_service = VideoService()
+        self.camera_service = CameraService()
         self.detector = None
         self.detection_enabled = True
         self._paused = False
@@ -576,7 +577,7 @@ class DetectionView(QWidget):
         bar.addWidget(self.settings_button)
         layout.addLayout(bar)
         panels = QHBoxLayout()
-        devices = self.video_service.list_devices()
+        devices = list_devices()
         logging.getLogger("xray").info(
             "Kameror: %s",
             ", ".join(f"{device.index}={device.name}" for device in devices)
@@ -741,17 +742,19 @@ class DetectionView(QWidget):
         self.detector.set_enabled_classes(enabled)
         if not enabled:
             self.error_occurred.emit(NO_CLASSES)
-            self.video_service.set_detector(None)
+            self.camera_service.set_detector(None)
             for panel in (self.left, self.right):
                 panel.clear_overlay()
             return
         if not self._paused:
-            self.video_service.set_detector(self._active_detector())
+            self.camera_service.set_detector(self._active_detector())
 
     def _on_source_requested(
         self, source_id: str, kind: str, value: object, mode: VideoMode | None = None
     ) -> None:
-        worker = self.video_service.set_source(source_id, kind, value, mode)
+        worker = self.camera_service.set_source(
+            source_id, build_source(kind, value, mode)
+        )
         if worker is not None:
             worker.frame_ready.connect(self._on_frame)
             worker.source_lost.connect(self._on_source_lost)
@@ -792,13 +795,13 @@ class DetectionView(QWidget):
             DETECTION_TURN_OFF if enabled else DETECTION_TURN_ON
         )
         if not enabled:
-            self.video_service.set_detector(None)
+            self.camera_service.set_detector(None)
             for panel in (self.left, self.right):
                 panel.clear_overlay()
         elif self.detector is None:
             self._on_model_changed()
         else:
-            self.video_service.set_detector(self._active_detector())
+            self.camera_service.set_detector(self._active_detector())
 
     def _on_model_changed(self) -> None:
         """Laddar modellen i en arbetstråd så indikatorn kan animeras (TASK-40)."""
@@ -848,7 +851,7 @@ class DetectionView(QWidget):
 
     def _on_model_failed(self, message: str) -> None:
         self.detector = None
-        self.video_service.set_detector(None)
+        self.camera_service.set_detector(None)
         self.error_occurred.emit(f"Kunde inte ladda modell: {message}")
 
     def _on_model_task_finished(self) -> None:
@@ -892,8 +895,8 @@ class DetectionView(QWidget):
         videofil och detektionen i strömmen stängs av (TASK-6, TASK-74).
         """
         self._paused = True
-        self.video_service.set_detector(None)
-        self.video_service.stop_all()
+        self.camera_service.set_detector(None)
+        self.camera_service.stop_all()
         self.detector = None
         for panel in (self.left, self.right):
             panel.clear_overlay()
@@ -925,12 +928,12 @@ class DetectionView(QWidget):
             # detektorn slappes vid paus for VRAM-frigoring: abygg fran modellvalet
             self._on_model_changed()
         else:
-            self.video_service.set_detector(self._active_detector())
+            self.camera_service.set_detector(self._active_detector())
 
     def resume_detection(self) -> None:
         """Återupptar strömmarna och detektionen när träningen är klar (TASK-6)."""
         self.resume_streams()
 
     def stop(self) -> None:
-        self.video_service.stop_all()
+        self.camera_service.stop_all()
         self.wait_for_background()

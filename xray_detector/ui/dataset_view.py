@@ -20,11 +20,16 @@ from PySide6.QtWidgets import (
 )
 
 from xray_detector.application.background_task import BackgroundTask
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import capture_group, describe
 from xray_detector.domain.detection import Detection
+from xray_detector.infrastructure.dataset_store.export import export_coco, export_yolo
+from xray_detector.infrastructure.dataset_store.pending import (
+    list_pending,
+    remove_pending,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import (
     BORDER,
@@ -388,10 +393,10 @@ class DatasetView(QWidget):
     open_annotation_requested = Signal(object)
     status_changed = Signal(str)
 
-    def __init__(self, config: AppConfig, dataset: DatasetService, settings, parent=None) -> None:
+    def __init__(self, config: AppConfig, dataset: DatasetStore, settings, parent=None) -> None:
         super().__init__(parent)
         self.config = config
-        self.dataset_service = dataset
+        self.dataset_store = dataset
         self.settings = settings
         self._thumbs: list[Thumbnail] = []
         self._groups: dict[int, list[Thumbnail]] = {}
@@ -513,9 +518,9 @@ class DatasetView(QWidget):
         Bildavkodningen är den dyra delen: mätt 826 av 870 ms för 200 bilder.
         QImage får skapas utanför GUI-tråden, QPixmap får det inte.
         """
-        pending = self.dataset_service.pending_captures()
-        dataset = self.dataset_service.load_dataset()
-        images_dir = self.dataset_service.images_dir
+        pending = list_pending(self.config.data_dir)
+        dataset = self.dataset_store.load_dataset()
+        images_dir = self.dataset_store.images_dir
         decoded = {
             image["id"]: QImage(str(images_dir / image["file_name"]))
             for image in dataset["images"]
@@ -548,14 +553,16 @@ class DatasetView(QWidget):
                 return
 
     def _on_export_coco(self) -> None:
-        self._start_export("COCO", self.dataset_service.export_coco)
+        self._start_export(
+            "COCO", lambda export_root: export_coco(self.dataset_store, export_root)
+        )
 
     def _on_export_yolo(self) -> None:
         """YOLO-exporten delar train/val med träningsvyns andel (TASK-72)."""
         ratio = train_ratio(self.settings)
         self._start_export(
             "YOLO",
-            lambda export_root: self.dataset_service.export_yolo(export_root, ratio),
+            lambda export_root: export_yolo(self.dataset_store, export_root, ratio),
         )
 
     def _start_export(self, label: str, export) -> None:
@@ -613,7 +620,7 @@ class DatasetView(QWidget):
             return
         self.busy.start("Skapar bildvariationer...")
         self._set_variation_enabled(False)
-        task = BackgroundTask(lambda: self.dataset_service.add_variations(settings))
+        task = BackgroundTask(lambda: self.dataset_store.add_variations(settings))
         task.succeeded.connect(self._on_variations_done)
         task.failed.connect(self._on_variations_failed)
         task.finished.connect(self._on_variations_finished)
@@ -655,7 +662,7 @@ class DatasetView(QWidget):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.dataset_service.delete_synthetic()
+        self.dataset_store.delete_synthetic()
         self.status_changed.emit(f"Tog bort {_pairs(pairs)} från datasetet")
         self.refresh()
 
@@ -714,7 +721,7 @@ class DatasetView(QWidget):
             if not self._matches_type(images, selected_type):
                 continue
             stamp = _format_timestamp(images[0].get("captured")) or _mtime_timestamp(
-                self.dataset_service.images_dir / images[0]["file_name"]
+                self.dataset_store.images_dir / images[0]["file_name"]
             )
             by_date.setdefault(stamp[:10], []).append((key, images, stamp))
 
@@ -1076,7 +1083,7 @@ class DatasetView(QWidget):
             entry = next(
                 img for img in self._dataset["images"] if img["id"] == member.image_id
             )
-            frame = cv2.imread(str(self.dataset_service.images_dir / entry["file_name"]))
+            frame = cv2.imread(str(self.dataset_store.images_dir / entry["file_name"]))
             if frame is None:
                 continue
             detections = []
@@ -1112,15 +1119,15 @@ class DatasetView(QWidget):
         if answer != QMessageBox.StandardButton.Yes:
             return
         if ids:
-            self.dataset_service.delete_images(ids)
+            self.dataset_store.delete_images(ids)
         for group_id in pending_ids:
-            self.dataset_service.remove_pending(group_id)
+            remove_pending(self.config.data_dir, group_id)
         self.status_changed.emit(f"Tog bort {count} bildpar från datasetet")
         self.refresh()
 
     def _on_remove_unused_classes(self) -> None:
         """Rensar klasslistan till de klasser som finns annoterade (TASK-109)."""
-        unused = self.dataset_service.unused_classes()
+        unused = self.dataset_store.unused_classes()
         if not unused:
             self.status_changed.emit("Alla klasser i datasetet används")
             return
@@ -1133,6 +1140,6 @@ class DatasetView(QWidget):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        removed = self.dataset_service.remove_unused_classes()
+        removed = self.dataset_store.remove_unused_classes()
         self.status_changed.emit(f"Tog bort {len(removed)} oanvända klasser")
         self.refresh()

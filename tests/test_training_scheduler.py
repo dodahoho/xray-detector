@@ -104,7 +104,7 @@ def test_training_view_queue_flow(qapp, tmp_path, monkeypatch):
     config.ensure_dirs()
     window = MainWindow(config)
     view = window.training_view
-    view.dataset_service.add_samples([AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
+    view.dataset_store.add_samples([AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                                                         [{"class_name": "kniv", "bbox": [1, 1, 4, 4]}])])
     view.refresh_dataset_info()
     assert view.run_combo.count() == 3
@@ -122,15 +122,15 @@ def test_training_view_queue_flow(qapp, tmp_path, monkeypatch):
 
 def test_start_button_says_schedule_when_the_run_is_queued(qapp, tmp_path):
     """Knappen säger Schemalägg när jobbet köas i stället för att starta direkt (TASK-104)."""
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
     assert view.start_button.text() == "Sta&rta träning"
 

@@ -7,22 +7,22 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from tests.conftest import FakeDetector, synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.detection import Detection
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.annotation_view import AnnotationView
 
 # testerna startar MainWindow och tar därför sekunder (TASK-154)
 pytestmark = pytest.mark.slow
 
 
-def make_view(tmp_path, model_classes=None, settings=None) -> tuple[AnnotationView, DatasetService]:
+def make_view(tmp_path, model_classes=None, settings=None) -> tuple[AnnotationView, DatasetStore]:
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     settings = settings or QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     view = AnnotationView(config, service, settings, model_classes=model_classes)
     return view, service
@@ -223,7 +223,7 @@ def test_dataset_classes_win_over_the_model(qapp, tmp_path):
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.set_classes(["cigaretter"])
 
     view = AnnotationView(
@@ -312,7 +312,7 @@ def test_removing_every_class_keeps_the_list_empty(qapp, tmp_path, monkeypatch):
 
 def test_set_classes_remaps_the_label_indexes(tmp_path):
     """YOLO lagrar klassen som index, så en borttagen klass flyttar de senare (TASK-78)."""
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.set_classes(["kniv", "pistol"])
     service.add_samples([sample("pistol")])
 
@@ -324,7 +324,7 @@ def test_set_classes_remaps_the_label_indexes(tmp_path):
 
 
 def test_new_class_is_appended_after_a_removal(tmp_path):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.set_classes(["kniv", "pistol"])
     service.set_classes(["pistol"])
 
@@ -431,7 +431,7 @@ def test_main_window_offers_the_models_classes(qapp, tmp_path, monkeypatch):
     window.annotation_view.load_captures([capture()])
 
     assert window.annotation_view._class_names() == ["kniv"]
-    assert window.dataset_service.classes() == ["kniv"]
+    assert window.dataset_store.classes() == ["kniv"]
 
 
 def window_with_model(tmp_path, monkeypatch):
@@ -480,7 +480,7 @@ def test_the_class_dialog_opens_after_the_switch_from_the_dataset_view(
 ):
     seen: list[tuple[int, bool]] = []
     window = window_with_model(tmp_path, monkeypatch)
-    window.dataset_service.add_samples(
+    window.dataset_store.add_samples(
         [AnnotatedImage(np.full((40, 50, 3), 100, dtype=np.uint8), [])]
     )
     window.dataset_view.refresh()

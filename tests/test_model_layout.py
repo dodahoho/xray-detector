@@ -8,7 +8,6 @@ import numpy as np
 from PySide6.QtCore import QSettings
 
 from xray_detector.application.app_config import apply_yaml_overrides
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.model_registry import (
     MODEL_SPECS,
     available_models,
@@ -18,6 +17,7 @@ from xray_detector.application.model_registry import (
 )
 from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
 def _write_run(
@@ -281,7 +281,7 @@ def test_training_view_writes_to_trained_dir(qapp, tmp_path):
     from xray_detector.ui.training_view import TrainingView
 
     config = _config(tmp_path)
-    dataset = DatasetService(config.dataset_dir)
+    dataset = DatasetStore(config.dataset_dir)
     dataset.add_samples(
         [AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                         [{"class_name": "kniv", "bbox": [1, 1, 4, 4]}])],

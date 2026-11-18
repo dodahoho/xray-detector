@@ -274,8 +274,8 @@ def test_rfdetr_gets_no_early_stopping_when_the_guard_is_off(monkeypatch, tmp_pa
 def _training_view(qapp, tmp_path, settings=None):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -283,7 +283,7 @@ def _training_view(qapp, tmp_path, settings=None):
     config.ensure_dirs()
     if settings is None:
         settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    return TrainingView(config, DatasetService(config.dataset_dir), settings)
+    return TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
 
 def test_setting_is_on_by_default(qapp, tmp_path):
@@ -314,7 +314,7 @@ def test_setting_is_passed_to_the_training_process(qapp, tmp_path):
     from xray_detector.domain.dataset import AnnotatedImage
 
     view = _training_view(qapp, tmp_path)
-    view.dataset_service.add_samples(
+    view.dataset_store.add_samples(
         [AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                         [{"class_name": "kniv", "bbox": [1, 1, 4, 4]}])]
     )

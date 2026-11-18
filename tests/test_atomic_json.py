@@ -4,6 +4,9 @@ import json
 
 import pytest
 
+from xray_detector.infrastructure.dataset_store.export import (
+    export_yolo,
+)
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 
 
@@ -36,13 +39,13 @@ def test_atomic_write_keeps_old_file_on_crash(tmp_path, monkeypatch):
 def test_store_and_export_still_work(tmp_path):
     import numpy as np
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.dataset import AnnotatedImage
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([AnnotatedImage(np.zeros((20, 30, 3), np.uint8),
                                         [{"class_name": "kniv", "bbox": [1, 2, 3, 4]}])])
-    assert json.loads((service.store.root / "dataset.json").read_text(encoding="utf-8"))["images"]
-    service.export_yolo(tmp_path / "exports")
+    assert json.loads((service.root / "dataset.json").read_text(encoding="utf-8"))["images"]
+    export_yolo(service, tmp_path / "exports")
     manifest = json.loads((tmp_path / "exports" / "yolo" / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_images"] == 1

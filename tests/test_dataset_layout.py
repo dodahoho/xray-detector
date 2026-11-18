@@ -8,10 +8,10 @@ from PySide6.QtCore import QRect, QSize
 from PySide6.QtWidgets import QWidget
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.pending import save_pending
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import (
     UNKNOWN_DATE,
     DatasetView,
@@ -28,8 +28,8 @@ def _sample(fill: int = 60) -> AnnotatedImage:
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 
@@ -117,7 +117,7 @@ def test_wide_images_still_fit_four_per_row(qapp, config, service, settings):
 
 
 def test_pending_captures_get_their_own_section(qapp, config, tmp_path, settings):
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     service.add_samples([_sample()], captured="2026-11-10T09:00:00")
     save_pending(tmp_path, [StreamFrame("left", synthetic_frame(), [], "kamera-vanster")])
 
@@ -148,7 +148,7 @@ def test_captures_without_a_date_are_listed_last(
 ):
     service.add_samples([_sample()], captured="2026-11-10T09:00:00")
     service.add_samples([_sample()])
-    path = service.store.root / "dataset.json"
+    path = service.root / "dataset.json"
     metadata = json.loads(path.read_text(encoding="utf-8"))
     for image in metadata["images"]:
         if image["group"] == 2:
@@ -196,7 +196,7 @@ def test_selection_keeps_the_card_size_and_position(qapp, config, service, setti
 
 def test_selection_keeps_the_pending_card_size(qapp, config, tmp_path, settings):
     """Osparade fångster behåller också kortets storlek vid markering (TASK-63)."""
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(), [], "kamera-hoger"),

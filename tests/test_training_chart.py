@@ -140,8 +140,8 @@ def test_chart_module_only_imports_pyside6_and_the_project():
 def _training_view(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -150,7 +150,7 @@ def _training_view(qapp, tmp_path):
     config.ensure_dirs()
     return TrainingView(
         config,
-        DatasetService(config.dataset_dir),
+        DatasetStore(config.dataset_dir),
         QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat),
     )
 

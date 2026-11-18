@@ -5,10 +5,13 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QMessageBox
 
 from tests.conftest import synthetic_frame
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.pending import (
+    list_pending,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.theme import current_theme
 
@@ -33,7 +36,7 @@ def app_config(tmp_path) -> AppConfig:
 
 
 def test_gui_capture_annotate_save_roundtrip(qapp, app_config):
-    service = DatasetService(app_config.dataset_dir)
+    service = DatasetStore(app_config.dataset_dir)
     service.add_samples([AnnotatedImage(synthetic_frame(), [
         {"class_name": "kniv", "bbox": [8, 8, 20, 24]}
     ])])
@@ -81,12 +84,12 @@ def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
     frames = [StreamFrame(source_id="left", frame=synthetic_frame(fill=200),
                           detections=[], source_label="kamera")]
     window._on_capture(frames)
-    service = window.dataset_service
+    service = window.dataset_store
     # avbryt (cancel) utan sparande
     window.annotation_view.cancelled.emit()
     assert service.load_dataset()["images"] == []
     # fångsten kastas i stället för att ligga kvar som osparad (TASK-112)
-    assert service.pending_captures() == []
+    assert list_pending(service.root.parent) == []
 
 
 def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):
@@ -118,6 +121,6 @@ def test_window_starts_with_a_broken_dataset_json(qapp, app_config, caplog):
     with caplog.at_level(logging.WARNING, logger="xray"):
         window = MainWindow(app_config)
 
-    assert window.dataset_service.load_dataset()["images"] == []
+    assert window.dataset_store.load_dataset()["images"] == []
     assert "dataset.json går inte att läsa" in caplog.text
     window.closeEvent(_close_event())

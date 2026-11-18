@@ -124,7 +124,7 @@ def test_startup_logs_camera_enumeration(qapp, config, caplog, monkeypatch):
     from xray_detector.ui.detection_view import DetectionView
 
     monkeypatch.setattr(
-        "xray_detector.application.video_service.list_devices",
+        "xray_detector.ui.detection_view.list_devices",
         lambda: [DeviceInfo(0, "UVC-kamera 1"), DeviceInfo(1, "UVC-kamera 2")],
     )
     with caplog.at_level(logging.INFO, logger="xray"):

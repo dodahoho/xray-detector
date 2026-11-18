@@ -12,9 +12,13 @@ from PySide6.QtWidgets import (
 )
 
 from xray_detector.application.background_task import BackgroundTask
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.pending import (
+    pending_saved_at,
+    remove_pending,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import class_color
 from xray_detector.ui.image_utils import bgr_to_qimage
@@ -437,11 +441,11 @@ class AnnotationView(QWidget):
     cancelled = Signal()
 
     def __init__(
-        self, config, dataset: DatasetService, settings, model_classes=None, parent=None
+        self, config, dataset: DatasetStore, settings, model_classes=None, parent=None
     ) -> None:
         super().__init__(parent)
         self.config = config
-        self.dataset_service = dataset
+        self.dataset_store = dataset
         self.settings = settings
         # anropbar som ger vald modells klassnamn; de är bara standardvärden (TASK-61)
         self.model_classes = model_classes
@@ -509,7 +513,7 @@ class AnnotationView(QWidget):
         automatiskt. Modellens klasser erbjuds i en fråga när vyn öppnas, så en
         nyinstallation börjar med en tom lista.
         """
-        names = self.dataset_service.classes()
+        names = self.dataset_store.classes()
         current = self.class_combo.currentText()
         self.class_combo.blockSignals(True)
         self.class_combo.clear()
@@ -545,7 +549,7 @@ class AnnotationView(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if answer == QMessageBox.StandardButton.Yes:
-            self.dataset_service.set_classes(names)
+            self.dataset_store.set_classes(names)
             self.refresh_classes()
 
     @staticmethod
@@ -573,7 +577,7 @@ class AnnotationView(QWidget):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if answer == QMessageBox.StandardButton.Yes:
-                self.dataset_service.set_classes([*self._class_names(), name])
+                self.dataset_store.set_classes([*self._class_names(), name])
                 self.refresh_classes()
 
     def _class_names(self) -> list[str]:
@@ -602,13 +606,13 @@ class AnnotationView(QWidget):
             self.class_combo.addItem(name)
             index = self.class_combo.findText(name)
         self.class_combo.setCurrentIndex(index)
-        self.dataset_service.set_classes(self._class_names())
+        self.dataset_store.set_classes(self._class_names())
 
     def _on_remove_class(self) -> None:
         name = self.class_combo.currentText().strip()
         if not name:
             return
-        if self.dataset_service.class_in_use(name):
+        if self.dataset_store.class_in_use(name):
             QMessageBox.information(
                 self,
                 "Ta bort klass",
@@ -631,7 +635,7 @@ class AnnotationView(QWidget):
             self._on_class_changed("")
         else:
             self.class_combo.setCurrentIndex(0)
-        self.dataset_service.set_classes(self._class_names())
+        self.dataset_store.set_classes(self._class_names())
 
     def load_captures(
         self,
@@ -743,7 +747,7 @@ class AnnotationView(QWidget):
         dataset_ids = self.dataset_ids
         # fångsttiden finns i pending-indexet, som skrevs vid knapptrycket
         captured = (
-            self.dataset_service.pending_saved_at(pending_group_id)
+            pending_saved_at(self.config.data_dir, pending_group_id)
             if pending_group_id
             else None
         )
@@ -763,11 +767,11 @@ class AnnotationView(QWidget):
         """Skriver datasetet i arbetstråden, inklusive städning av pending (TASK-40)."""
         if dataset_ids:
             # en redigering av ett sparat bildpar ersätter paret (TASK-110)
-            self.dataset_service.replace_samples(dataset_ids, samples)
+            self.dataset_store.replace_samples(dataset_ids, samples)
         else:
-            self.dataset_service.add_samples(samples, captured)
+            self.dataset_store.add_samples(samples, captured)
         if pending_group_id:
-            self.dataset_service.remove_pending(pending_group_id)
+            remove_pending(self.config.data_dir, pending_group_id)
 
     def _on_saved(self) -> None:
         self.pending_group_id = None
@@ -809,7 +813,7 @@ class AnnotationView(QWidget):
         att ligga kvar som ett bildpar i datasetvyn.
         """
         if self.pending_group_id:
-            self.dataset_service.remove_pending(self.pending_group_id)
+            remove_pending(self.config.data_dir, self.pending_group_id)
         self.pending_group_id = None
         self.dataset_ids = []
         self._save_requires_change = False

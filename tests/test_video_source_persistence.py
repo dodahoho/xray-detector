@@ -122,11 +122,13 @@ def test_persistence_roundtrip_via_detection_view(qapp, tmp_path, monkeypatch):
     captured = []
     view = DetectionView(config, QSettings(str(ini), QSettings.Format.IniFormat))
     monkeypatch.setattr(
-        type(view.video_service), "set_source",
-        lambda self, source_id, kind, value, mode=None: captured.append((source_id, kind, value)) or None,
+        type(view.camera_service), "set_source",
+        lambda self, source_id, source: captured.append((source_id, source)) or None,
     )
     view.restore_settings()
-    assert ("left", "file", Path("C:/media/x.mp4")) in captured
+    assert ("left", Path("C:/media/x.mp4")) in [
+        (source_id, source.path) for source_id, source in captured
+    ]
     # panelen visar sparad fil i kombon
     assert view.left.source_combo.currentText() == "Videofil: x.mp4"
     assert view.left.current_source() == ("file", "C:/media/x.mp4")
@@ -135,8 +137,10 @@ def test_persistence_roundtrip_via_detection_view(qapp, tmp_path, monkeypatch):
     captured.clear()
     view2 = DetectionView(config, QSettings(str(ini), QSettings.Format.IniFormat))
     monkeypatch.setattr(
-        type(view2.video_service), "set_source",
-        lambda self, source_id, kind, value, mode=None: captured.append((source_id, kind, value)) or None,
+        type(view2.camera_service), "set_source",
+        lambda self, source_id, source: captured.append((source_id, source)) or None,
     )
     view2.restore_settings()
-    assert ("left", "file", Path("C:/media/x.mp4")) in captured
+    assert ("left", Path("C:/media/x.mp4")) in [
+        (source_id, source.path) for source_id, source in captured
+    ]

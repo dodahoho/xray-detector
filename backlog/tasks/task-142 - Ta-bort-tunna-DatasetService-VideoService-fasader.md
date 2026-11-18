@@ -1,9 +1,10 @@
 ---
 id: TASK-142
 title: Ta bort tunna DatasetService/VideoService-fasader
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
+updated_date: '2026-11-18T07:29:00Z'
 labels:
   - refactor
   - review-followup
@@ -14,7 +15,7 @@ references:
   - review_vibe_deepseek41_flash.md
 priority: medium
 type: enhancement
-ordinal: 140000
+ordinal: 5000
 ---
 
 ## Description

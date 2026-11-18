@@ -15,9 +15,9 @@ from xray_detector.application.app_config import (
     log_path,
     setup_logging,
 )
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.config import LOGS_DIR_ENV, PROJECT_ROOT, AppConfig
 from xray_detector.domain.training import TrainConfig
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 
 def _config(tmp_path: Path) -> AppConfig:
@@ -158,7 +158,7 @@ class _FakeWorker(QObject):
 def _training_view(qapp, config: AppConfig):
     from xray_detector.ui.training_view import TrainingView
 
-    dataset = DatasetService(config.dataset_dir)
+    dataset = DatasetStore(config.dataset_dir)
     settings = QSettings(str(config.data_dir / "s.ini"), QSettings.Format.IniFormat)
     return TrainingView(config, dataset, settings)
 

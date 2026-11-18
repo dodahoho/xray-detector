@@ -5,7 +5,6 @@ import random
 import numpy as np
 import pytest
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import (
     MODE_ALL,
     MODE_PER_TYPE,
@@ -23,6 +22,7 @@ from xray_detector.infrastructure.dataset_store.augment import (
     scale,
     variation_plan,
 )
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 
 WIDTH = 50
 HEIGHT = 40
@@ -50,8 +50,8 @@ def _content_box(frame: np.ndarray) -> tuple[int, int, int, int]:
     return xs.min(), ys.min(), xs.max() - xs.min() + 1, ys.max() - ys.min() + 1
 
 
-def _service(tmp_path) -> DatasetService:
-    return DatasetService(tmp_path / "datasets")
+def _service(tmp_path) -> DatasetStore:
+    return DatasetStore(tmp_path / "datasets")
 
 
 def _sample(fill: int = 100) -> AnnotatedImage:
@@ -418,7 +418,7 @@ def test_add_variations_writes_labels_for_the_varied_annotations(tmp_path):
     images = service.load_dataset()["images"]
     synthetic = images[1]
     assert synthetic["annotations"]
-    label = service.store.labels_dir / "img_000002.txt"
+    label = service.labels_dir / "img_000002.txt"
     assert label.exists()
     assert label.read_text(encoding="utf-8").startswith("0 ")
     assert service.metadata()["num_objects"] == 2
@@ -439,7 +439,7 @@ def test_delete_synthetic_removes_only_the_synthetic_images(tmp_path):
         "img_000001.png",
         "img_000002.png",
     ]
-    assert sorted(path.name for path in service.store.labels_dir.iterdir()) == [
+    assert sorted(path.name for path in service.labels_dir.iterdir()) == [
         "img_000001.txt",
         "img_000002.txt",
     ]

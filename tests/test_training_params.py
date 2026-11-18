@@ -108,15 +108,15 @@ def test_an_explicit_batch_wins_over_the_family_default(tmp_path):
 def test_training_view_follows_the_family_until_the_user_chooses(qapp, tmp_path):
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
     assert view.batch_spin.value() == 16
 
@@ -139,9 +139,9 @@ def test_training_view_rejects_a_bad_rfdetr_resolution(qapp, tmp_path, monkeypat
     import numpy as np
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
     from xray_detector.domain.dataset import AnnotatedImage
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     real = importlib.util.find_spec
@@ -156,8 +156,8 @@ def test_training_view_rejects_a_bad_rfdetr_resolution(qapp, tmp_path, monkeypat
     config.data_dir = tmp_path
     config.ensure_dirs()
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
-    view.dataset_service.add_samples(
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
+    view.dataset_store.add_samples(
         [
             AnnotatedImage(
                 np.zeros((20, 30, 3), np.uint8),
@@ -443,16 +443,16 @@ def test_the_training_view_names_the_run_from_the_dataset(qapp, tmp_path):
     import numpy as np
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
     from xray_detector.domain.dataset import AnnotatedImage
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
     config.data_dir = tmp_path / "data"
     config.models_dir = tmp_path / "models"
     config.ensure_dirs()
-    service = DatasetService(config.dataset_dir)
+    service = DatasetStore(config.dataset_dir)
     service.set_classes(["kniv", "pistol"])
     for fill in (60, 120):
         service.add_samples([
@@ -511,8 +511,8 @@ def test_trained_models_are_selectable_as_base_model(qapp, tmp_path):
     """En egentränad modell går att vidareträna från träningsvyn (TASK-130)."""
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -535,7 +535,7 @@ def test_trained_models_are_selectable_as_base_model(qapp, tmp_path):
         encoding="utf-8",
     )
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
     keys = [view.model_combo.itemData(row) for row in range(view.model_combo.count())]
 
@@ -548,8 +548,8 @@ def test_a_trained_model_stays_selected_after_a_refresh(qapp, tmp_path):
     """Valet av en egentränad basmodell överlever refresh_models (TASK-130)."""
     from PySide6.QtCore import QSettings
 
-    from xray_detector.application.dataset_service import DatasetService
     from xray_detector.domain.config import AppConfig
+    from xray_detector.infrastructure.dataset_store.store import DatasetStore
     from xray_detector.ui.training_view import TrainingView
 
     config = AppConfig()
@@ -573,7 +573,7 @@ def test_a_trained_model_stays_selected_after_a_refresh(qapp, tmp_path):
     )
     settings = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     settings.setValue("training/base_model", "trained-v3")
-    view = TrainingView(config, DatasetService(config.dataset_dir), settings)
+    view = TrainingView(config, DatasetStore(config.dataset_dir), settings)
 
     view.restore_settings()
     view.refresh_models()

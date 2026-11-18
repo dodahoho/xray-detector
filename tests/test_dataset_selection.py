@@ -4,14 +4,18 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QMessageBox
 
-from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
+from xray_detector.infrastructure.dataset_store.pending import (
+    list_pending,
+    save_pending,
+)
+from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.dataset_view import SELECTED_BORDER, DatasetView
 
 
 @pytest.fixture
-def service(tmp_path) -> DatasetService:
-    svc = DatasetService(tmp_path / "datasets")
+def service(tmp_path) -> DatasetStore:
+    svc = DatasetStore(tmp_path / "datasets")
     svc.add_samples([
         AnnotatedImage(np.full((30, 40, 3), 60, np.uint8),
                        [{"class_name": "kniv", "bbox": [2, 2, 8, 8]}]),
@@ -112,7 +116,7 @@ def test_delete_removes_whole_capture(view, service, monkeypatch):
     view.wait_for_refresh()
 
     assert service.load_dataset()["images"] == []
-    assert not list(service.store.labels_dir.glob("*.txt"))
+    assert not list(service.labels_dir.glob("*.txt"))
     assert view._thumbs == []
     assert not view.delete_button.isEnabled()
 
@@ -152,9 +156,8 @@ def test_delete_without_selection_keeps_dataset(view, service):
 def test_click_selects_whole_pending_capture(qapp, config, tmp_path, settings, monkeypatch):
     from tests.conftest import synthetic_frame
     from xray_detector.domain.capture import StreamFrame
-    from xray_detector.infrastructure.dataset_store.pending import save_pending
 
-    service = DatasetService(tmp_path / "datasets")
+    service = DatasetStore(tmp_path / "datasets")
     save_pending(tmp_path, [
         StreamFrame("left", synthetic_frame(fill=200), [], "kamera-vanster"),
         StreamFrame("right", synthetic_frame(fill=100), [], "kamera-hoger"),
@@ -175,4 +178,4 @@ def test_click_selects_whole_pending_capture(qapp, config, tmp_path, settings, m
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.Yes))
     view._on_delete()
 
-    assert service.pending_captures() == []
+    assert list_pending(service.root.parent) == []
