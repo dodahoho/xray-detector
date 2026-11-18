@@ -294,21 +294,21 @@ def _capture_header(
 
 
 def _thumbnail_pixmap(
-    image: QImage,
+    thumb: QImage,
     annotations: list[dict],
+    source_height: int,
 ) -> QPixmap:
-    """Thumbnail med bildens detektioner inritade (TASK-64).
+    """Tumnageln med bildens detektioner inritade (TASK-64, TASK-149).
 
-    Ritas efter nedskalningen, så ramen blir lika tunn på alla bilder. Skalan
-    är thumbnailens höjd delad med originalbildens, vilket gäller båda axlarna
-    eftersom scaledToHeight behåller bildförhållandet.
+    Bilden är redan nedskalad i arbetstråden. Ritas efter nedskalningen, så
+    ramen blir lika tunn på alla bilder. Skalan är tumnagelns höjd delad med
+    originalbildens, vilket gäller båda axlarna eftersom skalningen behåller
+    bildförhållandet.
     """
-    pixmap = QPixmap.fromImage(image).scaledToHeight(
-        THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
-    )
-    if not annotations or image.height() == 0:
+    pixmap = QPixmap.fromImage(thumb)
+    if not annotations or source_height <= 0:
         return pixmap
-    scale = pixmap.height() / image.height()
+    scale = pixmap.height() / source_height
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     pen = QPen()
@@ -398,6 +398,9 @@ class DatasetView(QWidget):
         self.config = config
         self.dataset_store = dataset
         self.settings = settings
+        # nedskalade tumnaglar per (bild-id, mtime), så en omladdning bara
+        # avkodar bilder som är nya eller ändrade (TASK-149)
+        self._thumb_cache: dict[tuple[int, int], QImage] = {}
         self._thumbs: list[Thumbnail] = []
         self._groups: dict[int, list[Thumbnail]] = {}
         self._group_headers: dict = {}
@@ -513,18 +516,39 @@ class DatasetView(QWidget):
         task.start()
 
     def _load(self) -> dict:
-        """Läser datasetet och dekoder bilderna utan att röra widgets (TASK-40).
+        """Läser datasetet och dekoder tumnaglarna utan att röra widgets (TASK-40, TASK-149).
 
         Bildavkodningen är den dyra delen: mätt 826 av 870 ms för 200 bilder.
-        QImage får skapas utanför GUI-tråden, QPixmap får det inte.
+        Bilderna skalas ner till tumnagelhöjd redan här, så minnet räcker till
+        hela datasetet i stället för att varje bild ligger i full upplösning
+        till en 170 px tumnagel. Cachen nycklas på (bild-id, mtime), så en
+        omladdning efter en sparad annotering bara avkodar nya och ändrade
+        bilder. QImage får skapas utanför GUI-tråden, QPixmap får det inte.
         """
         pending = list_pending(self.config.data_dir)
         dataset = self.dataset_store.load_dataset()
         images_dir = self.dataset_store.images_dir
-        decoded = {
-            image["id"]: QImage(str(images_dir / image["file_name"]))
-            for image in dataset["images"]
-        }
+        decoded: dict[int, QImage] = {}
+        cache: dict[tuple[int, int], QImage] = {}
+        for image in dataset["images"]:
+            path = images_dir / image["file_name"]
+            try:
+                mtime = path.stat().st_mtime_ns
+            except OSError:
+                mtime = 0
+            key = (image["id"], mtime)
+            thumb = self._thumb_cache.get(key)
+            if thumb is None:
+                full = QImage(str(path))
+                if full.isNull():
+                    continue
+                thumb = full.scaledToHeight(
+                    THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
+                )
+            cache[key] = thumb
+            decoded[image["id"]] = thumb
+        # bara bilder som finns kvar i datasetet behåller sin tumnagel
+        self._thumb_cache = cache
         return {"dataset": dataset, "images": decoded, "pending": pending}
 
     def _on_load_failed(self, message: str) -> None:
@@ -921,7 +945,9 @@ class DatasetView(QWidget):
         row.setSpacing(4)
         for image in images:
             annotations = annotations_by_image.get(image["id"], [])
-            pixmap = _thumbnail_pixmap(decoded[image["id"]], annotations)
+            pixmap = _thumbnail_pixmap(
+                decoded[image["id"]], annotations, int(image.get("height") or 0)
+            )
             thumb = Thumbnail(image["id"], key, pixmap)
             thumb.clicked.connect(self._on_thumb_clicked)
             thumb.double_clicked.connect(self._on_thumb_double_clicked)
@@ -979,10 +1005,10 @@ class DatasetView(QWidget):
             row = QHBoxLayout()
             row.setSpacing(4)
             for stream_frame in capture.frames:
-                image = bgr_to_qimage(stream_frame.frame)
-                pixmap = QPixmap.fromImage(image).scaledToHeight(
+                image = bgr_to_qimage(stream_frame.frame).scaledToHeight(
                     THUMB_HEIGHT, Qt.TransformationMode.SmoothTransformation
                 )
+                pixmap = QPixmap.fromImage(image)
                 count = len(stream_frame.detections)
                 thumb = Thumbnail(
                     capture.group_id,
