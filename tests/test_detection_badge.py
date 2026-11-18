@@ -20,8 +20,8 @@ from xray_detector.ui.badge import (
     badge_text,
 )
 from xray_detector.ui.colors import class_color
-from xray_detector.ui.detection_view import StreamPanel, draw_detections
 from xray_detector.ui.settings_dialog import BadgeSection
+from xray_detector.ui.stream_panel import StreamPanel, draw_detections
 
 DISPLAY_WIDTH = 320
 DISPLAY_HEIGHT = 240

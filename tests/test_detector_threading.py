@@ -145,7 +145,7 @@ def test_stream_worker_stops_when_interrupted(qapp, video_file):
 
 def test_qimage_owns_its_pixels(qapp):
     """_to_qimage lämnar en kopia som överlever anropet (TASK-128)."""
-    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.ui.stream_panel import StreamPanel
 
     frame = np.full((8, 8, 3), 200, dtype=np.uint8)
     image = StreamPanel._to_qimage(frame)

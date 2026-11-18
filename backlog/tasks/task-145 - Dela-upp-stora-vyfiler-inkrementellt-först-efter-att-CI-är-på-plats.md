@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:52:00Z'
-updated_date: '2026-11-18T09:17:00Z'
+updated_date: '2026-11-18T09:19:00Z'
 labels:
   - refactor
   - review-followup
@@ -20,9 +20,23 @@ modified_files:
   - xray_detector/ui/flow_layout.py
   - xray_detector/ui/dataset_view.py
   - xray_detector/ui/capture_card.py
+  - xray_detector/ui/stream_panel.py
+  - xray_detector/ui/detection_view.py
   - tests/test_dataset_layout.py
   - tests/test_dataset_card_click.py
   - tests/test_dataset_header.py
+  - tests/test_colors.py
+  - tests/test_detection_badge.py
+  - tests/test_detection_overlay.py
+  - tests/test_detector_threading.py
+  - tests/test_devices.py
+  - tests/test_reconnect.py
+  - tests/test_resources.py
+  - tests/test_sample_video.py
+  - tests/test_stream_worker.py
+  - tests/test_training_pause.py
+  - tests/test_video_file_dialog.py
+  - tests/test_video_modes.py
 priority: medium
 type: enhancement
 ordinal: 2000
@@ -65,4 +79,6 @@ dataset_view.py (1127 rader), detection_view.py (954), annotation_view.py (804) 
 FlowLayout ligger nu i ui/flow_layout.py och importeras av dataset_view.py; de Qt-imports som bara layouten använde är borttagna. dataset_view.py gick från 1171 till 1092 rader och test_dataset_layout.py, test_dataset_thumbnails.py, test_dataset_card_click.py och test_dataset_selection.py passerar.
 
 CaptureCard och Thumbnail ligger nu i ui/capture_card.py tillsammans med THUMB_BORDER, och testerna importerar dem därifrån. dataset_view.py är 1022 rader (från 1171) och hela sviten ger 893 passed, 4 failed; de fyra felen är desamma som på HEAD och beror på att miljön saknar teckensnitt.
+
+StreamPanel, ResourceMeter, draw_detections och panelernas konstanter ligger nu i ui/stream_panel.py; detection_view.py importerar dem och gick från 939 till 514 rader. Testerna importerar panelerna därifrån. Hela sviten ger 893 passed, 4 failed, och de fyra felen är desamma som på HEAD (teckensnitt saknas i miljön).
 <!-- SECTION:NOTES:END -->

@@ -138,7 +138,7 @@ def test_video_mode_roundtrip_per_panel(settings):
 
 @pytest.fixture
 def panel(qapp, settings, raw_formats):
-    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.ui.stream_panel import StreamPanel
 
     panel = StreamPanel("left", [DeviceInfo(0, "USB Video")], settings)
     emitted = []
@@ -195,7 +195,7 @@ def test_panel_emits_mode_with_source_request(panel):
 
 
 def test_panel_saves_and_restores_mode(qapp, settings, raw_formats):
-    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.ui.stream_panel import StreamPanel
 
     save_video_mode(settings, "left", VideoMode(1280, 720, "MJPG"))
     panel = StreamPanel("left", [DeviceInfo(0, "USB Video")], settings)

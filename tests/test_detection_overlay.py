@@ -6,7 +6,7 @@ from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.detection import Detection
 from xray_detector.ui.colors import class_color
-from xray_detector.ui.detection_view import StreamPanel
+from xray_detector.ui.stream_panel import StreamPanel
 
 
 def _colors(pixmap) -> set[str]:

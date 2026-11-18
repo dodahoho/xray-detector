@@ -5,7 +5,8 @@ from PySide6.QtCore import QSettings
 
 from xray_detector.domain.config import AppConfig
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
-from xray_detector.ui.detection_view import DetectionView, ResourceMeter, _format_bytes
+from xray_detector.ui.detection_view import DetectionView, _format_bytes
+from xray_detector.ui.stream_panel import ResourceMeter
 
 
 @pytest.fixture

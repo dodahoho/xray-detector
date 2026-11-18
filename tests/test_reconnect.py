@@ -2,7 +2,7 @@
 
 import pytest
 
-from xray_detector.ui.detection_view import StreamPanel
+from xray_detector.ui.stream_panel import StreamPanel
 
 
 @pytest.fixture

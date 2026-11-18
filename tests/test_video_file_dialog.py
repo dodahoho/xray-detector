@@ -5,7 +5,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QFileDialog
 
 from xray_detector.domain.config import PROJECT_ROOT
-from xray_detector.ui.detection_view import StreamPanel
+from xray_detector.ui.stream_panel import StreamPanel
 from xray_detector.ui.video_file_dialog import (
     DEFAULT_DIR,
     DIR_KEY,

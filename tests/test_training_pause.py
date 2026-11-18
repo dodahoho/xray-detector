@@ -8,7 +8,8 @@ from PySide6.QtCore import QSettings
 from tests.conftest import FakeDetector
 from xray_detector.domain.config import AppConfig
 from xray_detector.infrastructure.video.source import FileSource, UvcSource
-from xray_detector.ui.detection_view import S_PAUSED, DetectionView
+from xray_detector.ui.detection_view import DetectionView
+from xray_detector.ui.stream_panel import S_PAUSED
 
 
 @pytest.fixture

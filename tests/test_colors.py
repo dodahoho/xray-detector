@@ -88,7 +88,7 @@ def test_no_css_colors_are_hardcoded_outside_colors_py():
 
 def test_the_detection_display_follows_the_theme(qapp):
     """Videoytans bakgrund kommer ur paletten, inte ur en mörk konstant (TASK-144)."""
-    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.ui.stream_panel import StreamPanel
 
     panel = StreamPanel("left")
 

@@ -106,7 +106,7 @@ def test_stream_frame_defaults_backward_compatible():
 def test_panel_title_shows_only_fps(qapp):
     from tests.conftest import synthetic_frame
     from xray_detector.domain.capture import StreamFrame
-    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.ui.stream_panel import StreamPanel
 
     panel = StreamPanel("left")
     panel._show_no_source()

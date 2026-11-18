@@ -93,7 +93,7 @@ def test_stream_worker_with_real_video(qapp, fake_detector):
 def test_gui_panel_selects_sample_video(qapp, monkeypatch):
     from PySide6.QtWidgets import QFileDialog
 
-    from xray_detector.ui.detection_view import StreamPanel
+    from xray_detector.ui.stream_panel import StreamPanel
 
     paths = {"call": 0}
 
