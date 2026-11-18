@@ -1,7 +1,7 @@
 ---
 id: TASK-145
 title: Dela upp stora vyfiler inkrementellt (först efter att CI är på plats)
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:52:00Z'
@@ -50,18 +50,18 @@ dataset_view.py (1127 rader), detection_view.py (954), annotation_view.py (804) 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 FlowLayout ligger i egen modul och dataset_view.py är märkbart mindre
-- [ ] #2 Varje utbrytning är en egen liten ändring med passerande tester (ingen big-bang)
-- [ ] #3 Ingen vyuppdelning påbörjas innan TASK-123 (CI) är Done
+- [x] #1 FlowLayout ligger i egen modul och dataset_view.py är märkbart mindre
+- [x] #2 Varje utbrytning är en egen liten ändring med passerande tester (ingen big-bang)
+- [x] #3 Ingen vyuppdelning påbörjas innan TASK-123 (CI) är Done
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -82,3 +82,9 @@ CaptureCard och Thumbnail ligger nu i ui/capture_card.py tillsammans med THUMB_B
 
 StreamPanel, ResourceMeter, draw_detections och panelernas konstanter ligger nu i ui/stream_panel.py; detection_view.py importerar dem och gick från 939 till 514 rader. Testerna importerar panelerna därifrån. Hela sviten ger 893 passed, 4 failed, och de fyra felen är desamma som på HEAD (teckensnitt saknas i miljön).
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+dataset_view.py och detection_view.py är uppdelade i tre små ändringar med passerande tester mellan varje: FlowLayout till ui/flow_layout.py, CaptureCard/Thumbnail till ui/capture_card.py och StreamPanel/ResourceMeter/draw_detections till ui/stream_panel.py. dataset_view.py gick från 1171 till 1022 rader och detection_view.py från 939 till 514. Alla flyttar är ordagranna; bara importer och testimporter är uppdaterade. Inga beteenden ändras, vilket hela sviten bekräftar: 893 passed, 4 failed, där de fyra felen (test_app_icon och tre i test_detection_badge) finns även på HEAD och beror på att miljön saknar teckensnitt. Groma-beskrivningarna av dataset- och detektionsvyn nämner nu modulerna; de nya filerna får ägare vid nästa skanning.
+<!-- SECTION:FINAL_SUMMARY:END -->

@@ -12,7 +12,7 @@ groma:
 description: Visar två live-strömmar med detektionsoverlay och fångar bildpar.
 ---
 
-Två StreamPanel med egen källväljare (UVC-enhet eller videofil), upplösning och pixelformat, plus en rad med modellväljare, konfidenströskel, enhetslabel, resursmätare för CPU, RAM och VRAM samt av/på-knapp för detektionen. Panelerna ritar detektionsoverlayn med klassfärg och klassmärken. Modellen laddas i en bakgrundsuppgift och enhetskontrollen körs separat eftersom CUDA-initieringen tar cirka en sekund. Fånga skickar bildparet vidare till annoteringsvyn via MainWindow, och träningsstarten pausar strömmarna.
+Två StreamPanel med egen källväljare (UVC-enhet eller videofil), upplösning och pixelformat, plus en rad med modellväljare, konfidenströskel, enhetslabel, resursmätare för CPU, RAM och VRAM samt av/på-knapp för detektionen. Panelerna ritar detektionsoverlayn med klassfärg och klassmärken. Modellen laddas i en bakgrundsuppgift och enhetskontrollen körs separat eftersom CUDA-initieringen tar cirka en sekund. Fånga skickar bildparet vidare till annoteringsvyn via MainWindow, och träningsstarten pausar strömmarna. Panelerna, resursmätaren och overlayritningen ligger i ui/stream_panel.py, som vyn importerar (TASK-145).
 
 ## Relationships
 
