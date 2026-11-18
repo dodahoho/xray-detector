@@ -123,6 +123,8 @@ class TrainingHistoryView(QWidget):
         )
         self.table.itemSelectionChanged.connect(self._on_selection_changed)
         self.table.itemChanged.connect(self._on_item_changed)
+        # hela kryssrutecellen markerar raden, inte bara själva rutan (TASK-157)
+        self.table.cellClicked.connect(self._on_cell_clicked)
         # kolumnbredderna följer den yta tabellen faktiskt har (TASK-157)
         self.table.viewport().installEventFilter(self)
         layout.addWidget(self.table, 1)
@@ -168,7 +170,9 @@ class TrainingHistoryView(QWidget):
         self.table.setRowCount(len(self.runs))
         for row, run in enumerate(self.runs):
             check = QTableWidgetItem()
-            check.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+            # Qt får inte sköta kryssrutan själv: hela cellen ska markera
+            # raden, och då hade ett klick på själva rutan slagit om två gånger
+            check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             check.setCheckState(
                 Qt.CheckState.Checked
                 if run.run_id in checked
@@ -203,19 +207,21 @@ class TrainingHistoryView(QWidget):
         blev över, så tabellen blev bred med tomma kolumner till höger
         (TASK-157). Nu får varje kolumn lika stor del av det som blir över,
         och när innehållet inte ryms behåller kolumnerna sin bredd och
-        tabellen rullar i sidled i stället.
+        tabellen rullar i sidled i stället. Kryssrutans kolumn håller sig till
+        kryssrutans bredd och tar ingen del av överskottet.
         """
         header = self.table.horizontalHeader()
         self.table.resizeColumnsToContents()
         columns = header.count()
-        if not columns:
+        stretchable = columns - CHECK_COLUMN - 1
+        if stretchable <= 0:
             return
         available = self.table.viewport().width()
         used = sum(header.sectionSize(column) for column in range(columns))
-        share = (available - used) // columns
+        share = (available - used) // stretchable
         if share <= 0:
             return
-        for column in range(columns):
+        for column in range(CHECK_COLUMN + 1, columns):
             header.resizeSection(column, header.sectionSize(column) + share)
 
     def eventFilter(self, obj, event) -> bool:
@@ -244,6 +250,22 @@ class TrainingHistoryView(QWidget):
         """En kryssruta ändrades, så knappen och 'Markera alla' följer med."""
         if item.column() == CHECK_COLUMN:
             self._update_check_state()
+
+    def _on_cell_clicked(self, row: int, column: int) -> None:
+        """Ett klick var som helst i kryssrutans cell slår om kryssrutan (TASK-157).
+
+        Qt slår bara om rutan när klicket träffar själva indikatorn, så ett
+        klick på cellens bakgrund markerade raden utan att rutan ändrades.
+        """
+        if column != CHECK_COLUMN:
+            return
+        item = self.table.item(row, CHECK_COLUMN)
+        if item is None:
+            return
+        checked = item.checkState() == Qt.CheckState.Checked
+        item.setCheckState(
+            Qt.CheckState.Unchecked if checked else Qt.CheckState.Checked
+        )
 
     def set_training_active(self, active: bool) -> None:
         """En pågående träning stänger av jämförelsen, så GPU:n inte delas (TASK-158)."""

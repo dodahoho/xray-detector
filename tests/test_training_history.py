@@ -437,6 +437,72 @@ def test_wait_for_evaluation_waits_for_the_open_dialog(qapp, tmp_path):
     assert waited == [1234]
 
 
+def test_a_click_anywhere_in_the_check_cell_toggles_it(qapp, tmp_path):
+    """Hela cellen slår om kryssrutan, inte bara själva rutan (TASK-157)."""
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.resize(900, 300)
+    view.show()
+    qapp.processEvents()
+    cell = view.table.visualRect(view.table.model().index(0, CHECK_COLUMN))
+    # klicket hamnar till höger i cellen, utanför själva kryssrutan
+    point = QPoint(cell.right() - 2, cell.center().y())
+
+    QTest.mouseClick(view.table.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    qapp.processEvents()
+
+    assert view.table.item(0, CHECK_COLUMN).checkState() == Qt.CheckState.Checked
+    # cellen väljer också raden, så raden under tabellen följer med
+    assert view.selected_run().run_id == "korning"
+
+    QTest.mouseClick(view.table.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    qapp.processEvents()
+
+    assert view.table.item(0, CHECK_COLUMN).checkState() == Qt.CheckState.Unchecked
+
+
+def test_a_click_outside_the_check_column_does_not_toggle(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.resize(900, 300)
+    view.show()
+    qapp.processEvents()
+    cell = view.table.visualRect(view.table.model().index(0, CHECK_COLUMN + 1))
+
+    QTest.mouseClick(view.table.viewport(), Qt.MouseButton.LeftButton, pos=cell.center())
+    qapp.processEvents()
+
+    assert view.table.item(0, CHECK_COLUMN).checkState() == Qt.CheckState.Unchecked
+
+
+def test_the_check_column_keeps_the_checkbox_width(qapp, tmp_path):
+    """Kryssrutans kolumn tar ingen del av överskottsbredden (TASK-157)."""
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.resize(1400, 300)
+    view.show()
+    qapp.processEvents()
+    header = view.table.horizontalHeader()
+    distributed = header.sectionSize(CHECK_COLUMN)
+
+    view.table.resizeColumnsToContents()
+
+    assert distributed == header.sectionSize(CHECK_COLUMN)
+    assert distributed < header.sectionSize(CHECK_COLUMN + 1)
+
+
 def test_export_button_is_disabled_without_a_selection(qapp, tmp_path):
     _write_run(tmp_path, "korning")
 
