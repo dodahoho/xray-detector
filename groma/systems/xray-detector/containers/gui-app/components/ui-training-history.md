@@ -8,4 +8,7 @@ groma:
   code:
     - scanner: python
       file: xray_detector/ui/training_history.py
+description: Listar tidigare träningar med export och utvärdering.
 ---
+
+Tabell med en rad per körning ur models/trained/: körning, basmodell, epoker, tidsåtgång, mAP50-95 och status, nyast först. Raden under listan visar vald körnings parametrar och domen. Knapparna Exportera modell, Ta bort träning och Utvärdera arbetar på det valda objektet; utvärderingen körs i en bakgrundsuppgift.

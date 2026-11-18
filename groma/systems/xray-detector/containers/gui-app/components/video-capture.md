@@ -7,10 +7,6 @@ groma:
   parent: gui-app
   code:
     - scanner: python
-      file: xray_detector/capture/camera_service.py
-    - scanner: python
-      file: xray_detector/capture/source.py
-    - scanner: python
       file: xray_detector/infrastructure/video/camera_service.py
     - scanner: python
       file: xray_detector/infrastructure/video/source.py
@@ -33,3 +29,7 @@ CameraService håller en StreamWorker (QThread) per källa ("left"/"right"). Var
 | --- | --- | --- | --- |
 | [xray_detector/capture/camera_service.py](../../../../../../xray_detector/capture/camera_service.py) | [xray_detector/detection/base.py](../../../../../../xray_detector/detection/base.py) | Kör detektor per ram | injicerat anrop |
 | [xray_detector/capture/source.py](../../../../../../xray_detector/capture/source.py) | [uvc-kameror](../../../../../externals/uvc-kameror.md) | Fångar ramar | OpenCV VideoCapture (DSHOW) |
+| [xray_detector/infrastructure/video/camera_service.py](../../../../../../xray_detector/infrastructure/video/camera_service.py) | [xray_detector/infrastructure/detectors/base.py](../../../../../../xray_detector/infrastructure/detectors/base.py) | Kör detektor per ram | injicerat anrop |
+| [xray_detector/infrastructure/video/camera_service.py](../../../../../../xray_detector/infrastructure/video/camera_service.py) | [xray_detector/infrastructure/video/source.py](../../../../../../xray_detector/infrastructure/video/source.py) | Läser ramar ur källan | direkt anrop |
+| [xray_detector/infrastructure/video/camera_service.py](../../../../../../xray_detector/infrastructure/video/camera_service.py) | [xray_detector/infrastructure/detectors/smoothing.py](../../../../../../xray_detector/infrastructure/detectors/smoothing.py) | Jämnar ut detektioner | direkt anrop |
+| [xray_detector/infrastructure/video/source.py](../../../../../../xray_detector/infrastructure/video/source.py) | [uvc-kameror](../../../../../externals/uvc-kameror.md) | Fångar ramar | OpenCV VideoCapture (DSHOW) |

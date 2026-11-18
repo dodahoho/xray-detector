@@ -7,8 +7,6 @@ groma:
   parent: gui-app
   code:
     - scanner: python
-      file: xray_detector/training/trainer.py
-    - scanner: python
       file: xray_detector/infrastructure/training/trainer.py
     - scanner: python
       file: xray_detector/infrastructure/training/__init__.py

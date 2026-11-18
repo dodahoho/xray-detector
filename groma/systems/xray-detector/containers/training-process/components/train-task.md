@@ -7,9 +7,6 @@ groma:
   parent: training-process
   code:
     - scanner: python
-      file: xray_detector/training/train_task.py
-      symbol: main
-    - scanner: python
       file: xray_detector/infrastructure/training/train_task.py
       symbol: main
 description: Tränar YOLO- eller RF-DETR-modellen i egen process.
@@ -23,3 +20,5 @@ Argparse-CLI som körs som modul: väljer familj med --family (yolo eller rfdetr
 | --- | --- | --- | --- |
 | [xray_detector/training/train_task.py](../../../../../../xray_detector/training/train_task.py) | [xray_detector/detection/yolo_detector.py](../../../../../../xray_detector/detection/yolo_detector.py) | Återanvänder enhetsval | import |
 | [xray_detector/training/train_task.py](../../../../../../xray_detector/training/train_task.py) | [ultralytics-yolo](../../../../../externals/ultralytics-yolo.md) | Tränar YOLO-modell | YOLO.train |
+| [xray_detector/infrastructure/training/train_task.py](../../../../../../xray_detector/infrastructure/training/train_task.py) | [ultralytics-yolo](../../../../../externals/ultralytics-yolo.md) | Tränar YOLO-modell | YOLO.train |
+| [xray_detector/infrastructure/training/train_task.py](../../../../../../xray_detector/infrastructure/training/train_task.py) | [rf-detr](../../../../../externals/rf-detr.md) | Tränar RF-DETR-modell | model.train |

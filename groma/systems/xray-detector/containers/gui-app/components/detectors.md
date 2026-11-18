@@ -7,14 +7,6 @@ groma:
   parent: gui-app
   code:
     - scanner: python
-      file: xray_detector/detection/registry.py
-    - scanner: python
-      file: xray_detector/detection/base.py
-    - scanner: python
-      file: xray_detector/detection/yolo_detector.py
-    - scanner: python
-      file: xray_detector/detection/rfdetr_detector.py
-    - scanner: python
       file: xray_detector/infrastructure/detectors/base.py
     - scanner: python
       file: xray_detector/infrastructure/detectors/yolo_detector.py
@@ -35,3 +27,5 @@ Infrastructure-lager för detektion: BaseDetector-ABC är det gemensamma kontrak
 | --- | --- | --- | --- |
 | [xray_detector/detection/yolo_detector.py](../../../../../../xray_detector/detection/yolo_detector.py) | [ultralytics-yolo](../../../../../externals/ultralytics-yolo.md) | Kör YOLO-modell | YOLO.predict |
 | [xray_detector/detection/rfdetr_detector.py](../../../../../../xray_detector/detection/rfdetr_detector.py) | [rf-detr](../../../../../externals/rf-detr.md) | Kör RF-DETR-modell | RFDETRBase.predict |
+| [xray_detector/infrastructure/detectors/yolo_detector.py](../../../../../../xray_detector/infrastructure/detectors/yolo_detector.py) | [ultralytics-yolo](../../../../../externals/ultralytics-yolo.md) | Kör YOLO-modell | YOLO.predict |
+| [xray_detector/infrastructure/detectors/rfdetr_detector.py](../../../../../../xray_detector/infrastructure/detectors/rfdetr_detector.py) | [rf-detr](../../../../../externals/rf-detr.md) | Kör RF-DETR-modell | RFDETRBase.predict |
