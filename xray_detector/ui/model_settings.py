@@ -1,4 +1,4 @@
-"""Modellistan i de globala inställningarna (TASK-81, TASK-115).
+"""Modellistan i detektionsvyns modelldialog (TASK-81, TASK-115, TASK-156).
 
 Sektionen listar modellerna som väljarna i detektionsvyn bygger sina listor ur,
 och låter användaren lägga till en viktfil från disk eller en adress, byta

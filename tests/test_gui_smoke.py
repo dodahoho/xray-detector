@@ -92,16 +92,14 @@ def test_gui_capture_without_annotation_writes_nothing(qapp, app_config):
     assert list_pending(service.root.parent) == []
 
 
-def test_settings_and_theme_survive_restart(qapp, app_config, tmp_path):
+def test_theme_survives_restart(qapp, app_config, tmp_path):
     settings = QSettings(str(app_config.data_dir / "settings.ini"), QSettings.Format.IniFormat)
     settings.setValue("ui/theme", "dark")
     settings.sync()
 
     window = MainWindow(app_config)
-    assert window.tabs.tabText(4) == "Instä&llningar"
     assert current_theme() == "dark"
-    combo = window.settings_view.theme_section.theme_combo
-    assert combo.currentData() == "dark"
+    assert window.detection_view.theme_toggle.toolTip() == "Byt till ljust tema"
     window.closeEvent(_close_event())
 
 

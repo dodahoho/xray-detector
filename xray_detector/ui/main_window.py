@@ -18,7 +18,6 @@ from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.annotation_view import AnnotationView
 from xray_detector.ui.dataset_view import DatasetView
 from xray_detector.ui.detection_view import DetectionView
-from xray_detector.ui.settings_view import SettingsView
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.theme import apply_theme
 from xray_detector.ui.training_view import TrainingView
@@ -55,16 +54,12 @@ class MainWindow(QMainWindow):
         )
         self.dataset_view = DatasetView(config, self.dataset_store, self.settings)
         self.training_view = TrainingView(config, self.dataset_store, self.settings)
-        self.settings_view = SettingsView(
-            config, self.settings, active_run_dir=self.training_view.active_run_dir
-        )
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self.detection_view, mnemonic("Detektion", "D"))
         self.tabs.addTab(self.annotation_view, mnemonic("Annotation", "A"))
         self.tabs.addTab(self.dataset_view, mnemonic("Dataset", "S"))
         self.tabs.addTab(self.training_view, mnemonic("Träning", "T"))
-        self.tabs.addTab(self.settings_view, mnemonic("Inställningar", "L"))
         self.tabs.setTabEnabled(self._annotation_tab, False)
         self._tab_guard = False
         # fliken annoteringen öppnades från, dit Spara och Avbryt återgår (TASK-60)
@@ -85,14 +80,15 @@ class MainWindow(QMainWindow):
         self.dataset_view.open_annotation_requested.connect(self._on_open_from_dataset)
         self.dataset_view.status_changed.connect(self._show_status)
         # en ändrad modellista slår igenom i båda modellväljarna (TASK-81)
-        self.settings_view.models_changed.connect(self.detection_view.refresh_models)
-        self.settings_view.models_changed.connect(self.training_view.refresh_models)
+        self.detection_view.models_changed.connect(self.training_view.refresh_models)
         # en borttagen träning försvinner ur väljarna och modellistan (TASK-119)
-        self.settings_view.models_changed.connect(self.training_view.history.refresh)
+        self.detection_view.models_changed.connect(self.training_view.history.refresh)
         self.training_view.models_changed.connect(self.detection_view.refresh_models)
         self.training_view.models_changed.connect(
-            self.settings_view.model_section.refresh
+            self.detection_view.model_section.refresh
         )
+        # modelldialogen skyddar en pågående träning (TASK-129, TASK-156)
+        self.detection_view.set_active_run_dir(self.training_view.active_run_dir)
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)
@@ -289,6 +285,6 @@ class MainWindow(QMainWindow):
         self.dataset_view.wait_for_export()
         self.dataset_view.wait_for_variations()
         self.training_view.history.wait_for_evaluation()
-        self.settings_view.model_section.wait_for_download()
+        self.detection_view.model_section.wait_for_download()
         self.detection_view.stop()
         super().closeEvent(event)

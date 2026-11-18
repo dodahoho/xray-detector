@@ -34,7 +34,6 @@ def test_every_button_in_every_view_has_the_standard_height(window):
         window.annotation_view,
         window.dataset_view,
         window.training_view,
-        window.settings_view,
     )
     for view in views:
         for widget in view.findChildren(QPushButton):

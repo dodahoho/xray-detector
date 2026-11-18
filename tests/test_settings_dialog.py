@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QDialog, QDialogButtonBox
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.main_window import MainWindow
+from xray_detector.ui.model_settings import ModelSection
 from xray_detector.ui.settings_dialog import (
     SORT_KEY,
     SORT_NEWEST,
@@ -19,7 +20,6 @@ from xray_detector.ui.settings_dialog import (
     ClassFilterSection,
     DatasetSortSection,
     SettingsDialog,
-    ThemeSection,
     TrainingScheduleSection,
     settings_button,
     train_ratio,
@@ -66,20 +66,14 @@ def _opened_dialog(monkeypatch, button) -> SettingsDialog:
     return opened[0]
 
 
-def test_settings_tab_holds_the_global_theme(window):
-    assert window.tabs.count() == 5
-    assert window.tabs.tabText(4) == "Instä&llningar"
-    assert window.tabs.widget(4) is window.settings_view
-    assert isinstance(window.settings_view.theme_section, ThemeSection)
-
-
-def test_tab_row_has_five_tabs(window):
-    assert [window.tabs.tabText(index) for index in range(5)] == [
+def test_tab_row_has_four_tabs(window):
+    """Inställningsfliken är borta; temat och modellerna bor i vyerna (TASK-156)."""
+    assert window.tabs.count() == 4
+    assert [window.tabs.tabText(index) for index in range(4)] == [
         "&Detektion",
         "&Annotation",
         "Data&set",
         "&Träning",
-        "Instä&llningar",
     ]
 
 
@@ -91,11 +85,12 @@ def test_every_view_has_a_settings_button_with_a_gear(window):
         assert button.shortcut().toString() == "Alt+I"
 
 
-def test_settings_button_sits_top_right_in_every_view(window):
+def test_settings_button_sits_top_right_with_the_theme_toggle_last(window):
     for name in VIEWS:
         view = getattr(window, name)
         row = _top_row(view)
-        assert row.itemAt(row.count() - 1).widget() is view.settings_button, name
+        assert row.itemAt(row.count() - 1).widget() is view.theme_toggle, name
+        assert row.itemAt(row.count() - 2).widget() is view.settings_button, name
 
 
 def test_view_without_own_settings_keeps_a_disabled_button(window):
@@ -112,7 +107,6 @@ def test_dataset_settings_open_the_sort_order(qapp, window, monkeypatch):
 
     assert dialog.windowTitle() == "Inställningar – Dataset"
     assert dialog.findChild(DatasetSortSection) is not None
-    assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
 
 
 def test_dataset_sort_order_is_read_and_written(qapp, settings):
@@ -130,7 +124,6 @@ def test_detection_settings_open_the_class_filter(qapp, window, monkeypatch):
 
     assert dialog.windowTitle() == "Inställningar – Detektion"
     assert dialog.findChild(ClassFilterSection) is not None
-    assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
 
 
 def test_training_settings_open_the_schedule(qapp, window, monkeypatch):
@@ -138,7 +131,6 @@ def test_training_settings_open_the_schedule(qapp, window, monkeypatch):
 
     assert dialog.windowTitle() == "Inställningar – Träning"
     assert dialog.findChild(TrainingScheduleSection) is not None
-    assert dialog.findChild(ThemeSection) is None, "temat hör till inställningsfliken"
 
 
 def test_training_settings_only_open_the_schedule(qapp, window, monkeypatch):
@@ -346,14 +338,32 @@ def test_migration_keeps_an_already_saved_clock(qapp, config):
     window.close()
 
 
-def test_theme_is_changed_from_the_settings_tab(qapp, window):
-    combo = window.settings_view.theme_section.theme_combo
-    assert combo.currentData() == current_theme()
+def test_theme_toggle_switches_between_light_and_dark(qapp, window):
+    toggle = window.detection_view.theme_toggle
+    apply_theme(qapp, "light")
+    toggle.refresh()
+    assert toggle.toolTip() == "Byt till mörkt tema"
 
-    combo.setCurrentIndex(combo.findData("dark"))
+    toggle.click()
 
     assert window.settings.value("ui/theme") == "dark"
     assert current_theme() == "dark"
+    assert toggle.toolTip() == "Byt till ljust tema"
+    # alla vyer följer med, så ikonen visar rätt i varje flik
+    assert window.dataset_view.theme_toggle.toolTip() == "Byt till ljust tema"
+
+    toggle.click()
+
+    assert window.settings.value("ui/theme") == "light"
+    assert current_theme() == "light"
+    assert toggle.toolTip() == "Byt till mörkt tema"
+
+
+def test_manage_models_opens_the_model_dialog(qapp, window, monkeypatch):
+    dialog = _opened_dialog(monkeypatch, window.detection_view.manage_models_button)
+
+    assert dialog.windowTitle() == "Hantera modeller"
+    assert dialog.findChild(ModelSection) is window.detection_view.model_section
 
 
 def test_dialog_closes_without_changing_anything(qapp, settings):

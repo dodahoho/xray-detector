@@ -240,7 +240,7 @@ def test_close_waits_for_the_evaluation_and_the_download(qapp, tmp_path, monkeyp
         lambda *a, **k: waited.append("evaluation"),
     )
     monkeypatch.setattr(
-        window.settings_view.model_section,
+        window.detection_view.model_section,
         "wait_for_download",
         lambda *a, **k: waited.append("download"),
     )

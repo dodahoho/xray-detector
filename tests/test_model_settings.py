@@ -1,4 +1,4 @@
-"""Modellsektionen i de globala inställningarna (TASK-81, TASK-115)."""
+"""Modellsektionen i modelldialogen (TASK-81, TASK-115, TASK-156)."""
 
 import json
 import urllib.request
@@ -114,8 +114,8 @@ def _answer(monkeypatch, text: str) -> None:
 # --- Listan (AC 2) ---
 
 
-def test_settings_tab_lists_the_models(window):
-    section = window.settings_view.model_section
+def test_model_section_lists_the_models(window):
+    section = window.detection_view.model_section
 
     assert section.list.count() == len(MODEL_SPECS)
     assert section.list.item(0).text() == MODEL_SPECS[0].label
@@ -219,7 +219,7 @@ def test_changed_list_updates_both_model_combos(window, tmp_path, monkeypatch):
     source = tmp_path / "min-modell.pt"
     source.write_bytes(b"vikter")
     _choose_file(monkeypatch, source)
-    section = window.settings_view.model_section
+    section = window.detection_view.model_section
 
     section.add_file_button.click()
     section.wait_for_download()
@@ -233,7 +233,7 @@ def test_changed_list_updates_both_model_combos(window, tmp_path, monkeypatch):
 
 
 def test_removed_model_leaves_both_model_combos(window):
-    section = window.settings_view.model_section
+    section = window.detection_view.model_section
     section.list.setCurrentRow(0)
     removed = section.current_key()
 
@@ -288,7 +288,7 @@ def test_removing_a_base_model_keeps_the_trained_models(qapp, trained_config):
 
 def test_settings_list_and_detection_combo_show_the_same_models(trained_window):
     """Samma lista överallt: väljaren och inställningarna visar samma modeller."""
-    section = trained_window.settings_view.model_section
+    section = trained_window.detection_view.model_section
     combo = trained_window.detection_view.model_combo
 
     assert _keys(section) == [combo.itemData(row) for row in range(combo.count())]
@@ -352,7 +352,7 @@ def test_cancelling_the_warning_keeps_the_trained_model(
 def test_removing_a_trained_model_updates_the_history_list(
     trained_window, monkeypatch
 ):
-    section = trained_window.settings_view.model_section
+    section = trained_window.detection_view.model_section
     section.list.setCurrentRow(section.list.count() - 1)
     _answer_warning(monkeypatch, QMessageBox.StandardButton.Ok)
 
@@ -367,13 +367,13 @@ def test_deleting_a_run_in_the_training_view_updates_the_model_lists(trained_win
 
     assert history.delete_selected() is True
 
-    section = trained_window.settings_view.model_section
+    section = trained_window.detection_view.model_section
     combo = trained_window.detection_view.model_combo
     assert "trained-v3" not in _keys(section)
     assert "trained-v3" not in [combo.itemData(row) for row in range(combo.count())]
 
 
-def test_running_training_cannot_be_removed_from_the_settings_tab(
+def test_running_training_cannot_be_removed_from_the_model_dialog(
     qapp, trained_config, monkeypatch
 ):
     """En pågående träning skyddas även i modellistan (TASK-129)."""

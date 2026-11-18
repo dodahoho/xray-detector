@@ -59,6 +59,7 @@ from xray_detector.ui.shortcuts import (
     with_hint,
 )
 from xray_detector.ui.style import button
+from xray_detector.ui.theme_toggle import ThemeToggle
 from xray_detector.ui.variation_dialog import VariationDialog
 
 THUMB_HEIGHT = 170
@@ -297,6 +298,8 @@ class DatasetView(QWidget):
             self, "Inställningar – Dataset", self._settings_sections
         )
         bar.addWidget(self.settings_button)
+        self.theme_toggle = ThemeToggle(self.settings)
+        bar.addWidget(self.theme_toggle)
         layout.addLayout(bar)
 
         filters = QHBoxLayout()

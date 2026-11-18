@@ -31,6 +31,7 @@ from xray_detector.ui.shortcuts import (
     with_hint,
 )
 from xray_detector.ui.style import ICON_BUTTON_WIDTH, button
+from xray_detector.ui.theme_toggle import ThemeToggle
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
@@ -489,6 +490,8 @@ class AnnotationView(QWidget):
         bar.addWidget(self.cancel_button)
         self.settings_button = settings_button(self, "Inställningar – Annotation")
         bar.addWidget(self.settings_button)
+        self.theme_toggle = ThemeToggle(self.settings)
+        bar.addWidget(self.theme_toggle)
         layout.addLayout(bar)
         panels = QHBoxLayout()
         self.canvases: list[AnnotationCanvas] = [AnnotationCanvas("Bild 1"), AnnotationCanvas("Bild 2")]

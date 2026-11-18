@@ -1,8 +1,8 @@
 """Inställningsdelar (TASK-43).
 
-Sektionerna som bygger inställningsfliken och vyernas dialoger, dialogen och
-knappen som öppnar den. Applikationens globala inställningar ligger i
-settings_view.py, som komponerar ThemeSection härifrån.
+Sektionerna som bygger vyernas inställningsdialoger, dialogen och knappen som
+öppnar den. Temat växlas med ThemeToggle i varje vys överkant (TASK-156), och
+modellistan öppnas från detektionsvyns Hantera modeller-knapp.
 """
 
 from datetime import time
@@ -10,7 +10,6 @@ from datetime import time
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -44,7 +43,6 @@ from xray_detector.ui.badge import (
 from xray_detector.ui.colors import ERROR_COLOR, GEAR_COLOR, MUTED_TEXT
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import FormCard, apply_metrics, button
-from xray_detector.ui.theme import THEMES, apply_theme, current_theme
 
 SORT_KEY = "dataset/sort_order"
 SORT_NEWEST = "newest"
@@ -71,28 +69,6 @@ def train_ratio(settings) -> float:
     """
     percent = settings.value(TRAIN_RATIO_KEY, TRAIN_RATIO_DEFAULT, type=int)
     return max(1, min(99, int(percent))) / 100.0
-
-
-class ThemeSection(FormCard):
-    """Temaval; gäller hela appen och visas i inställningsfliken."""
-
-    def __init__(self, settings, parent=None) -> None:
-        super().__init__("Utseende", parent)
-        self.settings = settings
-        form = self.form
-        self.theme_combo = QComboBox()
-        for key, label in THEMES.items():
-            self.theme_combo.addItem(label, key)
-        index = self.theme_combo.findData(current_theme())
-        if index >= 0:
-            self.theme_combo.setCurrentIndex(index)
-        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
-        form.addRow(QLabel("Tema:"), self.theme_combo)
-
-    def _on_theme_changed(self) -> None:
-        theme = self.theme_combo.currentData()
-        self.settings.setValue("ui/theme", theme)
-        apply_theme(QApplication.instance(), theme)
 
 
 class TrainingScheduleSection(FormCard):

@@ -13,7 +13,7 @@ from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.model_settings import ModelSection
 from xray_detector.ui.settings_dialog import (
     DatasetSortSection,
-    ThemeSection,
+    SettingsDialog,
     TrainingScheduleSection,
 )
 from xray_detector.ui.style import FORM_MAX_WIDTH, LIST_MAX_WIDTH, FormCard
@@ -65,7 +65,6 @@ def test_form_card_has_a_form_and_a_max_width(qapp):
 
 def test_settings_sections_share_the_form_width(qapp, settings):
     for section in (
-        ThemeSection(settings),
         TrainingScheduleSection(settings),
         DatasetSortSection(settings),
     ):
@@ -151,22 +150,17 @@ def test_dataset_card_sits_right_of_the_training_settings(qapp, window):
     assert dataset_card.width() <= FORM_MAX_WIDTH
 
 
-# --- Globala inställningar (AC 3, 4) ---
+# --- Modelldialogen (AC 3, 4) ---
 
 
-def test_theme_combo_stays_narrow_on_a_wide_window(qapp, window):
-    _shown_wide(qapp, window, window.settings_view)
-
-    combo = window.settings_view.theme_section.theme_combo
-
-    assert combo.width() <= FORM_MAX_WIDTH
-    assert combo.width() < window.settings_view.width(), "dropdownen fyller inte vyn"
-
-
-def test_model_list_stays_narrow_on_a_wide_window(qapp, window):
-    _shown_wide(qapp, window, window.settings_view)
-
-    section = window.settings_view.model_section
+def test_model_list_stays_narrow_in_the_dialog(qapp, config):
+    """Listan har en egen maxbredd, så knappraden får plats men inte växer fritt."""
+    section = ModelSection(config.models_dir, config.trained_dir)
+    dialog = SettingsDialog("Hantera modeller", [section])
+    dialog.resize(*WIDE_WINDOW)
+    dialog.show()
+    qapp.processEvents()
 
     assert section.width() <= LIST_MAX_WIDTH
-    assert section.width() < window.settings_view.width()
+    assert section.width() < dialog.width()
+    dialog.close()

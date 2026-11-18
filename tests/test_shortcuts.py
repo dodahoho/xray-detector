@@ -62,7 +62,6 @@ def test_tab_row_shows_mnemonics(window):
         "&Annotation",
         "Data&set",
         "&Träning",
-        "Instä&llningar",
     ]
 
 
@@ -72,9 +71,6 @@ def test_alt_letter_switches_tab(qapp, window):
 
     alt(qapp, window, Qt.Key.Key_S)
     assert window.tabs.currentIndex() == 2
-
-    alt(qapp, window, Qt.Key.Key_L)
-    assert window.tabs.currentIndex() == 4
 
 
 def test_disabled_tab_is_not_reached(qapp, window):
@@ -91,6 +87,7 @@ def test_button_labels_show_underline_or_hint(window):
     training = window.training_view
 
     assert detection.capture_button.text() == "&Fånga bilder (Space)"
+    assert detection.manage_models_button.text() == "&Hantera modeller"
     assert detection.detection_button.text() == "Detekti&on av"
     assert detection.left.retry_button.text() == "Försök i&gen"
     assert detection.right.retry_button.text() == "Försök ige&n"
@@ -117,7 +114,6 @@ def test_mnemonics_are_unique_per_view(window):
         window.annotation_view,
         window.dataset_view,
         window.training_view,
-        window.settings_view,
     )
     for view in views:
         letters = [
@@ -200,6 +196,18 @@ def test_alt_letter_starts_training(qapp, window):
     alt(qapp, window, Qt.Key.Key_R)
 
     assert messages == ["Datasetet är tomt"]
+
+
+def test_alt_letter_opens_the_model_dialog(qapp, window, monkeypatch):
+    """Alt+H hör till Hantera modeller i detektionsvyn (TASK-156)."""
+    opened: list = []
+    monkeypatch.setattr(SettingsDialog, "exec", lambda self: opened.append(self))
+    window.tabs.setCurrentIndex(0)
+    qapp.processEvents()
+
+    alt(qapp, window, Qt.Key.Key_H)
+
+    assert [dialog.windowTitle() for dialog in opened] == ["Hantera modeller"]
 
 
 def test_alt_letter_opens_the_view_settings(qapp, window, monkeypatch):

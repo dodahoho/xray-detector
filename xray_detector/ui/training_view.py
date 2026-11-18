@@ -52,6 +52,7 @@ from xray_detector.ui.settings_dialog import (
 )
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.style import FORM_MAX_WIDTH, FormCard, button
+from xray_detector.ui.theme_toggle import ThemeToggle
 from xray_detector.ui.training_chart import TrainingChart
 from xray_detector.ui.training_history import TrainingHistoryView
 
@@ -159,6 +160,8 @@ class TrainingView(QWidget):
             self, "Inställningar – Träning", self._settings_sections
         )
         header.addWidget(self.settings_button)
+        self.theme_toggle = ThemeToggle(self.settings)
+        header.addWidget(self.theme_toggle)
         return header
 
     def _settings_sections(self) -> list:

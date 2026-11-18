@@ -29,19 +29,25 @@ from xray_detector.ui.colors import (
     device_color,
 )
 from xray_detector.ui.model_combo import ModelComboBox
+from xray_detector.ui.model_settings import ModelSection
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
     BadgeSection,
     ClassFilterSection,
+    SettingsDialog,
     settings_button,
 )
 from xray_detector.ui.shortcuts import bind_shortcut, mnemonic, with_hint
 from xray_detector.ui.stream_panel import ResourceMeter, StreamPanel
 from xray_detector.ui.style import button
+from xray_detector.ui.theme_toggle import ThemeToggle
 
 DETECTION_TURN_OFF = mnemonic("Detektion av", "O")
 DETECTION_TURN_ON = mnemonic("Detektion på", "O")
 CLASSES_OFF_PREFIX = "detection/classes_off"
+MANAGE_MODELS_TITLE = "Hantera modeller"
+# luften mellan modellväljaren, tröskeln, enheten och resursstaplarna
+CONTROL_GAP = 16
 
 
 def _fraction(value: int | None, total: int | None) -> float | None:
@@ -89,6 +95,8 @@ class _CaptureKeyFilter(QObject):
 class DetectionView(QWidget):
     capture_requested = Signal(object)
     error_occurred = Signal(str)
+    # en ändrad modellista slår igenom i träningsvyns väljare (TASK-81, TASK-156)
+    models_changed = Signal()
 
     def __init__(self, config: AppConfig, settings, parent=None) -> None:
         super().__init__(parent)
@@ -105,6 +113,13 @@ class DetectionView(QWidget):
         # modellnyckel -> modellens klassnamn, så klassfiltret kan listas även
         # när detektorn är pausad (TASK-53)
         self._model_classes: dict[str, list[str]] = {}
+        # listan som förut låg i inställningsfliken; dialogen skapas först när
+        # knappen används (TASK-156)
+        self.model_section = ModelSection(
+            config.models_dir, config.trained_dir, active_run_dir=lambda: None
+        )
+        self.model_section.models_changed.connect(self._on_models_changed)
+        self._model_dialog: SettingsDialog | None = None
         layout = QVBoxLayout(self)
         bar = QHBoxLayout()
         bar.addWidget(QLabel("Modell:"))
@@ -113,6 +128,13 @@ class DetectionView(QWidget):
         self._select_model(config.default_model)
         self.model_combo.currentIndexChanged.connect(self._on_model_changed)
         bar.addWidget(self.model_combo)
+        self.manage_models_button = button(mnemonic("Hantera modeller", "H"))
+        self.manage_models_button.setToolTip(
+            "Lägg till, byt namn på eller ta bort modeller"
+        )
+        self.manage_models_button.clicked.connect(self._on_manage_models)
+        bar.addWidget(self.manage_models_button)
+        bar.addSpacing(CONTROL_GAP)
         bar.addWidget(QLabel("Tröskel:"))
         self.conf_spin = QDoubleSpinBox()
         self.conf_spin.setRange(0.05, 0.95)
@@ -120,9 +142,11 @@ class DetectionView(QWidget):
         self.conf_spin.setValue(config.confidence_threshold)
         self.conf_spin.valueChanged.connect(self._on_threshold_changed)
         bar.addWidget(self.conf_spin)
+        bar.addSpacing(CONTROL_GAP)
         self.device_label = QLabel("Enhet: kontrollerar...")
         self.device_label.setStyleSheet("font-weight: bold;")
         bar.addWidget(self.device_label)
+        bar.addSpacing(CONTROL_GAP)
         self.resource_monitor = ResourceMonitor()
         self.resource_meters = {
             "gpu": ResourceMeter("GPU"),
@@ -150,6 +174,8 @@ class DetectionView(QWidget):
             self, "Inställningar – Detektion", self._settings_sections
         )
         bar.addWidget(self.settings_button)
+        self.theme_toggle = ThemeToggle(settings)
+        bar.addWidget(self.theme_toggle)
         layout.addLayout(bar)
         panels = QHBoxLayout()
         devices = list_devices()
@@ -262,6 +288,24 @@ class DetectionView(QWidget):
             ),
             BadgeSection(self.settings, self._on_badge_delays_changed),
         ]
+
+    def _on_manage_models(self) -> None:
+        """Öppnar modelldialogen som ersätter inställningsfliken (TASK-156)."""
+        if self._model_dialog is None:
+            self._model_dialog = SettingsDialog(
+                MANAGE_MODELS_TITLE, [self.model_section], self.window()
+            )
+        self.model_section.refresh()
+        self._model_dialog.exec()
+
+    def _on_models_changed(self) -> None:
+        """En ändrad modellista slår igenom i väljaren och i träningsvyn."""
+        self.refresh_models()
+        self.models_changed.emit()
+
+    def set_active_run_dir(self, active_run_dir) -> None:
+        """Kopplar träningsvyns pågående körning till modelldialogen (TASK-129)."""
+        self.model_section.active_run_dir = active_run_dir
 
     def _on_badge_delays_changed(self) -> None:
         """Nya märkesinställningar slår igenom direkt på båda panelerna."""

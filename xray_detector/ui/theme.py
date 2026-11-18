@@ -1,10 +1,20 @@
 import contextlib
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QColor, QPalette
+from PySide6.QtWidgets import QApplication
 
 THEMES = {"system": "System", "light": "Ljust", "dark": "Mörkt"}
 _current = {"theme": "system"}
+
+
+class _ThemeNotifier(QObject):
+    """Signal som alla temaväxlare lyssnar på (TASK-156)."""
+
+    changed = Signal()
+
+
+theme_changed = _ThemeNotifier()
 
 
 def dark_palette() -> QPalette:
@@ -78,3 +88,22 @@ def apply_theme(app, theme: str) -> None:
 
 def current_theme() -> str:
     return _current["theme"]
+
+
+def is_dark(app=None) -> bool:
+    """Sant när appens palett är mörk, även när temat följer systemet (TASK-156)."""
+    app = app or QApplication.instance()
+    return app.palette().color(QPalette.ColorRole.Window).lightness() < 128
+
+
+def toggle_theme(app, settings) -> str:
+    """Växlar mellan ljust och mörkt tema och sparar valet (TASK-156).
+
+    Systemtemat har ingen egen knapp: det första klicket väljer motsatsen till
+    den palett som syns just nu, och därefter växlar knappen mellan de två.
+    """
+    theme = "light" if is_dark(app) else "dark"
+    settings.setValue("ui/theme", theme)
+    apply_theme(app, theme)
+    theme_changed.changed.emit()
+    return theme
