@@ -12,9 +12,11 @@ att köra appen och de tester som använder riktig videogejd.
 | `xray_slideshow_top_faster.mp4` | Ström 2 (toppvy), snabbare klippning | 75 s (2250 ramar) | 4,0 MB |
 | `xray_val_30x8_side.mp4` | Ström 1 (sidovy), 30x8-sekvens för validering | 240 s (7200 ramar) | 6,7 MB |
 | `xray_val_30x8_top.mp4` | Ström 2 (toppvy), 30x8-sekvens för validering | 240 s (7200 ramar) | 9,9 MB |
+| `xray_val2_30x8_side.mp4` | Ström 1 (sidovy), 30x8-sekvens v2 för validering | 240 s (7200 ramar) | 6,9 MB |
+| `xray_val2_30x8_top.mp4` | Ström 2 (toppvy), 30x8-sekvens v2 för validering | 240 s (7200 ramar) | 10,6 MB |
 
 `*_faster` är samma innehåll som originalslideshowen men klippt snabbare, så
-en demokörning hinner igenom fler scener. `xray_val_30x8_*` är längre
+en demokörning hinner igenom fler scener. `xray_val*_30x8_*` är längre
 sekvenser avsedda för att validera detektion och spårning över tid.
 
 ## Köra appen utan UVC-kort
