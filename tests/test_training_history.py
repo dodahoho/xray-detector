@@ -1,6 +1,7 @@
 """Tidigare träningar och export av vald modell (TASK-59)."""
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,7 @@ def _write_run(
     epochs_completed: int = 10,
     status: str = "completed",
     metrics: dict | None = None,
+    name: str = "",
 ) -> Path:
     run_dir = trained_dir / run
     weights = run_dir / weights_relative
@@ -50,6 +52,9 @@ def _write_run(
         "duration_seconds": duration_seconds,
         "metrics": metrics if metrics is not None else {"map50_95": 0.412},
     }
+    # äldre manifest saknar namnet helt, så det skrivs bara när det finns
+    if name:
+        manifest["name"] = name
     (run_dir / "training_manifest.json").write_text(
         json.dumps(manifest), encoding="utf-8"
     )
@@ -245,16 +250,83 @@ def _history_view(qapp, trained_dir):
     return TrainingHistoryView(trained_dir)
 
 
+def _local_text(value: str) -> str:
+    """Samma omräkning som vyn gör, så testet går i vilken tidszon som helst."""
+    return datetime.fromisoformat(value).astimezone().strftime("%Y-%m-%d %H:%M")
+
+
 def test_history_view_lists_the_runs(qapp, tmp_path):
+    from xray_detector.ui.training_history import COLUMNS
+
     _write_run(tmp_path, "2026-11-12_090000")
     _write_run(tmp_path, "2026-11-11_120000", started="2026-11-11T12:00:00+00:00")
 
     view = _history_view(qapp, tmp_path)
 
     assert view.table.rowCount() == 2
-    assert view.table.item(0, 0).text() == "2026-11-12_090000"
-    assert view.table.item(0, 6).text() == "Klar"
-    assert view.table.item(0, 3).text() == "12 min 30 s"
+    assert view.table.item(0, COLUMNS.index("Datum")).text() == _local_text(
+        "2026-11-12T09:00:00+00:00"
+    )
+    assert view.table.item(0, COLUMNS.index("Status")).text() == "Klar"
+    assert view.table.item(0, COLUMNS.index("Tid")).text() == "12 min 30 s"
+
+
+def test_the_columns_name_the_run_its_model_and_its_checkpoint(qapp, tmp_path):
+    """Kolumnerna heter Datum, Modellnamn och Checkpoint (TASK-157)."""
+    from xray_detector.ui.training_history import COLUMNS
+
+    _write_run(tmp_path, "korning", name="YOLO26 large 2026-11-12")
+
+    view = _history_view(qapp, tmp_path)
+
+    assert COLUMNS == (
+        "Datum",
+        "Modellnamn",
+        "Checkpoint",
+        "Epoker",
+        "Tid",
+        "mAP50-95",
+        "Status",
+        "Notering",
+    )
+    assert view.table.item(0, COLUMNS.index("Modellnamn")).text() == (
+        "YOLO26 large 2026-11-12"
+    )
+    assert view.table.item(0, COLUMNS.index("Checkpoint")).text() == "yolo26n"
+
+
+def test_a_manifest_without_a_name_shows_a_dash(qapp, tmp_path):
+    """Manifest som skrevs innan namnet fanns har inget modellnamn (TASK-157)."""
+    from xray_detector.ui.training_history import COLUMNS
+
+    _write_run(tmp_path, "korning")
+
+    view = _history_view(qapp, tmp_path)
+
+    assert view.table.item(0, COLUMNS.index("Modellnamn")).text() == "-"
+
+
+def test_a_run_without_a_start_time_shows_a_dash(qapp, tmp_path):
+    from xray_detector.ui.training_history import COLUMNS
+
+    _write_run(tmp_path, "korning", started=None, finished=None, duration_seconds=None)
+
+    view = _history_view(qapp, tmp_path)
+
+    assert view.table.item(0, COLUMNS.index("Datum")).text() == "-"
+
+
+def test_the_details_line_uses_the_new_terms(qapp, tmp_path):
+    """Raden under tabellen talar om checkpoint och notering (TASK-157)."""
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+
+    view.table.selectRow(0)
+
+    assert "Checkpoint: yolo26n" in view.details.text()
+    assert "Notering:" in view.details.text()
+    assert "Basmodell:" not in view.details.text()
+    assert "Dom:" not in view.details.text()
 
 
 def test_export_button_is_disabled_without_a_selection(qapp, tmp_path):

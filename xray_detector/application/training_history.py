@@ -98,19 +98,42 @@ class TrainingRun:
         return UNKNOWN if value is None else f"{float(value):.3f}"
 
     @property
+    def started_text(self) -> str:
+        """Starttiden som lokalt datum och tid (TASK-157).
+
+        Manifestet sparar tiden i UTC, så den räknas om till maskinens
+        tidszon innan den visas: listan ska gå att läsa som ett vanligt
+        datum, inte som ett körnings-id.
+        """
+        if not self.started:
+            return UNKNOWN
+        try:
+            moment = datetime.fromisoformat(self.started)
+        except ValueError:
+            return UNKNOWN
+        if moment.tzinfo is not None:
+            moment = moment.astimezone()
+        return moment.strftime("%Y-%m-%d %H:%M")
+
+    @property
+    def model_name(self) -> str:
+        """Visningsnamnet träningen satte; manifest före TASK-108 saknar det."""
+        return self.name or UNKNOWN
+
+    @property
     def details(self) -> str:
         """Viktiga parametrar för vald körning."""
         imgsz = self.imgsz if self.imgsz is not None else UNKNOWN
         parts = [
             f"Familj: {self.family}",
-            f"Basmodell: {Path(self.base_weights).stem}",
+            f"Checkpoint: {Path(self.base_weights).stem}",
             f"Dataset: {self.dataset_yaml}",
             f"Bildstorlek (längsta sidan): {imgsz}",
             f"Batch: {self.batch if self.batch is not None else UNKNOWN}",
             f"Epoker: {self.epochs_text}",
             f"mAP50-95: {self.map50_95_text}",
             f"Status: {self.status_label}",
-            f"Dom: {self.verdict.text}",
+            f"Notering: {self.verdict.text}",
         ]
         if self.classes:
             parts.append(f"Klasser: {', '.join(self.classes)}")

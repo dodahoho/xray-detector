@@ -155,7 +155,7 @@ def test_the_verdict_is_computed_from_the_saved_epochs(tmp_path):
     run = training_runs(tmp_path)[0]
 
     assert run.verdict.kind == IMPROVING
-    assert "Dom: fortsätter förbättras" in run.details
+    assert "Notering: fortsätter förbättras" in run.details
 
 
 def test_a_run_without_saved_epochs_has_no_verdict(tmp_path):
@@ -232,7 +232,7 @@ def test_the_history_view_shows_the_verdict(qapp, tmp_path):
 
     view = TrainingHistoryView(tmp_path)
 
-    assert "Dom" in COLUMNS
-    assert view.table.item(0, COLUMNS.index("Dom")).text() == "Förbättras"
+    assert "Notering" in COLUMNS
+    assert view.table.item(0, COLUMNS.index("Notering")).text() == "Förbättras"
     view.table.selectRow(0)
-    assert "Dom: fortsätter förbättras" in view.details.text()
+    assert "Notering: fortsätter förbättras" in view.details.text()

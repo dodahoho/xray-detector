@@ -1,10 +1,11 @@
 ---
 id: TASK-157
 title: Träningsvy - tabell tidigare träningar
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@vibe'
 created_date: '2026-11-18T12:04:00Z'
-updated_date: '2026-11-18T12:04:00Z'
+updated_date: '2026-11-18T12:23:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -29,3 +30,12 @@ ordinal: 153000
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Lägg till started_text (lokalt 'YYYY-MM-DD HH:MM') och model_name (namn, annars '-') på TrainingRun.
+2. Byt kolumnlistan i ui/training_history.py till Datum, Modellnamn, Checkpoint, Epoker, Tid, mAP50-95, Status, Notering; Status = status_label, Notering = verdict.label.
+3. Byt 'Basmodell:' mot 'Checkpoint:' och 'Dom:' mot 'Notering:' i radan under tabellen.
+4. Uppdatera testerna (kolumnindex, kolumnnamn) och docs/beteende.md.
+<!-- SECTION:PLAN:END -->

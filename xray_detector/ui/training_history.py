@@ -38,7 +38,16 @@ from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.shortcuts import mnemonic
 from xray_detector.ui.style import button
 
-COLUMNS = ("Körning", "Basmodell", "Epoker", "Tid", "mAP50-95", "Dom", "Status")
+COLUMNS = (
+    "Datum",
+    "Modellnamn",
+    "Checkpoint",
+    "Epoker",
+    "Tid",
+    "mAP50-95",
+    "Status",
+    "Notering",
+)
 NO_SELECTION = "Välj en träning för att exportera modellen"
 NOT_EVALUATED = "Inte utvärderad"
 DELETE_QUESTION = (
@@ -157,13 +166,14 @@ class TrainingHistoryView(QWidget):
         for row, run in enumerate(self.runs):
             for column, value in enumerate(
                 (
-                    run.run_id,
+                    run.started_text,
+                    run.model_name,
                     Path(run.base_weights).stem,
                     run.epochs_text,
                     run.duration_text,
                     run.map50_95_text,
-                    run.verdict.label,
                     run.status_label,
+                    run.verdict.label,
                 )
             ):
                 self.table.setItem(row, column, QTableWidgetItem(value))
