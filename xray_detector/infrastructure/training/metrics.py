@@ -18,6 +18,8 @@ MATCH_IOU = 0.5
 TARGET_RECALL = 0.95
 #: Konfidenströsklarna som driftläget söks igenom.
 CONFIDENCE_STEPS = tuple(round(0.01 + 0.01 * index, 2) for index in range(99))
+#: Antal bildrutor ett spår ska hålla för att räknas som stabilt (TASK-158).
+STABLE_FRAMES = 3
 
 
 @dataclass(frozen=True)
@@ -134,6 +136,56 @@ def false_alarms_per_image(predictions: list[Prediction], threshold: float) -> f
         return 0.0
     total = sum(int((prediction.scores >= threshold).sum()) for prediction in predictions)
     return total / len(predictions)
+
+
+def track_lengths(
+    predictions: list[Prediction], iou_threshold: float = MATCH_IOU
+) -> list[int]:
+    """Längden i bildrutor på varje spår av detektioner som hänger ihop (TASK-158).
+
+    En detektion fortsätter föregående bildrutas spår när klassen är densamma
+    och IoU är minst iou_threshold. Spåret bryts när ingen detektion matchar,
+    så längden säger hur många bildrutor i följd objektet sågs i. Listan
+    förutsätter att bildrutorna kommer i tidsordning.
+    """
+    finished: list[int] = []
+    active: list[tuple[int, np.ndarray, int]] = []
+    for prediction in predictions:
+        matched = [False] * len(active)
+        following: list[tuple[int, np.ndarray, int]] = []
+        for box, label in zip(prediction.boxes, prediction.labels, strict=True):
+            best, best_overlap = -1, iou_threshold
+            for index, (track_label, track_box, _length) in enumerate(active):
+                if matched[index] or track_label != label:
+                    continue
+                overlap = float(iou_matrix(box[None, :], track_box[None, :])[0, 0])
+                if overlap >= best_overlap:
+                    best, best_overlap = index, overlap
+            if best >= 0:
+                matched[best] = True
+                following.append((label, box, active[best][2] + 1))
+            else:
+                following.append((label, box, 1))
+        finished.extend(
+            length
+            for (_label, _box, length), hit in zip(active, matched, strict=True)
+            if not hit
+        )
+        active = following
+    finished.extend(length for (_label, _box, length) in active)
+    return finished
+
+
+def stability_summary(lengths: list[int], min_length: int = STABLE_FRAMES) -> dict:
+    """Sammanfattning av spårlängderna: antal, medellängd och andel stabila."""
+    if not lengths:
+        return {"tracks": 0, "mean_length": 0.0, "stable_share": 0.0, "single_frame": 0}
+    return {
+        "tracks": len(lengths),
+        "mean_length": sum(lengths) / len(lengths),
+        "stable_share": sum(1 for length in lengths if length >= min_length) / len(lengths),
+        "single_frame": sum(1 for length in lengths if length == 1),
+    }
 
 
 def _class_ap(

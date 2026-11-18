@@ -280,6 +280,7 @@ def test_the_columns_name_the_run_its_model_and_its_checkpoint(qapp, tmp_path):
     view = _history_view(qapp, tmp_path)
 
     assert COLUMNS == (
+        "Val",
         "Datum",
         "Modellnamn",
         "Checkpoint",
@@ -327,6 +328,113 @@ def test_the_details_line_uses_the_new_terms(qapp, tmp_path):
     assert "Notering:" in view.details.text()
     assert "Basmodell:" not in view.details.text()
     assert "Dom:" not in view.details.text()
+
+
+# --- Markering för jämförelsen (TASK-158) ---
+
+
+def test_every_row_starts_unchecked(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+
+    view = _history_view(qapp, tmp_path)
+
+    assert view.table.item(0, CHECK_COLUMN).checkState() == Qt.CheckState.Unchecked
+    assert view.checked_runs() == []
+
+
+def test_a_checked_row_is_part_of_the_comparison(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+
+    view = _history_view(qapp, tmp_path)
+    view.table.item(0, CHECK_COLUMN).setCheckState(Qt.CheckState.Checked)
+
+    assert [run.run_id for run in view.checked_runs()] == ["korning"]
+
+
+def test_select_all_marks_and_clears_every_row(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    _write_run(tmp_path, "2026-11-11_120000", started="2026-11-11T12:00:00+00:00")
+    _write_run(tmp_path, "2026-11-12_090000", started="2026-11-12T09:00:00+00:00")
+    view = _history_view(qapp, tmp_path)
+
+    view.select_all.setChecked(True)
+
+    assert len(view.checked_runs()) == 2
+    assert view.select_all.checkState() == Qt.CheckState.Checked
+
+    view.select_all.setChecked(False)
+
+    assert view.checked_runs() == []
+
+
+def test_select_all_shows_a_partial_state(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "2026-11-11_120000", started="2026-11-11T12:00:00+00:00")
+    _write_run(tmp_path, "2026-11-12_090000", started="2026-11-12T09:00:00+00:00")
+    view = _history_view(qapp, tmp_path)
+
+    view.table.item(0, CHECK_COLUMN).setCheckState(Qt.CheckState.Checked)
+
+    assert view.select_all.checkState() == Qt.CheckState.PartiallyChecked
+
+
+def test_a_checked_row_survives_a_refresh(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    view.table.item(0, CHECK_COLUMN).setCheckState(Qt.CheckState.Checked)
+
+    view.refresh()
+
+    assert view.table.item(0, CHECK_COLUMN).checkState() == Qt.CheckState.Checked
+    assert [run.run_id for run in view.checked_runs()] == ["korning"]
+
+
+def test_the_evaluate_button_needs_a_checked_row(qapp, tmp_path):
+    from PySide6.QtCore import Qt
+
+    from xray_detector.ui.training_history import CHECK_COLUMN
+
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+
+    assert not view.evaluate_button.isEnabled()
+
+    view.table.item(0, CHECK_COLUMN).setCheckState(Qt.CheckState.Checked)
+
+    assert not view.evaluate_button.isEnabled()
+
+
+def test_wait_for_evaluation_waits_for_the_open_dialog(qapp, tmp_path):
+    """Stängningen väntar in en pågående utvärdering i dialogen (TASK-158)."""
+    _write_run(tmp_path, "korning")
+    view = _history_view(qapp, tmp_path)
+    waited: list[int] = []
+
+    class _Dialog:
+        def wait_for_evaluation(self, timeout_ms: int = 60000) -> None:
+            waited.append(timeout_ms)
+
+    view.dialog = _Dialog()
+
+    view.wait_for_evaluation(1234)
+
+    assert waited == [1234]
 
 
 def test_export_button_is_disabled_without_a_selection(qapp, tmp_path):

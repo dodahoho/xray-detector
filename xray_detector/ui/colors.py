@@ -43,6 +43,22 @@ TRAIN_LOSS_COLOR = "#4da3ff"
 VAL_LOSS_COLOR = "#e08a2e"
 MAP50_COLOR = "#3fae6a"
 MAP50_95_COLOR = "#d9534f"
+#: Serierna i utvärderingsdialogens staplar (TASK-158). Samma fyra som
+#: träningsgrafen plus två till, valda för att synas mot både ljus och mörk
+#: bakgrund och för att gå att skilja åt även när färgerna skrivs ut i grått.
+SERIES_COLORS = (
+    TRAIN_LOSS_COLOR,
+    VAL_LOSS_COLOR,
+    MAP50_COLOR,
+    MAP50_95_COLOR,
+    "#8e6bd6",
+    "#3aa6a6",
+)
+
+
+def series_color(index: int) -> QColor:
+    """Färgen för serie nummer index; paletten upprepas när serierna är fler."""
+    return QColor(SERIES_COLORS[index % len(SERIES_COLORS)])
 
 
 def device_color(label: str) -> str:

@@ -1,13 +1,20 @@
-"""Utvärdering av en tränad modell (TASK-95).
+"""Utvärdering av en tränad modell (TASK-95, TASK-158).
 
 Det enda kvalitetstalet appen har är val-mAP från träningen, och det säger
 inget om det som avgör om modellen går att driftsätta i en röntgenapp: hur ofta
 den larmar på en bild utan farliga objekt, och om den håller på båda vyerna.
-Modulen kör en vald tränad modell över en vald delmängd och sparar rapporten i
+Modulen kör en vald tränad modell över en vald källa och sparar rapporten i
 körningens katalog, så två körningar kan jämföras i efterhand.
+
+Källan är antingen en delmängd av datasetet, som har annoteringar och därför
+ger mAP och falsklarm, eller en mapp med bilder eller en videofil, som saknar
+facit och där utvärderingen i stället räknar detektioner, konfidens och — för
+en video — hur stabilt ett spår sitter mellan bildrutorna.
 """
 
 import json
+from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -30,7 +37,9 @@ from xray_detector.infrastructure.training.metrics import (
     false_alarms_per_image,
     mean_average_precision,
     recall_at,
+    stability_summary,
     threshold_for_recall,
+    track_lengths,
 )
 
 EVALUATION_NAME = "evaluation.json"
@@ -39,6 +48,48 @@ EVALUATION_NAME = "evaluation.json"
 SPLIT_LABELS = {"test": "Test", "val": "Val", "all": "Alla"}
 #: Låg tröskel så mAP räknas över hela precision/recall-kurvan.
 EVAL_CONFIDENCE = 0.01
+#: Källtyperna utvärderingen kan köras mot (TASK-158).
+SOURCE_DATASET = "dataset"
+SOURCE_FOLDER = "folder"
+SOURCE_VIDEO = "video"
+SOURCE_LABELS = {
+    SOURCE_DATASET: "Dataset",
+    SOURCE_FOLDER: "Bildmapp",
+    SOURCE_VIDEO: "Videofil",
+}
+#: Källor utan facit har ingen kurva att hitta driftläget ur, så de räknas vid
+#: appens egen konfidenströskel: det antal detektioner användaren ser i
+#: detektionsvyn.
+DETECTION_CONFIDENCE = 0.4
+#: Var stride:te bildruta läses ur en videofil; resten hoppas över.
+VIDEO_STRIDE = 5
+#: Antalet staplar i konfidenshistogrammet, över 0.0-1.0.
+CONFIDENCE_BINS = 10
+#: Ändelserna en bildmapp läses med.
+IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp")
+
+
+@dataclass(frozen=True)
+class EvaluationSource:
+    """Det utvärderingen körs mot: en delmängd av datasetet, en mapp eller en video."""
+
+    kind: str = SOURCE_DATASET
+    split: str | None = None
+    path: Path | None = None
+
+    @property
+    def label(self) -> str:
+        """Källan som den visas i rapporten och i dialogens rubrik."""
+        if self.kind == SOURCE_DATASET:
+            split = self.split or ""
+            return f"Dataset ({SPLIT_LABELS.get(split, split)})"
+        name = Path(self.path).name if self.path else "-"
+        return f"{SOURCE_LABELS.get(self.kind, self.kind)}: {name}"
+
+    @property
+    def temporal(self) -> bool:
+        """Sant när bildrutorna kommer i tidsordning, alltså bara för en video."""
+        return self.kind == SOURCE_VIDEO
 
 
 def default_split(family: str) -> str:
@@ -64,6 +115,57 @@ def subset_images(
     if split == "test":
         return train_val_test_split(images, ratio, seed)["test"]
     return train_val_split(images, ratio, seed)[1]
+
+
+def dataset_frames(
+    dataset: dict,
+    images_dir: Path,
+    split: str,
+    ratio: float = SPLIT_RATIO,
+    seed: int = SPLIT_SEED,
+) -> Iterator[tuple[str, np.ndarray, dict]]:
+    """Bildrutorna i en delmängd av datasetet, med bildens annoteringar."""
+    for image in subset_images(dataset, split, ratio, seed):
+        frame = cv2.imread(str(Path(images_dir) / image["file_name"]))
+        if frame is None:
+            continue
+        yield image["file_name"], frame, image
+
+
+def folder_frames(folder: Path) -> Iterator[tuple[str, np.ndarray, None]]:
+    """Bilderna i en mapp, sorterade på namn så ordningen blir densamma varje gång."""
+    for path in sorted(Path(folder).iterdir()):
+        if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
+            continue
+        frame = cv2.imread(str(path))
+        if frame is None:
+            continue
+        yield path.name, frame, None
+
+
+def video_frames(
+    path: Path, stride: int = VIDEO_STRIDE
+) -> Iterator[tuple[str, np.ndarray, None]]:
+    """Bildrutor ur en videofil, var stride:te ruta.
+
+    Var tionde ruta räcker för att jämföra modeller och håller nere tiden en
+    utvärdering tar, samtidigt som rutsiffran blir tät nog för att ett spår
+    ska synas över flera rutor.
+    """
+    capture = cv2.VideoCapture(str(path))
+    if not capture.isOpened():
+        raise ValueError(f"Kunde inte öppna videofilen {path}")
+    try:
+        index = 0
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            if index % stride == 0:
+                yield f"ruta {index}", frame, None
+            index += 1
+    finally:
+        capture.release()
 
 
 def view_labels(images: list[dict]) -> dict[int, str]:
@@ -217,6 +319,128 @@ def evaluate_run(
     return report
 
 
+def _detection_class_index(detector) -> dict[str, int]:
+    """Klassindex ur modellens egna namn; okända klasser läggs till efter hand."""
+    return {
+        str(name): index
+        for index, name in enumerate(getattr(detector, "class_names", None) or [])
+    }
+
+
+def evaluate_detections(
+    run: TrainingRun,
+    frames: Iterator[tuple[str, np.ndarray, dict | None]],
+    detector_factory=None,
+    threshold: float = DETECTION_CONFIDENCE,
+    temporal: bool = False,
+) -> dict:
+    """Räknar detektioner över bildrutor som saknar annoteringar (TASK-158).
+
+    Utan facit går träffsäkerheten inte att mäta, så rapporten svarar i stället
+    på hur mycket modellen larmar: detektioner per bild, per klass, hur stor
+    andel av bilderna som får minst en träff och hur säkra träffarna är.
+    temporal slår på stabiliteten, som kräver att bildrutorna kommer i
+    tidsordning och därför bara räknas för en videofil.
+    """
+    detector = (detector_factory or _default_detector)(run)
+    class_index = _detection_class_index(detector)
+    predictions: list[Prediction] = []
+    for _name, frame, _image in frames:
+        detections = detector.detect(frame)
+        for detection in detections:
+            class_index.setdefault(detection.class_name, len(class_index))
+        predictions.append(_prediction(detections, class_index))
+
+    names = {index: name for name, index in class_index.items()}
+    kept = [prediction.scores[prediction.scores >= threshold] for prediction in predictions]
+    scores = np.concatenate(kept) if kept else np.zeros(0, dtype=float)
+    histogram, _edges = np.histogram(scores, bins=CONFIDENCE_BINS, range=(0.0, 1.0))
+    per_class: dict[str, int] = {}
+    for prediction in predictions:
+        for label in prediction.labels[prediction.scores >= threshold]:
+            name = names.get(int(label), str(int(label)))
+            per_class[name] = per_class.get(name, 0) + 1
+
+    images = len(predictions)
+    total = len(scores)
+    report: dict = {
+        "run_id": run.run_id,
+        "family": run.family,
+        "weights": str(run.weights),
+        "date": datetime.now(UTC).isoformat(),
+        "images": images,
+        "threshold": threshold,
+        "detections": {
+            "total": total,
+            "per_image": total / images if images else 0.0,
+            "with_detection_share": (
+                sum(1 for kept_scores in kept if len(kept_scores)) / images
+                if images
+                else 0.0
+            ),
+            "mean_confidence": float(scores.mean()) if total else 0.0,
+            "histogram": [int(count) for count in histogram],
+            "per_class": per_class,
+        },
+    }
+    if temporal:
+        report["stability"] = stability_summary(track_lengths(predictions))
+    return report
+
+
+def evaluate_source(
+    run: TrainingRun,
+    source: EvaluationSource,
+    dataset: dict | None = None,
+    images_dir: Path | None = None,
+    detector_factory=None,
+    ratio: float = SPLIT_RATIO,
+    seed: int = SPLIT_SEED,
+) -> dict:
+    """Utvärderar en körning mot den valda källan (TASK-158).
+
+    Datasetkällan har annoteringar och går till evaluate_run, som ger mAP och
+    falsklarm. Mappen och videon saknar facit och går till
+    evaluate_detections, som räknar detektioner i stället.
+    """
+    if source.kind == SOURCE_DATASET:
+        if dataset is None:
+            raise ValueError("Dataset-utvärderingen kräver ett dataset")
+        report = evaluate_run(
+            run, dataset, images_dir, source.split, detector_factory, ratio, seed
+        )
+    else:
+        if source.path is None:
+            raise ValueError(f"{SOURCE_LABELS.get(source.kind, source.kind)} saknar sökväg")
+        frames = (
+            video_frames(source.path)
+            if source.kind == SOURCE_VIDEO
+            else folder_frames(source.path)
+        )
+        report = evaluate_detections(
+            run, frames, detector_factory, temporal=source.temporal
+        )
+    report["source"] = source.kind
+    report["source_label"] = source.label
+    return report
+
+
+def compare_runs(
+    runs: list[TrainingRun],
+    source: EvaluationSource,
+    dataset: dict | None = None,
+    images_dir: Path | None = None,
+    detector_factory=None,
+    ratio: float = SPLIT_RATIO,
+    seed: int = SPLIT_SEED,
+) -> list[dict]:
+    """Utvärderar varje körning mot samma källa, så talen går att jämföra."""
+    return [
+        evaluate_source(run, source, dataset, images_dir, detector_factory, ratio, seed)
+        for run in runs
+    ]
+
+
 def save_evaluation(run: TrainingRun, report: dict) -> Path:
     """Sparar rapporten i körningens katalog, så två körningar kan jämföras."""
     path = Path(run.run_dir) / EVALUATION_NAME
@@ -237,6 +461,8 @@ def load_evaluation(run: TrainingRun) -> dict | None:
 
 def summary_text(report: dict) -> str:
     """Kort sammanfattning av en rapport för historikvyn."""
+    if report.get("source", SOURCE_DATASET) != SOURCE_DATASET:
+        return detection_summary_text(report)
     overall = report.get("overall") or {}
     false_alarms = report.get("false_alarms") or {}
     operating = report.get("operating_point") or {}
@@ -251,4 +477,21 @@ def summary_text(report: dict) -> str:
         f"vid {float(operating.get('threshold') or 0.0):.2f} "
         f"({float(operating.get('target_recall') or 0.0):.0%} recall)"
     )
+    return "  ·  ".join(parts)
+
+
+def detection_summary_text(report: dict) -> str:
+    """Sammanfattning av en rapport för en källa utan annoteringar (TASK-158)."""
+    detections = report.get("detections") or {}
+    parts = [
+        f"detektioner/bild {float(detections.get('per_image') or 0.0):.2f}",
+        f"{float(detections.get('with_detection_share') or 0.0):.0%} av bilderna med träff",
+        f"medelkonfidens {float(detections.get('mean_confidence') or 0.0):.2f}",
+    ]
+    stability = report.get("stability")
+    if stability:
+        parts.append(
+            f"spår {int(stability.get('tracks') or 0)} st, "
+            f"medellängd {float(stability.get('mean_length') or 0.0):.1f} rutor"
+        )
     return "  ·  ".join(parts)
