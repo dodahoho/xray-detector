@@ -37,6 +37,12 @@ ERROR_COLOR = "#c33"
 #: Enhetsraden i detektionsvyn: grönt när CUDA används, rött annars.
 DEVICE_CUDA_COLOR = "#2a8"
 DEVICE_CPU_COLOR = "#c33"
+#: Serierna i träningsgrafen. De ligger fast och är valda för att synas mot
+#: både ljus och mörk bakgrund; axlar och text hämtas ur paletten (TASK-155).
+TRAIN_LOSS_COLOR = "#4da3ff"
+VAL_LOSS_COLOR = "#e08a2e"
+MAP50_COLOR = "#3fae6a"
+MAP50_95_COLOR = "#d9534f"
 
 
 def device_color(label: str) -> str:

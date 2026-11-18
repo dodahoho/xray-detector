@@ -15,6 +15,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPalette, QPen,
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from xray_detector.domain.training import EpochMetrics
+from xray_detector.ui import colors
 
 LOSS_TITLE = "Loss per epok"
 MAP_TITLE = "mAP per epok"
@@ -28,10 +29,10 @@ AXIS_PADDING = 0.1
 
 #: Seriefärgerna ligger fast och är valda för att synas mot både ljus och mörk
 #: bakgrund. Axlar, rutnät och text hämtas i stället ur paletten.
-TRAIN_LOSS_COLOR = QColor("#4da3ff")
-VAL_LOSS_COLOR = QColor("#e08a2e")
-MAP50_COLOR = QColor("#3fae6a")
-MAP50_95_COLOR = QColor("#d9534f")
+TRAIN_LOSS_COLOR = QColor(colors.TRAIN_LOSS_COLOR)
+VAL_LOSS_COLOR = QColor(colors.VAL_LOSS_COLOR)
+MAP50_COLOR = QColor(colors.MAP50_COLOR)
+MAP50_95_COLOR = QColor(colors.MAP50_95_COLOR)
 
 MARGIN_LEFT = 56
 MARGIN_RIGHT = 12
