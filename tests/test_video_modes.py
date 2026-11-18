@@ -55,7 +55,7 @@ def test_open_params_request_format_and_resolution():
 
     assert source._open_params() == [
         cv2.CAP_PROP_FOURCC,
-        cv2.VideoWriter_fourcc(*"MJPG"),
+        cv2.VideoWriter.fourcc(*"MJPG"),
         cv2.CAP_PROP_FRAME_WIDTH,
         1920,
         cv2.CAP_PROP_FRAME_HEIGHT,
@@ -103,7 +103,7 @@ def test_source_passes_params_to_videocapture(monkeypatch):
 
     assert calls[0][0] == 0
     assert calls[0][1] == cv2.CAP_DSHOW
-    assert cv2.VideoWriter_fourcc(*"MJPG") in calls[0][2]
+    assert cv2.VideoWriter.fourcc(*"MJPG") in calls[0][2]
 
 
 def test_build_source_forwards_mode(monkeypatch):

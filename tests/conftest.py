@@ -90,7 +90,7 @@ def synthetic_frame(fill: int = 120, width: int = 64, height: int = 48) -> np.nd
 def video_file(tmp_path):
     """Tolv ramars videofil, så strömmar kan köras utan kamera."""
     path = tmp_path / "stream.mp4"
-    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 60, (64, 48))
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter.fourcc(*"mp4v"), 60, (64, 48))
     assert writer.isOpened(), "mp4v-codec saknas i denna OpenCV-byggnad"
     for i in range(12):
         writer.write(synthetic_frame(fill=100 + i))

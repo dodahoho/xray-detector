@@ -61,7 +61,7 @@ class UvcSource(VideoSource):
             return []
         params: list[int] = []
         if len(self.mode.fourcc) == 4:
-            params += [cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.mode.fourcc)]
+            params += [cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc(*self.mode.fourcc)]
         params += [
             cv2.CAP_PROP_FRAME_WIDTH,
             self.mode.width,

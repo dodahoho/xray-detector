@@ -6,11 +6,14 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QColor, QImage, QPalette
 
 from xray_detector.domain.training import EpochMetrics, TrainConfig
+from xray_detector.ui.theme import dark_palette, light_palette
 from xray_detector.ui.training_chart import (
     EPOCH_AXIS,
     LOSS_AXIS,
+    MAP50_COLOR,
     MAP_AXIS,
     MIN_MAP_SPAN,
     TrainingChart,
@@ -18,7 +21,26 @@ from xray_detector.ui.training_chart import (
 
 
 def _points(series) -> list[tuple[float, float]]:
-    return [(point.x(), point.y()) for point in series.points()]
+    return list(series.points)
+
+
+def _render(widget, palette=None, size=(320, 180)) -> QImage:
+    """Ritar av widgeten så testerna kan läsa färgerna den faktiskt målar."""
+    if palette is not None:
+        widget.setPalette(palette)
+    widget.resize(*size)
+    image = QImage(size[0], size[1], QImage.Format.Format_ARGB32)
+    image.fill(QColor("#ff00ff"))
+    widget.render(image)
+    return image
+
+
+def _has_color(image: QImage, color: QColor) -> bool:
+    return any(
+        image.pixelColor(x, y) == color
+        for x in range(image.width())
+        for y in range(image.height())
+    )
 
 
 def _epoch(epoch: int, **values) -> EpochMetrics:
@@ -70,9 +92,9 @@ def test_new_epoch_moves_the_axes(qapp):
     chart.add_epoch(_epoch(1, train_loss=2.0, map50=0.4))
     chart.add_epoch(_epoch(5, train_loss=1.0, map50=0.6))
 
-    assert chart.loss_axis_x.min() <= 1.0
-    assert chart.loss_axis_x.max() >= 5.0
-    assert chart.map_axis_x.max() >= 5.0
+    assert chart.loss_chart.axis_x.minimum <= 1.0
+    assert chart.loss_chart.axis_x.maximum >= 5.0
+    assert chart.map_chart.axis_x.maximum >= 5.0
 
 
 # --- Läsbar graf (AC 4, 6) ---
@@ -81,29 +103,31 @@ def test_new_epoch_moves_the_axes(qapp):
 def test_axes_are_labelled(qapp):
     chart = TrainingChart()
 
-    assert chart.loss_axis_x.titleText() == EPOCH_AXIS
-    assert chart.map_axis_x.titleText() == EPOCH_AXIS
-    assert chart.loss_axis_y.titleText() == LOSS_AXIS
-    assert chart.map_axis_y.titleText() == MAP_AXIS
-    assert chart.loss_chart.legend().isVisible()
-    assert chart.map_chart.legend().isVisible()
+    assert chart.loss_chart.axis_x.title == EPOCH_AXIS
+    assert chart.map_chart.axis_x.title == EPOCH_AXIS
+    assert chart.loss_chart.axis_y.title == LOSS_AXIS
+    assert chart.map_chart.axis_y.title == MAP_AXIS
+    assert [series.name for series in chart.loss_chart.series] == ["Train-loss", "Val-loss"]
+    assert [series.name for series in chart.map_chart.series] == ["mAP50", "mAP50-95"]
 
 
 def test_single_epoch_gives_a_readable_range(qapp):
     chart = TrainingChart()
     chart.add_epoch(_epoch(1, train_loss=2.0, val_loss=2.0, map50=0.4, map50_95=0.4))
 
-    assert chart.map_axis_y.max() - chart.map_axis_y.min() == pytest.approx(MIN_MAP_SPAN)
-    assert chart.loss_axis_y.max() - chart.loss_axis_y.min() > 0
-    assert chart.map_axis_x.max() > chart.map_axis_x.min()
-    assert chart.map50.pointsVisible()
+    assert chart.map_chart.axis_y.maximum - chart.map_chart.axis_y.minimum == pytest.approx(
+        MIN_MAP_SPAN
+    )
+    assert chart.loss_chart.axis_y.maximum - chart.loss_chart.axis_y.minimum > 0
+    assert chart.map_chart.axis_x.maximum > chart.map_chart.axis_x.minimum
+    assert _has_color(_render(chart), MAP50_COLOR)
 
 
 def test_empty_chart_has_a_usable_range(qapp):
     chart = TrainingChart()
 
-    assert chart.loss_axis_x.max() > chart.loss_axis_x.min()
-    assert chart.map_axis_y.max() > chart.map_axis_y.min()
+    assert chart.loss_chart.axis_x.maximum > chart.loss_chart.axis_x.minimum
+    assert chart.map_chart.axis_y.maximum > chart.map_chart.axis_y.minimum
 
 
 def test_has_data_follows_the_series(qapp):
@@ -131,7 +155,30 @@ def test_chart_module_only_imports_pyside6_and_the_project():
         elif isinstance(node, ast.ImportFrom) and node.module:
             modules.add(node.module.split(".")[0])
 
-    assert modules <= {"PySide6", "xray_detector"}
+    assert modules <= {"PySide6", "xray_detector", "dataclasses", "math"}
+
+
+# --- Grafen följer ljust och mörkt tema (TASK-155) ---
+
+
+def test_chart_follows_the_dark_palette(qapp):
+    chart = TrainingChart()
+    chart.add_epoch(_epoch(1, train_loss=2.0, map50=0.4))
+
+    image = _render(chart, dark_palette())
+
+    assert image.pixelColor(1, 1) == dark_palette().color(QPalette.ColorRole.Base)
+    assert _has_color(image, dark_palette().color(QPalette.ColorRole.WindowText))
+
+
+def test_chart_follows_the_light_palette(qapp):
+    chart = TrainingChart()
+    chart.add_epoch(_epoch(1, train_loss=2.0, map50=0.4))
+
+    image = _render(chart, light_palette())
+
+    assert image.pixelColor(1, 1) == light_palette().color(QPalette.ColorRole.Base)
+    assert _has_color(image, light_palette().color(QPalette.ColorRole.WindowText))
 
 
 # --- Träningsvyn (AC 3, 5) ---
