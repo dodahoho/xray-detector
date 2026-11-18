@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:52:00Z'
-updated_date: '2026-11-18T09:15:00Z'
+updated_date: '2026-11-18T09:17:00Z'
 labels:
   - refactor
   - review-followup
@@ -19,7 +19,10 @@ references:
 modified_files:
   - xray_detector/ui/flow_layout.py
   - xray_detector/ui/dataset_view.py
+  - xray_detector/ui/capture_card.py
   - tests/test_dataset_layout.py
+  - tests/test_dataset_card_click.py
+  - tests/test_dataset_header.py
 priority: medium
 type: enhancement
 ordinal: 2000
@@ -60,4 +63,6 @@ dataset_view.py (1127 rader), detection_view.py (954), annotation_view.py (804) 
 
 <!-- SECTION:NOTES:BEGIN -->
 FlowLayout ligger nu i ui/flow_layout.py och importeras av dataset_view.py; de Qt-imports som bara layouten använde är borttagna. dataset_view.py gick från 1171 till 1092 rader och test_dataset_layout.py, test_dataset_thumbnails.py, test_dataset_card_click.py och test_dataset_selection.py passerar.
+
+CaptureCard och Thumbnail ligger nu i ui/capture_card.py tillsammans med THUMB_BORDER, och testerna importerar dem därifrån. dataset_view.py är 1022 rader (från 1171) och hela sviten ger 893 passed, 4 failed; de fyra felen är desamma som på HEAD och beror på att miljön saknar teckensnitt.
 <!-- SECTION:NOTES:END -->

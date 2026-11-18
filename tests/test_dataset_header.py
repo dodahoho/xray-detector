@@ -16,7 +16,8 @@ from xray_detector.infrastructure.dataset_store.pending import (
     save_pending,
 )
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
-from xray_detector.ui.dataset_view import DatasetView, Thumbnail
+from xray_detector.ui.capture_card import Thumbnail
+from xray_detector.ui.dataset_view import DatasetView
 
 # testerna startar MainWindow och tar därför sekunder (TASK-154)
 pytestmark = pytest.mark.slow

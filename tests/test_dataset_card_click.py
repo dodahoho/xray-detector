@@ -9,7 +9,8 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.pending import save_pending
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
-from xray_detector.ui.dataset_view import CaptureCard, DatasetView, Thumbnail
+from xray_detector.ui.capture_card import CaptureCard, Thumbnail
+from xray_detector.ui.dataset_view import DatasetView
 
 
 def _sample(fill: int = 60) -> AnnotatedImage:

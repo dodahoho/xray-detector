@@ -12,11 +12,8 @@ from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.infrastructure.dataset_store.pending import save_pending
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
-from xray_detector.ui.dataset_view import (
-    UNKNOWN_DATE,
-    DatasetView,
-    Thumbnail,
-)
+from xray_detector.ui.capture_card import Thumbnail
+from xray_detector.ui.dataset_view import UNKNOWN_DATE, DatasetView
 from xray_detector.ui.flow_layout import FlowLayout
 from xray_detector.ui.settings_dialog import SORT_KEY, SORT_OLDEST
 
