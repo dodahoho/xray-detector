@@ -1,71 +1,42 @@
 # X-ray detector
 
-Applikation för detektion av objekt i video med röntgenbilder. Se `specs.md` för krav och `PLAN.md` för implementeringsplan.
+Applikation för detektion av objekt i röntgenvideo med annotering och träning.
+Kraven finns i [docs/historik/specs.md](docs/historik/specs.md), arkitekturen i
+[docs/arkitektur.md](docs/arkitektur.md) och beteendet i
+[docs/beteende.md](docs/beteende.md).
 
-## Utveckla
+## Innehåll
 
-Under utveckling testas olika kodagenter och ramverk. Koden är till största del skapad med AI-verktyg.  
+- [Krav](#krav)
+- [Kom igång](#kom-igång)
+- [Köra](#köra)
+- [Tester](#tester)
+- [Utveckling](#utveckling)
+- [Dokumentation](#dokumentation)
 
-För hålla koll på uppgifter (tasks) används [Backlog.md](https://github.com/MrLesk/Backlog.md)  
+## Krav
 
-För kontinuerlig översikt arkitektur och monitorering av förändringar används [Groma.md](https://github.com/MrLesk/Groma.md)  
+- Python 3.11 eller senare
+- [uv](https://docs.astral.sh/uv/)
+- Ett CUDA-rekommenderat grafikkort för detektion och träning; utan CUDA kör
+  appen på CPU
+- Windows 11 med två UVC-kort för den tänkta driften, men appen startar utan
+  kamera och kan spela upp videofiler i stället
 
-Konfiguration för både Backlog och Groma sparas i detta repo. Kommandoverktyg installeras med t ex npm. GUI för browser startas enligt nedan.  
-```bash
-$ backlog browser
-$ groma web
-```
-
-Kodkvaliteten kontrolleras med [ruff](https://docs.astral.sh/ruff/), konfigurerad i `pyproject.toml` under `[tool.ruff]`. Grinden är `ruff check` och ska gå igenom utan fel innan en ändring committas:
-
-```bash
-uv run ruff check .
-uv run ruff check --fix .
-```
-
-## Kodstruktur
-
-Koden ligger i fyra lager under `xray_detector/`, och pilen betyder "får importera":
-
-```
-ui ──▶ application ──▶ infrastructure ──▶ domain
- └───────────────────────────────────────────▶
-```
-
-- **`domain/`** – rena datatyper och regler: `Detection`, `AppConfig`, `TrainConfig`, grupperingen i `group_images` och variationernas gränser (`MIN_SCALE`, `MAX_SCALE`, `describe`). Importerar inget annat lager och har inga tunga beroenden.
-- **`infrastructure/`** – implementationerna: datasetlagringen (`DatasetStore`), detektorerna, träningsprocessen, videokällorna (`CameraService`) och loggningen. Importerar `domain`, aldrig `application`.
-- **`application/`** – det som samordnar `infrastructure`: `TrainingService` (kö och schemaläggning), `ModelRegistry` (modellval och detektorskapande), `BackgroundTask`, konfiginläsningen och utvärderingen. Lagret är en tunn fasad över `infrastructure`, inte en egen domänmodell: ren vidarebefordran hör hemma i `infrastructure` i stället för i en tjänsteklass (TASK-142). Importerar `domain` och `infrastructure`.
-- **`ui/`** – vyerna. Importerar `application` för samordning och `domain` för typer. Vyerna använder `DatasetStore` och `CameraService` direkt, eftersom de tidigare tjänsteklasserna bara delegerade till dem.
-
-Regeln som håller lagren åtskilda är att **`infrastructure` aldrig importerar `application`**. Loggfångsten låg tidigare i `application/app_config.py` och gjorde beroendet cykliskt; den ligger nu i `infrastructure/logging.py` (TASK-143). Tunga och valfria beroenden (`torch`, `ultralytics`, `rfdetr`, `pygrabber`) importeras först när de används och märks med `# noqa: PLC0415`, så `ruff check` håller reda på vilka lokala importer som är medvetna.
-
-## Tester och CI
-
-Testsviten körs med pytest:
-
-```bash
-uv run pytest -q
-uv run pytest -q -n auto
-```
-
-`-n auto` fördelar filerna över alla kärnor med [pytest-xdist](https://pytest-xdist.readthedocs.io/) och tar sviten från cirka 270 s till under 90 s. Markören `slow` är registrerad i `pyproject.toml` för tester som startar `MainWindow`, så `uv run pytest -m "not slow"` kan köra sviten utan dem.
-
-Vid push och pull request kör GitHub Actions `.github/workflows/ci.yml` `ruff check` och hela sviten med `-n auto` på en Ubuntu-runner. Testerna ritar i Qt utan skärm, så workflowen sätter `QT_QPA_PLATFORM=offscreen` och installerar de systembibliotek PySide6 och OpenCV länkar mot.
-
-Körs sviten med `QT_QPA_PLATFORM=offscreen` på Windows måste Qt hitta ett teckensnitt, annars blir textmåtten fel och märkestesterna fallerar. CI löser det med `fonts-dejavu-core`; lokalt räcker det att köra sviten utan variabeln.
-
-## Köra
-
-Kräver Python 3.11+ och [uv](https://docs.astral.sh/uv/). CUDA-rekommenderas för detektion och träning.
+## Kom igång
 
 ```bash
 uv sync --extra cu128
 uv run python -m xray_detector.app
 ```
 
-`--extra cu128` hämtar PyTorch med CUDA 12.8-stöd från PyTorch:s eget index (krävs för GPU, inklusive RTX 50-serien/Blackwell). RTX 50-kort fungerar inte med cu126-byggen. 
+`--extra cu128` hämtar PyTorch med CUDA 12.8-stöd från PyTorch:s eget index
+(krävs för GPU, inklusive RTX 50-serien/Blackwell). Utan extra installeras
+CPU-bygget av PyTorch, och detektionsvyns enhetslabel visar då
+`Enhet: CPU (CUDA ej tillgänglig)` i rött i stället för
+`Enhet: CUDA (GPU-namn)` i grönt.
 
-Utan extra installeras CPU-bygget av PyTorch och appen körs på CPU – detektionsvyns enhetslabel visar då "Enhet: CPU (CUDA ej tillgänglig)" i rött, annars "Enhet: CUDA (GPU-namn)" i grönt.
+## Köra
 
 Med RF-DETR-stöd:
 
@@ -73,120 +44,52 @@ Med RF-DETR-stöd:
 uv sync --extra cu128 --extra rfdetr
 ```
 
-`rfdetr` är ett valfritt extra. Saknas paketet är RF-DETR-posten avstängd i modellväljaren (både i detektions- och träningsläget) och märkt `(rfdetr ej installerat)`; ett sparat RF-DETR-val faller då tillbaka på en tillgänglig modell i stället för att ge ett felladdningsmeddelande. Extra:t drar också in rfdetr:s träningsberoenden (`rfdetr[train]`: PyTorch Lightning, torchmetrics, pycocotools med mera), eftersom RF-DETR-träningen annars stannar på ett ImportError innan första epoken.
+`rfdetr` är ett valfritt extra. Saknas paketet är RF-DETR-posten avstängd i
+modellväljaren och märkt `(rfdetr ej installerat)`; ett sparat RF-DETR-val
+faller då tillbaka på en tillgänglig modell. Extra:t drar också in
+`rfdetr[train]`, eftersom RF-DETR-träningen annars stannar på ett ImportError
+innan första epoken.
 
-RF-DETR finns i storlekarna nano, small, medium och large. Vald storlek styr både vilka vikter detektionen laddar och vilken modell träningen utgår från. På GPU optimeras RF-DETR för inferens med FP16, vilket mätt gav 17,8 → 9,2 ms per ram med rutor inom 0,8 px från den ooptimerade modellen.
+`pygrabber` installeras automatiskt på Windows och ger videokällorna deras
+riktiga DirectShow-namn. Utan den visas bara index (`UVC 0`, `UVC 1`), vilket
+gör det svårt att skilja ett capture-kort från en virtuell kamera.
 
-Med CUDA begränsas PyTorch och OpenCV till en CPU-tråd. Inferensen körs på GPU, och de små CPU-tensorerna i modellernas för- och efterbearbetning vinner inget på att spridas över alla kärnor: mätt med två strömmar i 30 fps gick RF-DETR small från cirka 2200 % till cirka 100 % CPU med oförändrad bildfrekvens. Utan CUDA lämnas trådinställningarna orörda.
+## Tester
 
-`pygrabber` installeras automatiskt på Windows och ger videokällorna deras riktiga DirectShow-namn. Utan den visas bara index (`UVC 0`, `UVC 1`), vilket gör det omöjligt att se skillnad på ett capture-kort och en virtuell kamera som NVIDIA Broadcast.
-
-## Videokälla
-
-När en UVC-enhet väljs i en strömpanel dyker två listor upp bredvid källväljaren: upplösning och pixelformat. De fylls från enhetens egna DirectShow-kapabiliteter, så bara lägen som enheten faktiskt erbjuder går att välja. Varje panel minns sitt eget val mellan starterna, och **Auto** lämnar tillbaka valet till drivrutinen. Ett byte startar om strömmen med det nya formatet.
-
-Formatet spelar stor roll på USB 2.0-kort. Ett MacroSilicon MS2109-kort ger 1920x1080 i både MJPG och YUY2, men okomprimerad YUY2 kapas av bandbredden: mätt 9,3 fps mot 52,9 fps med MJPG i samma upplösning. Välj MJPG för 1080p, eller en lägre upplösning om kortet inte klarar MJPG. Formatet måste anges när källan öppnas — `cap.set(CAP_PROP_FOURCC)` efter öppning ignoreras av DSHOW-backend.
-
-## Lägen
-
-- **Detektion** (default): två videoströmmar i split screen (UVC-kort eller videofil), detektion med valbar modell (YOLO26/RF-DETR), "Fånga bilder" sparar aktuella rutor och öppnar annoteringsläget. Källväljaren visar enheternas riktiga namn, så ett capture-kort och en virtuell kamera går att skilja på. "Öppna videofil..." öppnar filväljaren i projektets `media/`, där demovideorna ligger; väljer man en fil någon annanstans kommer nästa filväljare ihåg den katalogen. Raden ovanför bilden visar bara strömmens bildfrekvens i fps; källans namn står i källväljaren i stället för i raden. Videofiler spelas upp i videons egen bildfrekvens; ramen skickas till visningen innan detektionen körs, så overlayn ligger en ram efter bilden men uppspelningen håller jämn takt. Detektionerna jämnas ut mellan ramar (EMA + hysteres) så overlayn inte fladdrar. Etiketten på rutan ritas i dubbel textstorlek, och högst upp i varje videofönster visas ett märke per detekterad klass med klassens namn och sannolikhet i klassens färg: till höger i vänstra fönstret och till vänster i högra, så de två fönstrens märken hamnar nära varandra. Detekteras flera klasser samtidigt staplas deras märken uppifrån och ned med den säkraste klassen överst, så alla syns utan att skriva över varandra. Ordningen har tröghet: en klass tar bara över översta platsen när den varit den säkraste 10 ramar i följd, så två klasser med nästan samma sannolikhet inte byter plats varje ram och märkena står still. Varje märke kräver 3 ramar i följd med sin klass innan det visas och dröjer 10 ramar utan innan det döljs, så en detektion nära tröskelvärdet inte får det att flimra; fördröjningarna och trögheten ställs in i detektionsvyns inställningar. Inferensen körs i källans egen upplösning: en 1080p-ström ger `imgsz` 1088x1920 i stället för ultralytics standard 640, så detaljer i bilden kastas inte bort innan modellen ser dem. Storleken avrundas uppåt till en multipel av 32 och begränsas till 320–1920, så en 4K-videofil körs i 1080p. Mätt på RTX 5080 kostar 1088x1920 samma tid som 640 för yolo26n (23 ms per ram), eftersom förbehandlingen på CPU är den dyra delen. RF-DETR behåller modellens egen upplösning, eftersom den bygger på positionskodningar för en fast storlek. I den övre raden visas appens GPU-, VRAM-, CPU- och RAM-användning som staplar, uppdaterade varje sekund; CPU visas som andel av maskinens kärnor och GPU/VRAM visar `n/a` utan CUDA. Knappen längst till höger i samma rad slår av och på objektdetektionen och visar vad ett klick gör: "Detektion av" när detektionen är igång, "Detektion på" när den är av. Overlayn rensas och detektorn kopplas bort från strömmarna, men modellen ligger kvar i minnet så den går snabbt att slå på igen. Läget gäller till nästa start.
-- **Dataset**: bilderna grupperas i en sektion per datum, med datumet som rubrik. Inom sektionen är varje fångst ett kort med fångstens tid och en badge per objektklass i bildparet, utan antal; korten läggs efter varandra på samma rad och radbryts när raden är full. Bildparets detektioner är inritade i thumbnails med klassens färg, så det syns direkt vad bilden innehåller. Det nyaste datumet listas överst; i datasetvyns inställningar byts ordningen till äldst först, och osparade fångster följer samma ordning. Överst i vyn filtreras listan på objektklass och, när kryssrutan för datumintervall är på, på fångstdatum mellan två datepickers; "Alla klasser" och avstängt datumfilter visar allt, och filtren kan kombineras. Filtret **Bildtyp** visar allt, bara original eller bara syntetiska bildpar. Osparade fångster från pending-kön ligger i en egen sektion överst, tydligt åtskilda från de sparade. Kön finns för att en krasch inte ska tappa bilderna: gruppen skrivs när du trycker Fånga och tas bort när annoteringen sparas. Lämnar du annoteringen utan att spara – med Avbryt eller genom att byta flik – kastas fångsten i stället för att ligga kvar som ett osparat bildpar. Ett klick var som helst på kortet markerar hela fångsten (paret) och "Ta bort markerade" tar bort alla bilder i den; knappen, bekräftelsedialogen och statusraden räknar bildpar, eftersom bilderna alltid hanteras i par. Markeringen syns som en ändrad bakgrundsfärg på titelraden och en blå ram, utan någon text i titelraden; klassmärkena ligger strax efter tidsangivelsen med lite extra luft mot tiden. Kortet behåller sin storlek när fångsten markeras, så korten intill inte flyttas. Knappraden ligger till höger i vyn: "Utöka med bildvariationer" och "Återställ till original" står först med ett eget mellanrum till exportknapparna, så de två grupperna syns var för sig. "Ta bort oanvända klasser" står sist med ett eget mellanrum, eftersom den rensar datasetets klasslista i stället för att röra bilderna: den tar bort de klasser som ingen annotering använder och skriver om labelindexen så de kvarvarande klasserna behåller sina annoteringar. Finns inget att ta bort säger statusraden det i stället för att öppna en dialog. "Exportera COCO" och "Exportera YOLO" skriver datasetet till `exports/` med manifest (format, datum, antal objekt). "Utöka med bildvariationer" öppnar en dialog där kombinationsläget ställs först: en per variationstyp, alla valda variationer i samma bild, eller slumpvisa kombinationer där varje bild får ett slumpvis urval av typerna. Antalet variationer per bildpar är ett underval till kombinationen och är bara valbart när en bild får flera typer; en per variationstyp ger i stället ett bildpar per vald typ. Sedan väljs vilka variationstyper som ska användas – rotation, vändning, storlek och färg – med styrka för de valda typerna; en typ är avstängd tills dess kryssruta är satt, och då är även typens fält avstängda. Storleken har separata gränser för att öka och minska, eftersom en bild kan växa mer än den kan krympa. Dialogen räknar ut hur många bildpar utökningen ger innan den genomförs; "Utöka" skapar variationerna och "Avbryt" stänger dialogen utan ändring. Varje variation blir ett eget bildpar med samma bilder som originalet, märkt med en ikon i kortets övre högra hörn och variationerna som tooltip, och bara originalbilderna varieras så en ny utökning inte varierar en tidigare variation. Den yta som en rotation lägger till fylls med bildernas vita bakgrund, så en roterad bild inte får en svart ram. "Återställ till original" raderar alla syntetiska bilder och lämnar originalen kvar.
-- **Annotation**: rita/redigera rektanglar, välj eller skriv in klass, spara till datasetet i YOLO-format. En markerad rektangel tas bort med Delete eller Backspace; det finns ingen knapp för det. Klasslistan är datasetets egna klasser och är tom vid en nyinstallation. Frågorna kommer först när annoteringsvyn är öppen, aldrig i vyn du kom ifrån: är listan tom frågar appen om modellens klasser ska läggas till, med antalet klasser i dialogen, och har bildparet detekterat en klass som listan saknar frågar appen om just den klassen, med namnet i dialogen. Klasser du lägger till eller tar bort skrivs direkt till datasetet, och en klass som redan används av sparade annoteringar kan inte tas bort. Ett klick på klassnamnet ovanför en annotering i bilden öppnar en dialog med en dropdown där klassen kan bytas. Vyn öppnas från Detektion ("Fånga bilder") eller Dataset (dubbelklick på en fångst), och både "Spara till dataset" och "Avbryt" tar dig tillbaka till fliken du kom från. Avbryt behåller aldrig osparade ändringar: finns det ändringar frågar appen först, och väljer du att kasta dem tas den osparade fångsten bort. Ett flikbyte från annoteringen beter sig på samma sätt – frågan kommer bara när något är ändrat, annars lämnas vyn utan att något sparas. Bilderna du öppnar från Dataset ligger redan i datasetet, så "Spara till dataset" är avstängt tills du ändrar något; annars skulle ett klick utan ändring skriva in dubbletter. En ändring som sparas ersätter det befintliga bildparet i stället för att lägga till en kopia: bild-id, fångstgrupp och fångsttid behålls, så paret ligger kvar på samma plats i datasetet och en redigerad variation fortsätter höra till sitt ursprung. En ny fångst finns inte i datasetet än och kan sparas direkt.
-- **Träning**: träna basmodell på datasetet. När träningen startar stängs videofångsten (UVC), uppspelningen av videofil och detektionen i videoströmmen av, så träningen får hela maskinen; panelerna visar "Avstängt under träning". Går du till fliken Detektion medan träningen körs tänds strömmarna och detektionen igen automatiskt, och när träningen avslutas återupptas de på samma sätt. Starten exporterar datasetet i den familj modellen tillhör, i bakgrunden så vyn inte fryser; ett schemalagt jobb exporterar först när det faktiskt startar, så det tränar på de annoteringar som finns då. Knappen heter **Starta träning** när körningen startar direkt och **Schemalägg träning** när Nattetid eller Efter inaktivitet är valt. Träningsschemat – nattfönster och inaktivitet innan träning – ställs in i träningsvyns inställningar. Andelen av datasetet som används till train ställs i stället in i vyns **Dataset**-kort, som står till höger om träningsinställningarna och också visar storleken på datasetet; resten blir validering. Delningen sker per bildpar, så ett par hamnar alltid i sin helhet i train eller i val, och redovisningen i Dataset-kortet räknar bildpar (`Train/val: 5/1 par`). En syntetisk bild följer sitt ursprung: den räknas i ursprungsbildens bildpar och hamnar därför alltid i samma del som originalet, så en utökning aldrig kan läcka mellan train och val. Delningen och `Train/val`-siffran utgår bara från ursprungsbildparen, så en utökning flyttar inget original mellan delarna. Samma andel styr YOLO-exporten från datasetvyn. Delningen är stratifierad på klassuppsättning: grupper med en ovanlig klass läggs först i kön och fördelas mot delarnas målantal, så en klass som bara finns i två bildpar hamnar i både train och val i stället för att falla utanför val. RF-DETR:s export har dessutom en egen test-del, så `Train/val`-siffran blir mindre för RF-DETR än för YOLO: train får andelen, resten delas mellan valid och test, och test får en egen grupp först när datasetet har minst tre. Bildstorleken följer datasetet: default är datasetets vanligaste upplösning med den längsta sidan avrundad uppåt till en multipel av 32, så 1920x1080 ger 1920. Fältet **Bildstorlek (längsta sidan)** anger just bildens längsta sida, inte den horisontella eller vertikala specifikt: ultralytics skalar bilden till en kvadrat på Bildstorlek x Bildstorlek px, så 1280x720 ger 1280 (horisontell) och 720x1280 ger 1280 (vertikal). Bredvid inställningen listas alla upplösningar som förekommer, med antal bilder (`Datasetets upplösningar: 1920x1080 (2), 640x480 (1)`). Ändrar du storleken själv behålls ditt val och sparas först då i `training/imgsz`; utan ett eget val fortsätter defaulten att följa datasetet när nya bilder sparas. För RF-DETR styr samma fält modellens upplösning, och storleken måste vara delbar med 32 (patch_size 16 x num_windows 2): en annan storlek avvisas med ett tydligt fel i statusraden innan träningsprocessen startar, och träningsprocessen avvisar den på samma sätt om den körs från CLI:t. Basmodellen kan också vara en egen RF-DETR-snapshot (`.pth`): den laddas med `rfdetr.from_checkpoint`, som läser arkitektur och antal klasser ur filen, och träningen fortsätter från dess vikter med bildstorleken ovan – rfdetr räknar då om positionskodningarna åt den. **Batch** följer modellfamiljen tills du väljer ett eget värde: 16 för YOLO och 4 för RF-DETR, eftersom RF-DETR large får slut på minne på ett 16 GB-kort vid bildstorlek 704 med batch 16 och CUDA-kontexten inte går att rädda efter det. Ett eget batchvärde sparas först då i `training/batch`.
-
-Träningsvyn visar en progressbar med epok X/Y och de aktuella värdena (train-loss, val-loss, mAP50, mAP50-95, precision och recall) medan träningen körs. Värdena kommer från träningsprocessen som ett strukturerat event per epok, inte från fri text: processen läser ultralytics `results.csv` respektive RF-DETR:s `metrics.csv` och skriver en `EPOCH {json}`-rad på stdout som workern lyfter ut till en egen signal. Loggen under grafen visar fortfarande processens utmatning; en rad som skrivs i flera delar buffras tills radbrytningen kommer och blir en loggrad. Träningsprocessen kopplar om sin stdout och stderr till UTF-8, eftersom GUI:t läser dem som UTF-8: rfdetr ritar tabeller med rich, vars box-tecken inte går att koda i cp1252, och utan omkopplingen kraschade en RF-DETR-körning på `UnicodeEncodeError` samtidigt som svenska tecken blev mojibake i loggen. RF-DETR skriver en rad per loggning, så train- och valvärdena för samma epok slås ihop innan eventet skickas. Lightning skriver dessutom om hela `metrics.csv` när en ny kolumn tillkommer, så läsningen börjar då om från filens början i stället för att fortsätta mitt i en rad. Under epoken skriver processen dessutom en `PROGRESS {json}`-rad med epok, steg och totalt antal steg, throttlad till en rad varannat sekund, och träningsvyn visar den som `Epok 3 · steg 45/120 (38 %)` under epokraden. Raden bär sin egen tidsstämpel: kommer ingen ny rapport på tio sekunder märker vyn den som inaktuell (`ingen rapport på N s`) i stället för att låta siffran se aktuell ut, och ett avbrott eller ett avslut rensar den. YOLO rapporterar via `on_train_batch_end`; RF-DETR saknar publik callback-krok, så där syns bara epokeventen och paketets egen förloppsrad i loggen.
-
-Ovanför loggen ritas två grafer, en för train- och val-loss och en för mAP50 och mAP50-95, med epok på x-axeln. Diagramytorna syns bara när det finns något att visa: de dyker upp när en träning startas och fylls på med ett epokevent i taget, och de är dolda när ingen träning pågår och ingen tidigare körning är vald. Markeras en genomförd träning i **Tidigare träningar** ritas dess sparade epokvärden ur körningens `results.csv` respektive `metrics.csv`; tas markeringen bort döljs graferna igen. Graferna behåller sina punkter när träningen avbryts, så en avbruten körning går att läsa av efteråt. Loss och mAP har olika skalor och får därför var sin y-axel. Grafen ritas med QPainter och hämtar färgerna ur appens palett, så den följer ljust och mörkt tema. En körning med en enda epok ger en punkt; axlarna spänner då över ett minsta intervall och punkten ritas som en markör, annars hade grafen sett tom ut.
-
-**Avbryt vid överträning** är på som default och stängs av i träningsvyn. Stoppet är ramverkens egen early stopping: YOLO får `patience` och RF-DETR `early_stopping` med samma patience, så träningen avslutas när valvärdet inte förbättrats under de epokerna. Stängs valet av får YOLO `patience=0` och RF-DETR `early_stopping=False`, vilket stänger av mekanismen. Bästa vikterna och manifestet skrivs om efter varje epok, så de finns kvar även när träningen stoppas i förtid. Träningsprocessen jämför efteråt antalet genomförda epoker med det begärda antalet: blev färre klara skrivs en `ABORT`-rad med orsaken, som syns i träningsvyn och i statusraden, och sparas som `abort_reason` i manifestet. Manifestet skiljer också på varför körningen avbröts: `stop_reason` är `overfitting` när early stopping stoppade den och `error` när ett undantag gjorde det, så historikvyn kan visa `Avbruten (överträning)` respektive `Avbruten (fel)`.
-
-Träningen sätter hyperparametrarna explicit i stället för att ärva ramverkets defaults, och skriver dem i manifestets `hyperparameters`. YOLO tränas med AdamW, `lr0` 0.001, cosinus-schemalagd inlärningshastighet och seed 42, eftersom ultralytics `optimizer=auto` väljer SGD eller AdamW utifrån epokantalet och samma konfiguration därför kunde ge olika optimerare. Augmentationen är vald för röntgen: rotation tillåts (`degrees` 30) eftersom objekten ligger på godtycklig ledd, mosaic är nedtonad till 0.3 med `close_mosaic` 15 så scener som inte finns på riktigt inte dominerar, och mättnadsändringen är begränsad till `hsv_s` 0.2 i stället för 0.7 i en nästan gråskalig bild. RF-DETR får `resolution` ur bildstorleken, `num_workers` 8 i stället för paketets 2, som svälter GPU:n på ett stort dataset, och `seed` 42 i stället för ingen seed alls.
-
-Under grafen ligger två flikar: **Logg** med träningsprocessens utmatning och **Tidigare träningar** med en rad per körning ur `models/trained/`. Listan visar körning, basmodell, epoker (körda/planerade när körningen avbröts), tidsåtgång, mAP50-95 och status, nyast först, och uppdateras när en träning avslutas. Raden under listan visar vald körnings parametrar: familj, basmodell, dataset, bildstorlek, batch, epoker, mAP50-95, status, dom och klasser. **Dom**-kolumnen klassar en avslutad körning ur dess sparade epokvärden: `Förbättras` när kurvan fortfarande stiger över det sista fönstret, `Övertränad` när train-loss föll medan val-loss steg efter den bästa epoken, och `Avstannad` när kurvan planade ut. Färre än fem epoker går inte att bedöma och ger `-`. **Exportera modell** kopierar vald körnings vikter och manifest till en katalog du väljer, så modellen kan användas utanför appen; knappen är avstängd tills en körning är vald. Vikterna behåller sitt format (`.pt` för YOLO, `.pth` för RF-DETR), vilket är det både appen och ultralytics/rfdetr läser. **Ta bort träning** raderar vald körning med dess filer – vikter, manifest, metrics och utvärdering – efter en bekräftelse, och modellen försvinner då ur modellväljarna. Knappen är avstängd tills en körning är vald, och medan en körning pågår kan den inte tas bort eftersom träningen skriver i katalogen. Den delade `logs/training.log` lämnas orörd, eftersom den innehåller alla körningars utmatning.
-
-**Utvärdera...** kör vald modell över en vald delmängd utan att starta en träning och sparar rapporten som `evaluation.json` i körningens katalog, så två körningar kan jämföras i efterhand. Delmängden väljs i listan bredvid knappen: `Test` (held-out för RF-DETR), `Val` eller `Alla`. Rapporten visar mAP50-95 och mAP50 totalt och per vy, där vyn är bildens plats i fångstgruppen — appen fångar två strömmar per fångstögonblick, så en modell som ser bra ut totalt men faller på en vy syns bara när talen delas upp. Den visar också falsklarm per bild på de negativa bilderna vid den konfidenströskel som ger 95 % recall på de positiva, vilket är det tal som avgör om modellen går att driftsätta. mAP räknas över IoU 0.5 till 0.95 i steg om 0.05 med all-point-interpolerad AP, i ren numpy utan torchmetrics. Utvärderingen körs i bakgrunden, så fönstret svarar medan modellen går igenom bilderna.
-
-## Inställningar
-
-Inställningsfliken håller applikationens globala inställningar, det vill säga sådant som inte hör till någon av de andra flikarna. I dag är det temat och modellistan.
-
-**Modeller** i inställningsfliken listar samma modeller som detektionsvyns väljare bygger sin lista ur: basmodellerna från `models/models.json` och de egentränade modellerna under `models/trained/`. En modell läggs till från en viktfil på disk (**Lägg till från fil...**) eller från en http/https-adress (**Hämta från internet...**); filen kopieras respektive laddas ner till `models/` och får en egen post i listan. Adressdialogen visar vilka ändelser som gäller och ett exempel från Huggingface (`https://huggingface.co/Ultralytics/YOLO26/resolve/main/yolo26l.pt`), eftersom en webbsida i stället för en viktfil annars är lätt att klistra in. Nedladdningen körs i en arbetstråd, så fönstret svarar medan filen hämtas. **Byt namn...** ändrar visningsnamnet i väljarna men rör varken nyckeln eller viktfilen, och **Ta bort** tar bort posten ur listan – viktfilen ligger kvar i `models/`, så en modell som togs bort av misstag går att lägga till igen utan att laddas ner på nytt. En egentränad modell får sitt namn vid träningen, så **Byt namn...** är avstängt för den. **Ta bort** frågar först och raderar då även träningsfilerna – vikter, manifest, metrics och utvärdering – på samma sätt som **Ta bort träning** i träningsvyn, så modellen försvinner ur både modellistan och väljarna. En ändrad lista slår igenom direkt i modellväljarna. Modellfamiljen avgörs av filens ändelse: `.pt` blir YOLO och `.pth` blir RF-DETR. Basmodellerna sparas i `models/models.json`, som skapas först när listan ändras; utan filen gäller standardmodellerna i `model_registry.py`. `available_models()` i samma modul sätter ihop den fullständiga listan, så väljaren och inställningarna aldrig kan visa olika modeller.
-
-Varje vy har dessutom en **Inställningar**-knapp högst upp till höger, med ett kugghjul framför texten. Den öppnar de inställningar som hör till vyn: detektionsvyn har klassfiltret och inställningarna för klassmärket, datasetvyn sorteringen och träningsvyn träningsschemat med nattfönster och inaktivitet. Klassfiltret listar modellens klasser i flera kolumner i en rullista, så även en modell med hundratals klasser (COCO:s 80) ryms i dialogrutan i stället för att växa utanför skärmen. En vy utan egna inställningar har kvar knappen men avstängd, så placeringen är densamma oavsett vilken flik som är öppen.
-
-Detektionsvyns inställningar håller **klassfiltret**: en kryssruta per klass som vald modell kan detektera. Ovanför listan sitter en knapp som växlar mellan alla och inga klasser: den markerar alla när någon är avmarkerad och avmarkerar alla när alla är markerade, och etiketten visar vad nästa klick gör. Alla klasser är valda från början, så beteendet är oförändrat tills något klickas bort. Klasslistan följer modellen och byggs om när en annan modell laddas. Valen sparas per modell under `detection/classes_off/<modellnyckel>`, och det är bara bortvalen som sparas – en klass som tillkommer i en modell är därför vald från början. Bortvalda klasser filtreras bort i detektorn innan overlayn ritas. Väljs alla klasser bort kopplas detektorn bort helt: sektionen visar "Inga klasser valda – ingen detektion körs", statusraden säger samma sak och ingen detektion körs förrän minst en klass är vald igen.
-
-Under klassfiltret ställs **klassmärkets fördröjning** in: hur många ramar i följd en klass måste detekteras i innan märket visas (3 som standard) och hur många ramar utan detektion som krävs innan det döljs (10 som standard). Fördröjningen räknas per klass, så en klass som ligger stabilt över tröskeln syns även när en annan klass flimrar. Där ställs också **trögheten i platsbyten** in: hur många ramar i följd en klass måste vara den säkraste innan den tar över översta platsen (10 som standard). Ändringarna sparas direkt under `detection/badge_show_frames`, `detection/badge_hide_frames` och `detection/badge_swap_frames` och slår igenom på båda videofönstren utan att dialogen stängs.
-
-Ändringar sparas direkt, och **Stäng** (eller Esc) lämnar allt orört. Nycklarna i `settings.ini` är oförändrade (`ui/theme`, `training/night_start_hour`, `training/night_end_hour`, `training/inactivity_minutes`, `training/train_ratio`), så sparade val fortsätter att gälla.
-
-## GUI-element
-
-Knapparna har samma höjd (32 px) i alla vyer. Måtten ligger i `xray_detector/ui/style.py` i stället för i varje vy, och vyerna skapar knappar med `button()`; en ändring av `BUTTON_HEIGHT` slår då igenom överallt. Huvudåtgärden i en vy markeras med `primary=True`, vilket ger fet stil i stället för en högre knapp, så raden håller sig rak: **Fånga bilder**, **Spara till dataset** och **Starta träning**. Klassknapparna `+` och `−` i annoteringsvyn är 36 px breda (`ICON_BUTTON_WIDTH`).
-
-Ett element som behöver egna mått skickar `height=` eller `width=` till `button()`, eller använder `apply_metrics()` på en widget som Qt har skapat, som dialogens **Stäng**-knapp. `height=None` lämnar höjden till Qt. `tests/test_style.py` mäter att alla knappar i alla vyer har samma höjd, så en ny knapp som sätter en egen höjd fastnar i testet.
-
-Formulärfälten ligger i ett `FormCard`: en gruppruta med rubrik och ett `QFormLayout` som har en maxbredd (`FORM_MAX_WIDTH`, 520 px). Fälten blir då aldrig bredare än kortet, så en dropdown eller ett textfält inte sträcker sig över hela skärmen på en stor skärm; kortet håller sig till vänster i vyn och resten av bredden lämnas tom. Träningsvyns inställningar och Dataset-kortet, temavalet, träningsschemat och sorteringen delar samma mått, och modellistan har en egen, något bredare maxbredd (`LIST_MAX_WIDTH`, 640 px) eftersom knappraden behöver plats. `tests/test_form_width.py` visar fönstret brett och mäter att korten, fälten och knapparna håller sig inom måtten.
-
-Qt:s egna standardknappar blir svenska genom att appen laddar `qtbase_sv.qm`, som följer med PySide6 (`xray_detector/ui/translations.py`). Utan den står **Ok**, **Avbryt**, **Ja**, **Nej**, **Spara**, **Förkasta** och **Stäng** på engelska medan resten av appen är på svenska. Översättningen installeras direkt efter `QApplication` och före första fönstret, eftersom Qt slår upp texten när knappen skapas. Saknas filen startar appen som förut med Qt:s egna texter.
-
-## Tidskrävande operationer
-
-Sju operationer som tidigare blockerade GUI-tråden körs i en arbetstråd och visar en gemensam upptagenindikator (`xray_detector/ui/busy_indicator.py`) som läggs över vyn: modellbyte i detektionsvyn, omladdning av bildlistan, export till COCO/YOLO och utökning med bildvariationer i datasetvyn, sparning av annoteringar, enhetskontrollen vid start och utvärderingen i träningsvyn. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning. Indikatorn tänds först efter 150 ms, så en operation som hinner klart ändå inte ger en blinkning.
-
-## Tangentbord
-
-Allt som går att klicka på går också att nå från tangentbordet. Genvägen syns i etiketten: Qt:s mnemonik ritar en understruken bokstav som ger **Alt+bokstav**, och genvägar som inte är mnemonik visas i stället inom parentes, som `Avbryt (Esc)`. Hjälpmodulen `xray_detector/ui/shortcuts.py` sätter `&` på rätt plats och binder de genvägar som inte är mnemonik.
-
-| Var | Genväg |
-| --- | --- |
-| Flikar | Alt+D Detektion, Alt+A Annotation, Alt+S Dataset, Alt+T Träning, Alt+L Inställningar |
-| Vyernas inställningar | Alt+I öppnar den aktiva vyns inställningar; avstängd när vyn inte har några |
-| Detektion | Alt+F eller Space Fånga bilder, Alt+O Detektion av/på, Alt+G/Alt+N Försök igen (ström 1/2) |
-| Annotation | Alt+P eller Enter Spara till dataset (Enter i klassrutan lägger till klassen), Esc Avbryt, Ctrl++/Ctrl+- lägg till/ta bort klass |
-| Dataset | Enter öppnar markerat bildpar, Alt+U Utöka med bildvariationer, Alt+R Återställ till original, Alt+E Exportera COCO, Alt+Y Exportera YOLO, Alt+B eller Del/Backspace Ta bort markerade, Alt+K Ta bort oanvända klasser |
-| Träning | Alt+R Starta träning (Alt+S Schemalägg träning när ett schema är valt), Alt+U Utvärdera, Alt+E Exportera modell, Alt+B Ta bort träning, Esc Avbryt |
-| Övrigt | F11 helskärm, Delete/Backspace tar bort markerad rektangel, Ctrl+hjul zoomar |
-
-Mnemonikbokstäverna är unika inom varje vy och krockar inte med flikraden, som alltid syns. Fliken Inställningar använder därför Alt+L i stället för Alt+I: inställningarna för vyn man arbetar i nås oftare än de globala, så Alt+I hör till vyernas inställningsknappar. En genväg som hör till en knapp på en flik som inte är aktiv utlöses inte: Qt aktiverar bara genvägar vars widget syns och är påslagen, och Esc/Ctrl++/Ctrl+-/Space/Enter/Del binds med `WindowShortcut` på vyn. Space vinner över ett inmatningsfält i detektionsvyn: `_CaptureKeyFilter` sitter på detektionsvyns fält och avvisar deras `ShortcutOverride` för Space, så tröskelfältet inte tar över tangenten. Filtret sitter på fälten i stället för på applikationen, så bara deras händelser går genom Python. Av samma skäl går en avstängd flik inte att nå med sin mnemonik.
-
-Enter, Esc och Del/Backspace betyder samma sak i varje vy (TASK-116): Enter kör vyens standardåtgärd, Esc avbryter och Del/Backspace tar bort det markerade. `bind_default_action` och `bind_delete` i `xray_detector/ui/shortcuts.py` binder tangenterna, så en vy som får en standardåtgärd använder samma tangenter som de andra. Bara annoterings- och datasetvyn har en standardåtgärd för Enter; i de andra vyerna finns ingen Enter-genväg, så Enter bekräftar fältet man skriver i. Ett fält som har en egen Enter-åtgärd behåller tangenten med `bind_field_enter`: i annoteringsvyn sparar Enter klassnamnet när klassrutans textfält har fokus, och annoteringen annars. Backspace lämnas till ett fält som redigeras, så ett datumfält fortsätter att sudda i stället för att ta bort bildparet. I dialogerna väljer Enter dialogens standardknapp och Esc den avbrytande: Stäng i inställningsdialogen, Utöka i variationsdialogen. Inställningsdialogen sätter Stäng som standardknapp och stänger av `autoDefault` på sektionernas knappar, så Enter stänger dialogen i stället för att till exempel markera alla klasser.
-
-
-Modellväljaren är avstängd medan en modell laddas, så två laddningar inte kan köra samtidigt. En misslyckad laddning ger samma felmeddelande som förut och lämnar detektorn avstängd. Mätt på RTX 5080 tar RF-DETR nano 6,3 s att ladda; under hela den tiden animeras snurran och fönstret ritas om. Datasetvyns bildavkodning var den dyra delen av omladdningen (826 av 870 ms för 200 bilder) och ligger därför i arbetstråden, medan widgetbygget (cirka 45 ms) sker i GUI-tråden. Enhetskontrollen, som initierar CUDA-kontexten på cirka 1 s, har ingen indikator: den flyttades bara bort från `MainWindow.__init__` så fönstret kan visas direkt.
-
-## Filer och mappar
-
-Dataset, exporter och inställningar ligger under `~/.xray-detector/`. Datasetet är en enda samling i YOLO-format: `datasets/data.yaml` med klasserna, bilderna i `datasets/images/`, annoteringarna i `datasets/labels/` (en `.txt` per bild) och metadata som bild-id, fångstgrupp och fångsttid i `datasets/dataset.json`. En syntetisk bild har `synthetic`, `source` (originalets bild-id) och `variation` (en lista med typ och styrka per variation i bilden) i samma fil, så den går att skilja från originalen och spåra tillbaka till bilden den skapades från. Exporten hamnar i `exports/yolo/`, `exports/coco/` eller `exports/rfdetr/`. YOLO-exporten skriver `train.txt` och `val.txt` med sökvägar till datasetets egna bilder i stället för att kopiera dem, så en export inte kostar någon diskplats. Ett dataset som sparades i det tidigare COCO-formatet konverteras automatiskt till YOLO när appen startar. Modellvikterna och loggarna ligger i stället i projektets `models/` respektive `logs/`, som båda skapas vid behov och är gitignorerade:
-
-| Sökväg | Innehåll |
-| --- | --- |
-| `models/` | Basvikter, till exempel `yolo26n.pt`. Ultralytics laddar ner en saknad vikt hit i stället för till arbetskatalogen. |
-| `models/models.json` | Modellistan som väljarna bygger på: nyckel, visningsnamn, familj och viktfil per modell. Skapas först när listan ändras i inställningsfliken; utan filen gäller standardmodellerna. |
-| `models/trained/` | Egentränade modeller, en katalog per träningskörning (`<datum>_<tid>`) med `training_manifest.json`, bästa vikterna under `yolo/weights/best.pt` (YOLO) eller `rfdetr/checkpoint_best_total.pth` (RF-DETR) och `evaluation.json` när körningen är utvärderad. |
-| `logs/app.log` | Applikationsloggen: start, statusmeddelanden, ohanterade undantag och tredjepartens varningar. |
-| `logs/training.log` | Träningsprocessens utmatning, en rubrikrad per körning med körnings-id, tidsstämpel, basmodell och körningskatalog. |
-
-Modellväljaren listar basmodellerna först och därefter varje `training_manifest.json` under `models/trained/`, märkt med körningens namn: `[basmodell] [datum] [ursprungsbildpar + syntetiska bildpar] bildpar [antal klasser] klasser`, till exempel `YOLO26 large 2026-11-15 13+29 bildpar 4 klasser`. Modellistan i inställningsfliken visar samma poster i samma ordning. Båda talen räknar bildpar: en variation blir ett eget bildpar, så en utökning med två variationer per ursprungspar höjer talet efter `+` med två per par. Basmodellens namn är den modell den första träningen utgick från, så en vidareträning på samma dataset bara byter datum. Manifest som skrevs innan namnet fanns visas som `Tränad <körning> (<basmodell>)`. Manifestets `family` avgör vilken detektor posten laddas med: `yolo` ger `YoloDetector` och `rfdetr` ger `RfDetrDetector`, som läser snapshoten med `rfdetr.from_checkpoint`. Manifest som skrevs innan fältet fanns saknar `family` och behandlas som `yolo`. Bas- och egentränade vikter ligger i skilda kataloger och skriver därför aldrig över varandra.
-
-Varje körning får en unik katalog och därmed en unik snapshot av bästa vikterna. GUI:t skickar en tidsstämplad katalog; pekar CLI:t på en katalog som redan har ett manifest flyttas den nya körningen till `<namn>_2`, `_3` och så vidare, så en tidigare snapshot aldrig skrivs över. `--output` tolkas alltid som en absolut sökväg, eftersom ultralytics annars lägger relativa `project`-sökvägar under `runs/detect/`. Snapshoten är den faktiskt bästa checkpoints för familjen: `yolo/weights/best.pt` för YOLO och `rfdetr/checkpoint_best_total.pth` för RF-DETR. Medan en RF-DETR-körning pågår eller om den avbryts finns ännu ingen `checkpoint_best_total.pth`, och då används `checkpoint_best_ema.pth` eller `checkpoint_best_regular.pth`; `last_ema.pth` är slutvikterna och väljs aldrig. Manifestet skrivs om efter varje epok och innehåller körningens namn, basmodellens namn, familj, basmodell, dataset, hyperparametrar, metrics, antal körda epoker, status (`running`, `completed` eller `aborted`), `abort_reason` samt start-, slut- och körtid, så en avbruten körning behåller både bästa hittillsvarande vikter och sitt manifest. Namnet byggs av träningsvyn, som känner datasetets sammansättning och basmodellens etikett; en körning från CLI:t utan `--name` får ingen namnrad.
-
-Klassnamnen kommer från modellen, inte från konfigurationen: detektorn läser dem ur vikterna när den laddas (YOLO: `model.names`, RF-DETR: modellens `class_names`) och exponerar dem som `class_names`. En tränad modell visar alltså klasserna den tränades på och en basmodell sina egna, till exempel COCO:s 80. Datasetets klasser ligger i `data.yaml` och är master för annoteringen: listan i annoteringsvyn är datasetets kategorier, modellens klasser erbjuds i en fråga när listan är tom, och klasser som läggs till eller tas bort i annoteringsvyn skrivs till datasetet. YOLO lagrar klassen som ett index i klasslistan, så när en klass tas bort skrivs label-filerna om med den nya ordningen och sparade annoteringar behåller sin klass. Klassfärgen hashas ur klassnamnet, så samma klass har samma färg i detektions-, dataset- och annoteringsvyn och mellan appstarter. Går klassnamnen inte att läsa ur vikterna misslyckas laddningen med ett tydligt felmeddelande i stället för att overlayn visar klassindex.
-
-Sökvägarna till `models/` och `logs/` räknas ut från paketets placering och inte från arbetskatalogen, så appen hittar dem även när den startas från en annan mapp. Båda går att peka om i `config.yaml`, och `logs/` även med miljövariabeln `XRAY_LOGS_DIR` (som testsviten använder för att inte skriva i projektets loggar):
-
-```yaml
-models_dir: /sökväg/till/models   # relativ sökväg tolkas mot projektroten
-logs_dir: /sökväg/till/logs       # relativ sökväg tolkas mot projektroten
+```bash
+uv run pytest -q -n auto
+uv run ruff check .
 ```
 
-Filen tolkas med `yaml.safe_load`, så kommentarer, citattecken och listor fungerar som i vilken YAML-fil som helst. Samma läsare används för datasetets `data.yaml`, så klasslistan i vyn och i träningsmanifestet kan inte gå isär.
+`-n auto` fördelar filerna över alla kärnor med
+[pytest-xdist](https://pytest-xdist.readthedocs.io/). Markören `slow` är
+registrerad i `pyproject.toml` för tester som startar `MainWindow`, så
+`uv run pytest -m "not slow"` kör sviten utan dem. CI kör samma kommandon på
+GitHub Actions; detaljerna finns i [docs/arkitektur.md](docs/arkitektur.md).
 
-Loggfilerna roteras vid 1 MB och sparas i fem backupfiler (`app.log.1`–`app.log.5`). Rotationen och formatet delas av alla loggtyper, så en ny loggtyp under `logs/` är bara ett nytt namn i `log_path(logs_dir, namn)` – ingen ny kod för katalog eller rotation behövs. Varje rad inleds med tidsstämpel och process-id, så rader från appen och från en träningsprocess går att skilja åt: `2026-11-16 21:44:50,600 [20980] INFO xray: ...`.
+## Utveckling
 
-Apploggen fångar även det som annars bara syntes i konsolen. Python-varningar från torch, transformers och rfdetr loggas under loggern `py.warnings`, och rfdetr:s egna loggrar (`rf-detr`, `rfdetr.*`) leds in i filen i stället för att stanna i stderr. Loggerns namn i raden skiljer tredjepartens rader från appens `xray`-rader. Renodlat brus, som `comtypes` INFO-rader, hålls kvar på WARNING och hamnar därför inte i filen.
+Uppgifterna hanteras i [Backlog.md](https://github.com/MrLesk/Backlog.md) och
+arkitekturen följs upp i [Groma.md](https://github.com/MrLesk/Groma.md).
+Konfigurationen för båda ligger i repot, och kommandoverktygen installeras med
+npm:
 
-Vid start loggar appen vilken `config.yaml` som användes och vilka värden som gäller, datasetets storlek, kamerauppräkningens resultat och varje modelladdning med viktfil, familj, enhet och tidsåtgång. En träningskörning får ett id – körningskatalogens namn – som skrivs både i `app.log` och i `training.log`, så en körning går att följa mellan filerna. Ctrl+C loggas som INFO och stänger appen utan kraschdialog, så en ERROR-rad i loggen alltid är ett verkligt fel.
+```bash
+backlog browser
+groma web
+```
 
-Tidigare versioner sparade tränade modeller under `~/.xray-detector/models/` och loggarna under `~/.xray-detector/logs/`. De katalogerna skrivs inte längre; flytta i så fall modellerna till `models/trained/` för att få dem i väljaren. Gamla loggar kan flyttas till `logs/` eller tas bort.
+Kodkvaliteten kontrolleras med [ruff](https://docs.astral.sh/ruff/),
+konfigurerad i `pyproject.toml` under `[tool.ruff]`. Grinden är `ruff check`
+och ska gå igenom innan en ändring committas:
 
+```bash
+uv run ruff check .
+uv run ruff check --fix .
+```
+
+## Dokumentation
+
+- [docs/arkitektur.md](docs/arkitektur.md) – lager, trådar, modeller, filer och CI
+- [docs/beteende.md](docs/beteende.md) – lägen, videokälla, inställningar, GUI och tangentbord
+- [docs/historik/specs.md](docs/historik/specs.md) – den ursprungliga kravspecifikationen

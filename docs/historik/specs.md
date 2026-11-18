@@ -1,3 +1,12 @@
+# Ursprunglig kravspecifikation
+
+Det här är den kravspecifikation som projektet startade med. Den ligger kvar
+oförändrad som historik och beskriver därför inte dagens system: sedan den
+skrevs har datasetversionerna tagits bort, RF-DETR tillkommit som andra
+modellfamilj och syntetiska bildvariationer införts. Dagens beteende beskrivs i
+[../beteende.md](../beteende.md) och arkitekturen i
+[../arkitektur.md](../arkitektur.md).
+
 # X-ray detector
 
 Applikation för detektion av objekt i video med röntgenbilder.
