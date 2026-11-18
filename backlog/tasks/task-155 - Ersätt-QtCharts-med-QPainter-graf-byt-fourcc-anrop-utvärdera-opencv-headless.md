@@ -1,11 +1,11 @@
 ---
 id: TASK-155
 title: Ersätt QtCharts med QPainter-graf, byt fourcc-anrop, utvärdera opencv-headless
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:54:00Z'
-updated_date: '2026-11-18T09:13:00Z'
+updated_date: '2026-11-18T09:14:00Z'
 labels:
   - refactor
   - review-followup
@@ -38,18 +38,18 @@ PySide6.QtCharts är deprecated i Qt 6.8 och borttagen i 6.10, och QChart i trai
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Inget beroende av PySide6.QtCharts finns kvar; träningsgraferna följer ljust och mörkt tema
-- [ ] #2 cv2.VideoWriter.fourcc används överallt
-- [ ] #3 Beslut om opencv-python-headless är dokumenterat efter kontroll av kamerastöd på Windows
+- [x] #1 Inget beroende av PySide6.QtCharts finns kvar; träningsgraferna följer ljust och mörkt tema
+- [x] #2 cv2.VideoWriter.fourcc används överallt
+- [x] #3 Beslut om opencv-python-headless är dokumenterat efter kontroll av kamerastöd på Windows
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -67,3 +67,9 @@ PySide6.QtCharts är deprecated i Qt 6.8 och borttagen i 6.10, och QChart i trai
 <!-- SECTION:NOTES:BEGIN -->
 TrainingChart ritar nu med QPainter: Series/Axis som dataklasser och LineChart(QWidget) med axlar, rutnät, polylinjer, markörer och legend. Bakgrund, text och rutnät hämtas ur self.palette(), så grafen följer ljust och mörkt tema; tematester renderar widgeten med båda paletterna. cv2.VideoWriter_fourcc är bytt mot cv2.VideoWriter.fourcc i source.py, conftest.py och test_video_modes.py. Beslutet om opencv-python-headless finns i doc-1: kvar som opencv-python, eftersom ultralytics kräver det och DirectShow/MSMF är verifierat i headless-byggnaden.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+TrainingChart ritar nu två grafer med QPainter i stället för QtCharts: Series och Axis är dataklasser och LineChart ritar axlar med runda tickvärden, rutnät, polylinjer, markörer och legend. Bakgrund, text och rutnät hämtas ur widgetens palett, så grafen följer ljust och mörkt tema; två tematester renderar widgeten med båda paletterna och kontrollerar bakgrunds- och textfärgen. cv2.VideoWriter_fourcc är bytt mot cv2.VideoWriter.fourcc i source.py, conftest.py och test_video_modes.py. Beslutet om opencv-python-headless finns i doc-1: den direkta dependencyn är kvar som opencv-python, eftersom ultralytics kräver det och två hjul som äger samma cv2-katalog skulle göra vinnaren beroende av installationsordningen. Kamerastödet är verifierat: den installerade headless-byggnaden (GUI: NONE) rapporterar DirectShow: YES och öppnade en riktig kamera via CAP_DSHOW. Verifiering: ruff check . är ren och pytest -q -n auto ger 892 passed, 4 failed; de fyra felen (test_app_icon och tre i test_detection_badge) finns även på HEAD utan denna ändring och beror på att miljön saknar teckensnitt, inte på ändringen.
+<!-- SECTION:FINAL_SUMMARY:END -->
