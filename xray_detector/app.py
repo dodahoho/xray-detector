@@ -1,11 +1,17 @@
+import ctypes
 import sys
 from pathlib import Path
+
+from PySide6.QtCore import qInstallMessageHandler
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication
 
 from xray_detector.application.app_config import (
     config_values,
     load_config_with_yaml,
     setup_logging,
 )
+from xray_detector.ui.crash_dialog import install_exception_dialog
 from xray_detector.ui.main_window import MainWindow
 from xray_detector.ui.translations import install_swedish_translations
 
@@ -14,8 +20,6 @@ APP_USER_MODEL_ID = "xray-detector"
 
 
 def _install_message_filter() -> None:
-    from PySide6.QtCore import qInstallMessageHandler
-
     def handler(mode, context, message) -> None:
         if "CreateFontFaceFromHDC() failed" in message:
             return
@@ -34,8 +38,8 @@ def _set_app_user_model_id() -> None:
     if sys.platform != "win32":
         return
     try:
-        import ctypes
-        from ctypes import wintypes
+        # ctypes.wintypes finns bara på Windows, så den importeras här
+        from ctypes import wintypes  # noqa: PLC0415
 
         shell32 = ctypes.windll.shell32
         shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [wintypes.LPCWSTR]
@@ -54,15 +58,10 @@ def _log_startup(config, config_file, log) -> None:
 def main() -> int:
     _install_message_filter()
     _set_app_user_model_id()
-    from PySide6.QtGui import QIcon
-    from PySide6.QtWidgets import QApplication
-
     app = QApplication(sys.argv)
     # före första fönstret, så Qt:s standardknappar blir svenska direkt (TASK-83)
     install_swedish_translations(app)
     app.setWindowIcon(QIcon(str(ICON_PATH)))
-    from xray_detector.ui.crash_dialog import install_exception_dialog
-
     install_exception_dialog()
     app.setApplicationName("X-ray detector")
     config, config_file = load_config_with_yaml(config_dir=None, workdir=Path.cwd())

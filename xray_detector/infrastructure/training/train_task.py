@@ -8,7 +8,9 @@ from json import load as json_load
 from pathlib import Path
 
 from xray_detector.domain.training import default_batch, rfdetr_resolution_error
+from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.dataset_store.yolo import read_classes
+from xray_detector.infrastructure.detectors.yolo_detector import resolve_device
 from xray_detector.infrastructure.training.epoch_metrics import (
     EpochReporter,
     abort_line,
@@ -118,6 +120,33 @@ class _RunState:
     epochs_completed: int = 0
 
 
+@dataclass
+class TrainArgs:
+    """Träningens indata (TASK-146).
+
+    Byggs ur argparse i main() och direkt i testerna, så ingen kod muterar en
+    argparse.Namespace efter parsningen.
+    """
+
+    dataset: str
+    weights: str
+    output: str = ""
+    epochs: int = 100
+    imgsz: int = 640
+    batch: int | None = None
+    device: str = "cuda"
+    family: str = "yolo"
+    workers: int = DEFAULT_WORKERS
+    seed: int = DEFAULT_SEED
+    overfitting_guard: str = "on"
+    overfitting_patience: int = DEFAULT_PATIENCE
+    name: str = ""
+    base_name: str = ""
+    #: sätts i main(): absolut körningskatalog respektive starttid
+    output_path: Path | None = None
+    started: datetime | None = None
+
+
 def _output_path(value: str) -> Path:
     """Absolut körningskatalog (TASK-47).
 
@@ -127,7 +156,7 @@ def _output_path(value: str) -> Path:
     return Path(value).resolve()
 
 
-def _prepare_run_dir(args) -> Path:
+def _prepare_run_dir(args: TrainArgs) -> Path:
     """Unik körningskatalog; en ny körning skriver aldrig över en tidigare.
 
     GUI:t skickar en tidsstämplad katalog, men CLI:t kan peka på samma
@@ -165,7 +194,7 @@ def _best_checkpoint(run_dir: Path, family: str) -> Path | None:
     return None
 
 
-def _hyperparameters(args) -> dict:
+def _hyperparameters(args: TrainArgs) -> dict:
     """Hyperparametrarna som skickas till ramverket, för manifestet (TASK-92).
 
     YOLO:s värden är desamma som ``_train_yolo`` skickar, så manifestet visar
@@ -175,13 +204,13 @@ def _hyperparameters(args) -> dict:
     if args.family == "rfdetr":
         return {
             "resolution": args.imgsz,
-            "num_workers": getattr(args, "workers", DEFAULT_WORKERS),
-            "seed": getattr(args, "seed", DEFAULT_SEED),
+            "num_workers": args.workers,
+            "seed": args.seed,
         }
     return dict(YOLO_HYPERPARAMETERS)
 
 
-def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
+def _write_manifest(args: TrainArgs, run_dir: Path, state: _RunState) -> None:
     """Skriver manifestet för körningen; anropas även under pågående träning.
 
     Manifestet skrivs om efter varje epok, så en avbruten eller hårdstoppad
@@ -193,14 +222,14 @@ def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
     metrics = dict(state.metrics)
     if not metrics:
         metrics = _read_metrics(run_dir / YOLO_RUN_DIR / "results.csv")
-    started = getattr(args, "started", None)
+    started = args.started
     finished = None if state.status == "running" else datetime.now(UTC)
     manifest = {
         "family": args.family,
         # visningsnamnet byggs av GUI:t, som känner datasetets sammansättning
         # och basmodellens namn (TASK-108)
-        "name": getattr(args, "name", "") or None,
-        "base_model_name": getattr(args, "base_name", "") or None,
+        "name": args.name or None,
+        "base_model_name": args.base_name or None,
         "base_weights": args.weights,
         "weights_relative": best.relative_to(run_dir).as_posix(),
         "classes": _read_data_classes(Path(args.dataset)),
@@ -210,7 +239,7 @@ def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
         "batch": args.batch,
         "device": args.device,
         "hyperparameters": _hyperparameters(args),
-        "overfitting_guard": getattr(args, "overfitting_guard", "on") == "on",
+        "overfitting_guard": args.overfitting_guard == "on",
         "metrics": metrics,
         "epochs_completed": state.epochs_completed,
         "status": state.status,
@@ -225,18 +254,16 @@ def _write_manifest(args, run_dir: Path, state: _RunState) -> None:
         ),
         "date": datetime.now(UTC).isoformat(),
     }
-    from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
-
     atomic_write_json(run_dir / MANIFEST_NAME, manifest)
 
 
-def _metrics_path(args, run_dir: Path) -> Path:
+def _metrics_path(args: TrainArgs, run_dir: Path) -> Path:
     if args.family == "rfdetr":
         return run_dir / RFDETR_RUN_DIR / "metrics.csv"
     return run_dir / YOLO_RUN_DIR / "results.csv"
 
 
-def _start_reporter(args, run_dir: Path, state: _RunState):
+def _start_reporter(args: TrainArgs, run_dir: Path, state: _RunState):
     """Startar epokrapportören som skickar EPOCH-rader och håller manifestet färskt."""
 
     def on_epoch(metrics) -> None:
@@ -251,7 +278,7 @@ def _start_reporter(args, run_dir: Path, state: _RunState):
     return reporter
 
 
-def _stopped_early(args, state: _RunState) -> bool:
+def _stopped_early(args: TrainArgs, state: _RunState) -> bool:
     """Sant när ramverkets early stopping avslutade körningen i förtid (TASK-118).
 
     Ultralytics och rfdetr stoppar båda själva när valvärdet stått still, så
@@ -260,7 +287,7 @@ def _stopped_early(args, state: _RunState) -> bool:
     return args.overfitting_guard == "on" and 0 < state.epochs_completed < args.epochs
 
 
-def _early_stop_reason(args, state: _RunState) -> str:
+def _early_stop_reason(args: TrainArgs, state: _RunState) -> str:
     """Orsaken som visas i träningsvyn och sparas i manifestet (TASK-118)."""
     return (
         f"Tidigt stopp: valvärdet förbättrades inte under de senaste "
@@ -269,7 +296,7 @@ def _early_stop_reason(args, state: _RunState) -> str:
     )
 
 
-def _finish_state(args, state: _RunState) -> None:
+def _finish_state(args: TrainArgs, state: _RunState) -> None:
     """Avgör hur körningen slutade innan manifestet skrivs (TASK-97, TASK-118).
 
     Ett tidigt stopp av ramverkets early stopping är ett lyckat utfall och
@@ -351,7 +378,7 @@ def main() -> None:
         default="",
         help="Basmodellens visningsnamn, ärvt vid vidareträning (TASK-108)",
     )
-    args = parser.parse_args()
+    args = TrainArgs(**vars(parser.parse_args()))
     if args.batch is None:
         args.batch = default_batch(args.family)
     if args.family == "rfdetr":
@@ -363,8 +390,6 @@ def main() -> None:
             raise SystemExit(2)
     args.output_path = _output_path(args.output)
     args.started = datetime.now(UTC)
-
-    from xray_detector.infrastructure.detectors.yolo_detector import resolve_device
 
     device = resolve_device(args.device)
     print(f"Träning på enhet: {device}")
@@ -394,8 +419,9 @@ def main() -> None:
     print("TRAINING_DONE")
 
 
-def _train_yolo(args, device, progress: ProgressReporter) -> Path:
-    from ultralytics import YOLO
+def _train_yolo(args: TrainArgs, device, progress: ProgressReporter) -> Path:
+    # ultralytics är tungt och valfritt, så det importeras först vid träningen
+    from ultralytics import YOLO  # noqa: PLC0415
 
     model = YOLO(args.weights)
     model.add_callback("on_train_batch_end", _batch_callback(progress))
@@ -441,7 +467,7 @@ def _batch_callback(progress: ProgressReporter):
     return on_train_batch_end
 
 
-def _train_rfdetr(args, device) -> Path:
+def _train_rfdetr(args: TrainArgs, device) -> Path:
     """Trainer vald RF-DETR-modell pa exporterat rfdetr-dataset.
 
     Basmodellen ar antingen en publicerad storlek eller en egen snapshot
@@ -456,7 +482,8 @@ def _train_rfdetr(args, device) -> Path:
     till ingen seed alls, vilket gör körningen omöjlig att göra om.
     early_stopping är paketets egen mekanism (TASK-118).
     """
-    from xray_detector.infrastructure.detectors.rfdetr_detector import (
+    # rfdetr är ett valfritt extra, så det importeras först vid träningen
+    from xray_detector.infrastructure.detectors.rfdetr_detector import (  # noqa: PLC0415
         load_rfdetr_model,
     )
 
@@ -468,13 +495,11 @@ def _train_rfdetr(args, device) -> Path:
         "epochs": args.epochs,
         "batch_size": args.batch,
         "device": device,
-        "num_workers": getattr(args, "workers", DEFAULT_WORKERS),
-        "seed": getattr(args, "seed", DEFAULT_SEED),
+        "num_workers": args.workers,
+        "seed": args.seed,
         "resolution": args.imgsz,
-        "early_stopping": getattr(args, "overfitting_guard", "on") == "on",
-        "early_stopping_patience": getattr(
-            args, "overfitting_patience", DEFAULT_PATIENCE
-        ),
+        "early_stopping": args.overfitting_guard == "on",
+        "early_stopping_patience": args.overfitting_patience,
     }
     kwargs = {k: v for k, v in wanted.items() if k in params or _varkw(params)}
     run_dir = args.output_path / RFDETR_RUN_DIR

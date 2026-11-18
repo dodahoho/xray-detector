@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.application import model_registry
 from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.video_service import VideoService
 from xray_detector.domain.capture import StreamFrame, VideoMode
@@ -632,10 +633,10 @@ class DetectionView(QWidget):
 
     def refresh_models(self) -> None:
         """Fyller modellväljaren med basmodeller plus egentränade modeller."""
-        from xray_detector.application.model_registry import available_models
-
         self.model_combo.fill(
-            available_models(self.config.models_dir, self.config.trained_dir),
+            model_registry.available_models(
+                self.config.models_dir, self.config.trained_dir
+            ),
             self.model_combo.currentData(),
         )
         self._specs = self.model_combo.specs
@@ -824,10 +825,8 @@ class DetectionView(QWidget):
         task.start()
 
     def _create_detector(self, spec, threshold: float) -> BaseDetector:
-        """Skapar detektorn i arbetstråden; importen sker där så den går att byta ut."""
-        from xray_detector.application.model_registry import create_detector
-
-        return create_detector(spec, threshold)
+        """Skapar detektorn i arbetstråden; modulen slås upp där så den går att byta ut."""
+        return model_registry.create_detector(spec, threshold)
 
     def _on_model_loaded(self, detector: BaseDetector) -> None:
         self.detector = detector
@@ -859,10 +858,8 @@ class DetectionView(QWidget):
 
     def check_device(self) -> None:
         """Kontrollerar enheten i en arbetstråd: CUDA-initieringen tar cirka 1 s (TASK-40)."""
-        from xray_detector.application.model_registry import device_status
-
         self.device_label.setText("Enhet: kontrollerar...")
-        task = BackgroundTask(device_status)
+        task = BackgroundTask(model_registry.device_status)
         task.succeeded.connect(self._apply_device_status)
         self._device_task = task
         task.start()
@@ -902,7 +899,8 @@ class DetectionView(QWidget):
             panel.clear_overlay()
             panel.show_paused()
         try:
-            import torch
+            # torch är tungt och valfritt, så det importeras först vid tömningen
+            import torch  # noqa: PLC0415
 
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()

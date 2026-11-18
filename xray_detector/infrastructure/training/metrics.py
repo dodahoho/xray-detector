@@ -108,7 +108,7 @@ def recall_at(predictions: list[Prediction], targets: list[Target], threshold: f
     """Andel hittade objekt vid en konfidenströskel."""
     true_positives = 0
     false_negatives = 0
-    for prediction, target in zip(predictions, targets, strict=False):
+    for prediction, target in zip(predictions, targets, strict=True):
         found, _, missed = match_counts(prediction, target, threshold)
         true_positives += found
         false_negatives += missed
@@ -153,7 +153,7 @@ def _class_ap(
         for box, score in zip(
             prediction.boxes[prediction.labels == class_id],
             prediction.scores[prediction.labels == class_id],
-            strict=False,
+            strict=True,
         )
     ]
     entries.sort(key=lambda entry: -entry[0])

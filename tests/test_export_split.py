@@ -57,7 +57,7 @@ def test_split_is_reproducible():
 def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports").parent
 
     train_images = list((out / "images" / "train").glob("*.png"))
     val_images = list((out / "images" / "val").glob("*.png"))
@@ -79,7 +79,7 @@ def test_export_yolo_writes_split_labels_and_yaml(tmp_path):
 def test_export_yolo_group_integrity(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports").parent
 
     dataset = svc.load_dataset()
     group_of = {image["id"]: image.get("group") for image in dataset["images"]}
@@ -91,7 +91,7 @@ def test_export_yolo_group_integrity(tmp_path):
 def test_manifest_contains_split_counts(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
-    out = svc.export_yolo(tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports").parent
     manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["num_train"] == 10
     assert manifest["num_val"] == 2
@@ -114,7 +114,7 @@ def test_export_replaces_images_from_an_earlier_export(tmp_path):
     svc.export_yolo(tmp_path / "exports")
     svc.delete_images([image["id"] for image in svc.load_dataset()["images"][:2]])
 
-    out = svc.export_yolo(tmp_path / "exports")
+    out = svc.export_yolo(tmp_path / "exports").parent
 
     assert len(list((out / "images" / "train").glob("*.png"))) == 2
     assert len(list((out / "labels" / "train").glob("*.txt"))) == 2
@@ -133,7 +133,7 @@ def test_export_yolo_uses_the_ratio(tmp_path):
     svc = make_service(tmp_path)
     add_groups(svc, 6)
 
-    out = svc.export_yolo(tmp_path / "exports", 0.5)
+    out = svc.export_yolo(tmp_path / "exports", 0.5).parent
 
     assert len(list((out / "images" / "train").glob("*.png"))) == 6
     assert len(list((out / "images" / "val").glob("*.png"))) == 6

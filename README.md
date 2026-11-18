@@ -23,6 +23,22 @@ uv run ruff check .
 uv run ruff check --fix .
 ```
 
+## Kodstruktur
+
+Koden ligger i fyra lager under `xray_detector/`, och pilen betyder "får importera":
+
+```
+ui ──▶ application ──▶ infrastructure ──▶ domain
+ └───────────────────────────────────────────▶
+```
+
+- **`domain/`** – rena datatyper och regler: `Detection`, `AppConfig`, `TrainConfig`, grupperingen i `group_images` och variationernas gränser (`MIN_SCALE`, `MAX_SCALE`, `describe`). Importerar inget annat lager och har inga tunga beroenden.
+- **`infrastructure/`** – implementationerna: datasetlagringen, detektorerna, träningsprocessen, videokällorna och loggningen. Importerar `domain`, aldrig `application`.
+- **`application/`** – en fasad över `infrastructure`: `DatasetService`, `VideoService`, `TrainingService`, `ModelRegistry`, konfiginläsningen och utvärderingen. Fasaderna finns för att vyerna ska slippa känna till lagringens och detektorernas uppbyggnad, inte för att lägga till egen logik. Importerar `domain` och `infrastructure`.
+- **`ui/`** – vyerna. Importerar `application` för tjänster och `domain` för typer. Ett direkt `infrastructure`-import i `ui` ska bara förekomma för rena typer och enhetslistor som saknar en fasad (`BaseDetector`, `ResourceMonitor`, `list_device_modes`).
+
+Regeln som håller lagren åtskilda är att **`infrastructure` aldrig importerar `application`**. Loggfångsten låg tidigare i `application/app_config.py` och gjorde beroendet cykliskt; den ligger nu i `infrastructure/logging.py` (TASK-143). Tunga och valfria beroenden (`torch`, `ultralytics`, `rfdetr`, `pygrabber`) importeras först när de används och märks med `# noqa: PLC0415`, så `ruff check` håller reda på vilka lokala importer som är medvetna.
+
 ## Tester och CI
 
 Testsviten körs med pytest:

@@ -1,3 +1,4 @@
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -119,8 +120,6 @@ class FileSource(VideoSource):
         fasen drev mot skärmens uppdatering. Nu flyttas deadline fram
         exakt en ram i taget.
         """
-        import time
-
         now = time.perf_counter()
         if self._deadline is None:
             self._deadline = now

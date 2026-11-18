@@ -28,7 +28,8 @@ def cuda_device_label() -> str:
     loggerna bygger båda på den här strängen.
     """
     try:
-        import torch
+        # torch är tungt och valfritt, så det importeras först när enheten ska läsas
+        import torch  # noqa: PLC0415
     except ImportError:
         return "PyTorch saknas"
 

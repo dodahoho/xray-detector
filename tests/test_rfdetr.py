@@ -8,6 +8,7 @@ import pytest
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.dataset import AnnotatedImage
 from xray_detector.domain.training import TrainConfig
+from xray_detector.infrastructure.training.train_task import TrainArgs
 
 
 @pytest.fixture
@@ -309,7 +310,7 @@ def test_train_rfdetr_uses_selected_size(monkeypatch, tmp_path):
 
     from xray_detector.infrastructure.training.train_task import _train_rfdetr
 
-    args = types.SimpleNamespace(
+    args = TrainArgs(
         weights="rfdetr-nano",
         dataset=str(tmp_path / "ds"),
         epochs=1,
@@ -348,7 +349,7 @@ def test_train_rfdetr_loads_checkpoint_snapshot(monkeypatch, tmp_path):
 
     weights = tmp_path / "checkpoint_best_total.pth"
     weights.write_bytes(b"")
-    args = types.SimpleNamespace(
+    args = TrainArgs(
         weights=str(weights),
         dataset=str(tmp_path / "ds"),
         epochs=1,

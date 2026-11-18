@@ -6,7 +6,6 @@ import os
 import subprocess
 import sys
 import types
-from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +17,7 @@ from xray_detector.domain.training import (
     default_batch,
     rfdetr_resolution_error,
 )
+from xray_detector.infrastructure.training.train_task import TrainArgs
 
 # --- RF-DETR:s upplösning (TASK-91) ---
 
@@ -214,7 +214,7 @@ def _yolo_args(tmp_path, **overrides):
         "overfitting_patience": 10,
     }
     values.update(overrides)
-    return SimpleNamespace(**values)
+    return TrainArgs(**values)
 
 
 def test_yolo_training_sets_the_optimizer_and_seed_explicitly(monkeypatch, tmp_path):

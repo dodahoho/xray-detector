@@ -23,9 +23,8 @@ from xray_detector.application.background_task import BackgroundTask
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.capture import StreamFrame
 from xray_detector.domain.config import AppConfig
-from xray_detector.domain.dataset import capture_group
+from xray_detector.domain.dataset import capture_group, describe
 from xray_detector.domain.detection import Detection
-from xray_detector.infrastructure.dataset_store.augment import describe
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import (
     BORDER,

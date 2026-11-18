@@ -16,7 +16,8 @@ def _windows_device_names() -> dict[int, str]:
     if os.name != "nt":
         return {}
     try:
-        from pygrabber.dshow_graph import FilterGraph
+        # pygrabber är ett Windows-only tillval, så det importeras här
+        from pygrabber.dshow_graph import FilterGraph  # noqa: PLC0415
 
         names = FilterGraph().get_input_devices()
         return dict(enumerate(names))
@@ -45,7 +46,8 @@ def _windows_device_formats(index: int) -> list[dict]:
     if os.name != "nt":
         return []
     try:
-        from pygrabber.dshow_graph import FilterGraph
+        # pygrabber är ett Windows-only tillval, så det importeras här
+        from pygrabber.dshow_graph import FilterGraph  # noqa: PLC0415
 
         graph = FilterGraph()
         graph.add_video_input_device(index)

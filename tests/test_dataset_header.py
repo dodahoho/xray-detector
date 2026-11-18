@@ -168,7 +168,9 @@ def test_pending_header_shows_saved_at(qapp, config, tmp_path, settings):
 
     saved_at = pending_saved_at(tmp_path, group_id)
     assert saved_at
-    assert _header_text(view, group_id).startswith(f"Osparad · {saved_at.replace('T', ' ')}")
+    # tiden sparas i UTC och visas i lokal tid (TASK-146)
+    shown = datetime.fromisoformat(saved_at).astimezone().strftime("%Y-%m-%d %H:%M:%S")
+    assert _header_text(view, group_id).startswith(f"Osparad · {shown}")
 
 
 def test_saved_capture_keeps_pending_timestamp(qapp, tmp_path, monkeypatch):

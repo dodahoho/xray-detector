@@ -15,6 +15,8 @@ import logging
 import sys
 import traceback
 
+from PySide6 import QtWidgets
+
 
 def _quit_on_interrupt(exc_type, exc_value, exc_tb) -> None:
     """Avslutar appen utan kraschdialog nar anvandaren tryckt Ctrl+C (TASK-100).
@@ -24,9 +26,7 @@ def _quit_on_interrupt(exc_type, exc_value, exc_tb) -> None:
     """
     logging.getLogger("xray").info("Avbryter: Ctrl+C")
     try:
-        from PySide6.QtWidgets import QApplication
-
-        app = QApplication.instance()
+        app = QtWidgets.QApplication.instance()
     except Exception:
         app = None
     if app is None:
@@ -43,12 +43,10 @@ def excepthook_with_dialog(exc_type, exc_value, exc_tb) -> None:
     logging.getLogger("xray").error("Ohanterat undantag:\n%s", text)
     print(text, file=sys.stderr)
     try:
-        from PySide6.QtWidgets import QApplication, QMessageBox
-
-        app = QApplication.instance()
+        app = QtWidgets.QApplication.instance()
         if app is not None:
-            box = QMessageBox()
-            box.setIcon(QMessageBox.Icon.Critical)
+            box = QtWidgets.QMessageBox()
+            box.setIcon(QtWidgets.QMessageBox.Icon.Critical)
             box.setWindowTitle("Ov\u00e4ntat fel")
             box.setText(f"{exc_type.__name__}: {exc_value}")
             box.setInformativeText("Felet har loggats. Kontakta support om det upprepas.")

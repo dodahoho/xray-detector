@@ -20,8 +20,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xray_detector.domain.dataset import MODE_PER_TYPE, MODES, VariationSettings
-from xray_detector.infrastructure.dataset_store.augment import MAX_SCALE, MIN_SCALE
+from xray_detector.domain.dataset import (
+    MAX_SCALE,
+    MIN_SCALE,
+    MODE_PER_TYPE,
+    MODES,
+    VariationSettings,
+)
 from xray_detector.ui.colors import MUTED_TEXT
 from xray_detector.ui.style import FormCard, apply_metrics
 

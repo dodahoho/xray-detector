@@ -13,6 +13,37 @@ MODES = {
 }
 
 
+#: Skalningen kläms hit, så en stor variation inte krymper bilden till ingenting.
+MIN_SCALE = 0.25
+MAX_SCALE = 4.0
+
+
+def describe(variation) -> str:
+    """Variationen som text, till tooltip och statusrad.
+
+    En syntetisk bild kan bära flera variationer (TASK-106), och äldre dataset
+    sparade en enstaka, så båda formerna läses. Ligger i domain så lagringen
+    och vyerna läser samma beskrivning (TASK-143).
+    """
+    if isinstance(variation, list):
+        return ", ".join(describe(item) for item in variation) or "variation"
+    kind = variation.get("type")
+    if kind == "rotation":
+        return f"rotation {variation['angle']:g}°"
+    if kind == "flip":
+        return "vänd " + (
+            "horisontellt" if variation["axis"] == "horizontal" else "vertikalt"
+        )
+    if kind == "scale":
+        return f"storlek {variation['factor']:g}×"
+    if kind == "color":
+        return (
+            f"färg kontrast {variation['contrast']:g}×, "
+            f"ljusstyrka {variation['brightness']:+g}"
+        )
+    return "variation"
+
+
 def capture_group(image: dict) -> object:
     """Fångstgruppen en bild hör till: grupp-id, annars bildens eget id (TASK-137)."""
     return image.get("group") or image["id"]

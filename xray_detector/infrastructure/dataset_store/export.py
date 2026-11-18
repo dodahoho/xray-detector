@@ -196,7 +196,9 @@ def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RAT
     """Kopierar datasetet som ett YOLO-dataset med train/val-delning.
 
     Datasetet lagras redan i YOLO-format, så exporten kopierar bilder och
-    label-filer och skriver en data.yaml för delningen (TASK-78).
+    label-filer och skriver en data.yaml för delningen (TASK-78). Returnerar
+    sökvägen till data.yaml, så anroparen slipper bygga layouten själv
+    (TASK-146).
     """
     dataset = store.load_dataset()
     out_dir = _fresh_dir(export_root / "yolo")
@@ -233,7 +235,7 @@ def export_yolo(store: DatasetStore, export_root: Path, ratio: float = SPLIT_RAT
         num_train=len(train_images),
         num_val=len(val_images),
     )
-    return out_dir
+    return out_dir / "data.yaml"
 
 
 def export_coco(store: DatasetStore, export_root: Path) -> Path:

@@ -212,11 +212,17 @@ def create_detector(
 ) -> BaseDetector:
     """Skapar detektorn för en modell; klassnamnen läses ur modellen (TASK-52)."""
     if spec.family == "yolo":
-        from xray_detector.infrastructure.detectors.yolo_detector import YoloDetector
+        # ultralytics är tungt och valfritt, så det laddas först när modellen skapas
+        from xray_detector.infrastructure.detectors.yolo_detector import (  # noqa: PLC0415
+            YoloDetector,
+        )
 
         return YoloDetector(spec.weights, confidence_threshold)
     if spec.family == "rfdetr":
-        from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
+        # rfdetr är ett valfritt extra, så det laddas först när modellen skapas
+        from xray_detector.infrastructure.detectors.rfdetr_detector import (  # noqa: PLC0415
+            RfDetrDetector,
+        )
 
         return RfDetrDetector(spec.weights, confidence_threshold)
     raise ValueError(f"Okänd modellfamilj: {spec.family}")

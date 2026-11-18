@@ -1,9 +1,10 @@
 ---
 id: TASK-143
 title: Dokumentera lagerfasaden och bryt cykliskt beroende rfdetr_detector
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
+updated_date: '2026-11-18T07:41:00Z'
 labels:
   - refactor
   - review-followup
@@ -15,7 +16,7 @@ references:
   - review_vibe_deepseek41_flash.md
 priority: medium
 type: enhancement
-ordinal: 141000
+ordinal: 6000
 ---
 
 ## Description
@@ -39,3 +40,17 @@ ui importerar infrastructure på fem ställen, application importerar infrastruc
 - [ ] #4 Documentation updated
 - [ ] #5 Code committed
 <!-- DOD:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+1. Flytta loggfångsten (CAPTURED_LOGGERS, NOISY_LOGGERS, _matches, capture_third_party_logs) till infrastructure/logging.py och låt application/app_config.py importera den därifrån, så infrastructure inte längre importerar application.
+2. Flytta MIN_SCALE, MAX_SCALE och describe till domain/dataset.py; augment.py importerar dem och ui importerar dem från domain.
+3. Dokumentera lagerreglerna i README: application är en fasad över infrastructure, och infrastructure importerar aldrig application.
+<!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Genomfört: infrastructure/logging.py äger loggfångsten; app_config importerar capture_third_party_logs därifrån och rfdetr_detector importerar den direkt, så det lokala application-importet i infrastructure är borta. grep efter xray_detector.application i xray_detector/infrastructure/ är tomt. MIN_SCALE/MAX_SCALE/describe ligger i domain/dataset.py; dataset_view och variation_dialog importerar dem därifrån och augment.py importerar dem för klämningen. README har en ny Kodstruktur-sektion med lagerreglerna. ui importerar fortfarande infrastructure på tre ställen i detection_view (BaseDetector, ResourceMonitor, list_device_modes); det är dokumenterat som tillåtet för rena typer och enhetslistor som saknar fasad.
+<!-- SECTION:NOTES:END -->

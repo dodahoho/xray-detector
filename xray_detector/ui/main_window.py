@@ -2,7 +2,14 @@ import logging
 
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QStatusBar, QTabWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QStatusBar,
+    QTabWidget,
+)
 
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.domain.config import AppConfig
@@ -118,8 +125,6 @@ class MainWindow(QMainWindow):
 
     def _confirm_unsaved(self) -> str:
         """Frågar om osparade annoteringar; returnerar 'save'/'discard'/'cancel'."""
-        from PySide6.QtWidgets import QMessageBox
-
         answer = QMessageBox.question(
             self,
             "Osparade annoteringar",
@@ -241,8 +246,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event) -> None:
         worker = self.training_view.active_worker()
         if worker is not None and worker.is_running():
-            from PySide6.QtWidgets import QMessageBox
-
             answer = QMessageBox.question(
                 self,
                 "Träning pågår",

@@ -154,9 +154,8 @@ def test_available_models_combine_base_and_trained(tmp_path):
 
 def test_manifest_records_family(tmp_path):
     """Manifestet anger familj så väljaren kan välja rätt detektor (AC 1)."""
-    from types import SimpleNamespace
-
     from xray_detector.infrastructure.training.train_task import (
+        TrainArgs,
         _RunState,
         _write_manifest,
     )
@@ -165,7 +164,7 @@ def test_manifest_records_family(tmp_path):
     weights = run_dir / "rfdetr" / "checkpoint_best_total.pth"
     weights.parent.mkdir(parents=True)
     weights.write_bytes(b"vikter")
-    args = SimpleNamespace(
+    args = TrainArgs(
         family="rfdetr",
         weights="rfdetr-small",
         output_path=run_dir,

@@ -3,11 +3,11 @@
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 
 from xray_detector.application.model_registry import trained_models
 from xray_detector.infrastructure.training.train_task import (
     MANIFEST_NAME,
+    TrainArgs,
     _best_checkpoint,
     _output_path,
     _prepare_run_dir,
@@ -33,7 +33,7 @@ def _args(output_path: Path, **overrides):
         "base_name": "YOLO26 nano",
     }
     values.update(overrides)
-    return SimpleNamespace(**values)
+    return TrainArgs(**values)
 
 
 def _yolo_weights(run_dir: Path) -> Path:

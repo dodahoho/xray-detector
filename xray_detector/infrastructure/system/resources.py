@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+import psutil
+
 
 @dataclass(frozen=True)
 class ResourceUsage:
@@ -25,8 +27,6 @@ class ResourceMonitor:
     def __init__(self) -> None:
         self._process = None
         try:
-            import psutil
-
             self._process = psutil.Process()
             # primer: psutil.cpu_percent() ger alltid 0.0 första gången
             self._process.cpu_percent()
@@ -50,8 +50,6 @@ class ResourceMonitor:
         if self._process is None:
             return None, None, None, None
         try:
-            import psutil
-
             return (
                 float(self._process.cpu_percent()),
                 int(psutil.cpu_count() or 0) or None,
@@ -63,7 +61,8 @@ class ResourceMonitor:
 
     def _gpu(self) -> tuple[float | None, int | None, int | None]:
         try:
-            import torch
+            # torch är tungt och valfritt, så det importeras först när GPU:n ska mätas
+            import torch  # noqa: PLC0415
         except ImportError:
             return None, None, None
         try:

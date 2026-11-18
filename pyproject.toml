@@ -60,10 +60,13 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "C4", "PERF", "RUF"]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "PERF", "RUF", "PLC0415"]
 ignore = [
-    "E501",    # radlängd sköts av formatering, inte av grinden
-    "PLC0415", # import utanför toppnivå används medvetet för tunga beroenden
+    "E501", # radlängd sköts av formatering, inte av grinden
 ]
 # svensk typografi i strängar: tankstreck, gånger-tecken och minustecken
 allowed-confusables = ["–", "×", "−"]
+
+[tool.ruff.lint.per-file-ignores]
+# testerna importerar inne i testfunktionerna för att isolera Qt och monkeypatchar
+"tests/**" = ["PLC0415"]

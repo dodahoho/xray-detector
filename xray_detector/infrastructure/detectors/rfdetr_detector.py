@@ -10,6 +10,8 @@ from xray_detector.infrastructure.detectors.base import (
     class_names_from,
     cuda_device_label,
 )
+from xray_detector.infrastructure.detectors.tuning import configure_inference_threads
+from xray_detector.infrastructure.logging import capture_third_party_logs
 
 #: Modellnyckel -> rfdetr-klass. rfdetr 1.7 ersatte RFDETRBase med
 #: storleksspecifika klasser (se rfdetrs migreringsguide).
@@ -27,14 +29,13 @@ def _capture_rfdetr_logs() -> None:
     Loggrarna skapas först när rfdetr importeras, alltså efter setup_logging(),
     så fångsten måste göras om här.
     """
-    from xray_detector.application.app_config import capture_third_party_logs
-
     capture_third_party_logs()
 
 
 def rfdetr_variant(model_name: str):
     """Returnerar rfdetr-klassen för en modellnyckel, t.ex. 'rfdetr-small'."""
-    import rfdetr
+    # rfdetr är ett valfritt extra, så det importeras först vid användning
+    import rfdetr  # noqa: PLC0415
 
     _capture_rfdetr_logs()
     class_name = RFDETR_VARIANTS.get(model_name)
@@ -57,7 +58,8 @@ def load_rfdetr_model(weights: str, resolution: int | None = None):
     model_config, och träningen ändrar den i stället via train(resolution=...),
     som räknar om positionskodningarna åt den (TASK-107).
     """
-    import rfdetr
+    # rfdetr är ett valfritt extra, så det importeras först vid användning
+    import rfdetr  # noqa: PLC0415
 
     _capture_rfdetr_logs()
     if _is_checkpoint(weights):
@@ -84,10 +86,6 @@ class RfDetrDetector(BaseDetector):
         confidence_threshold: float,
     ) -> None:
         label = Path(weights).stem if _is_checkpoint(weights) else weights
-        from xray_detector.infrastructure.detectors.tuning import (
-            configure_inference_threads,
-        )
-
         configure_inference_threads()
         model = load_rfdetr_model(weights)
         # modellbygget importerar fler rfdetr-moduler med egna loggrar
@@ -112,7 +110,8 @@ class RfDetrDetector(BaseDetector):
         är en hastighetsvinst, inte ett krav: misslyckas den fortsätter
         modellen ooptimerad och rfdetr varnar som vanligt.
         """
-        import torch
+        # torch är tungt och valfritt, så det importeras först vid optimeringen
+        import torch  # noqa: PLC0415
 
         if not torch.cuda.is_available():
             return

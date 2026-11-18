@@ -3,7 +3,6 @@
 import json
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 from xray_detector.domain.training import TrainConfig
 from xray_detector.infrastructure.training.epoch_metrics import (
@@ -11,6 +10,7 @@ from xray_detector.infrastructure.training.epoch_metrics import (
     abort_line,
     parse_abort_line,
 )
+from xray_detector.infrastructure.training.train_task import TrainArgs
 
 
 def _args(tmp_path, **overrides):
@@ -28,7 +28,7 @@ def _args(tmp_path, **overrides):
         "started": None,
     }
     values.update(overrides)
-    return SimpleNamespace(**values)
+    return TrainArgs(**values)
 
 
 def _wait_for(predicate, timeout_s=5.0):

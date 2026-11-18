@@ -14,6 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from xray_detector.application import model_registry
 from xray_detector.application.training_history import TrainingRun
 from xray_detector.domain.dataset import group_images
 from xray_detector.infrastructure.dataset_store.export import (
@@ -119,15 +120,13 @@ def _target(image: dict, class_index: dict[str, int]) -> Target:
 
 
 def _default_detector(run: TrainingRun):
-    from xray_detector.application.model_registry import ModelSpec, create_detector
-
-    spec = ModelSpec(
+    spec = model_registry.ModelSpec(
         key=f"trained-{run.run_id}",
         label=run.run_id,
         family=run.family,
         weights=str(run.weights),
     )
-    return create_detector(spec, EVAL_CONFIDENCE)
+    return model_registry.create_detector(spec, EVAL_CONFIDENCE)
 
 
 def evaluate_run(

@@ -1,5 +1,6 @@
+import importlib.util
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from datetime import time as clock_time
 from pathlib import Path
 from time import time
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from xray_detector.application import model_registry
 from xray_detector.application.app_config import file_logger, log_path
 from xray_detector.application.dataset_service import DatasetService
 from xray_detector.application.training_history import run_epochs
@@ -134,10 +136,10 @@ class TrainingView(QWidget):
         Egentränade modeller är också valbara, så en tidigare träning kan
         vidaretränas från sina bästa vikter.
         """
-        from xray_detector.application.model_registry import available_models
-
         self.model_combo.fill(
-            available_models(self.config.models_dir, self.config.trained_dir),
+            model_registry.available_models(
+                self.config.models_dir, self.config.trained_dir
+            ),
             self.model_combo.currentData(),
         )
         self._specs = self.model_combo.specs
@@ -381,8 +383,6 @@ class TrainingView(QWidget):
         )
 
     def _on_start(self) -> None:
-        import importlib.util
-
         if self.dataset_service.metadata()["num_images"] == 0:
             self.status_changed.emit("Datasetet är tomt")
             return
@@ -409,9 +409,8 @@ class TrainingView(QWidget):
                 self.config.export_dir, ratio
             )
         else:
-            self.dataset_service.export_yolo(self.config.export_dir, ratio)
-            dataset_path = self.config.export_dir / "yolo" / "data.yaml"
-        now = datetime.now()
+            dataset_path = self.dataset_service.export_yolo(self.config.export_dir, ratio)
+        now = datetime.now(UTC)
         config = TrainConfig(
             dataset_yaml=Path(dataset_path),
             weights=weights,

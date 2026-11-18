@@ -12,6 +12,8 @@ tillgängligt begränsas därför torch och OpenCV till en tråd. På en
 CPU-only-maskin lämnas de orörda, där vinner flera trådar.
 """
 
+import cv2
+
 _configured = False
 
 
@@ -21,11 +23,10 @@ def configure_inference_threads() -> None:
     if _configured:
         return
     _configured = True
-    import torch
+    # torch är tungt och valfritt, så det importeras först när trådarna ska sättas
+    import torch  # noqa: PLC0415
 
     if not torch.cuda.is_available():
         return
     torch.set_num_threads(1)
-    import cv2
-
     cv2.setNumThreads(1)

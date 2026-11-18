@@ -7,6 +7,7 @@ from xray_detector.infrastructure.detectors.base import (
     class_names_from,
     cuda_device_label,
 )
+from xray_detector.infrastructure.detectors.tuning import configure_inference_threads
 
 
 def input_size_for(frame: np.ndarray) -> tuple[int, int]:
@@ -22,7 +23,8 @@ def input_size_for(frame: np.ndarray) -> tuple[int, int]:
 
 
 def resolve_device(requested: str) -> str:
-    import torch
+    # torch är tungt och valfritt, så det importeras först när enheten ska väljas
+    import torch  # noqa: PLC0415
 
     if requested.startswith("cuda") and not torch.cuda.is_available():
         return "cpu"
@@ -36,11 +38,8 @@ class YoloDetector(BaseDetector):
         confidence_threshold: float,
         device: str = "cuda",
     ) -> None:
-        from ultralytics import YOLO
-
-        from xray_detector.infrastructure.detectors.tuning import (
-            configure_inference_threads,
-        )
+        # ultralytics är tungt och valfritt, så det importeras först vid laddning
+        from ultralytics import YOLO  # noqa: PLC0415
 
         configure_inference_threads()
         model = YOLO(weights)

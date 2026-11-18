@@ -6,10 +6,8 @@ import warnings
 
 import pytest
 
-from xray_detector.application.app_config import (
-    capture_third_party_logs,
-    setup_logging,
-)
+from xray_detector.application.app_config import setup_logging
+from xray_detector.infrastructure.logging import capture_third_party_logs
 
 DINOV2_WARNING = (
     "Using a different number of positional encodings than DINOv2, which means "

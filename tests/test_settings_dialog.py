@@ -215,7 +215,11 @@ def test_training_start_exports_with_the_chosen_ratio(qapp, config, settings, mo
     settings.setValue(TRAIN_RATIO_KEY, 50)
     view = TrainingView(config, service, settings)
     ratios: list = []
-    monkeypatch.setattr(service, "export_yolo", lambda root, ratio: ratios.append(ratio))
+    monkeypatch.setattr(
+        service,
+        "export_yolo",
+        lambda root, ratio: ratios.append(ratio) or config.export_dir / "yolo" / "data.yaml",
+    )
     monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
 
     view._on_start()
@@ -237,7 +241,9 @@ def test_night_job_uses_the_shared_clock_keys(qapp, config, settings, monkeypatc
     settings.setValue("training/night_start", "01:15")
     settings.setValue("training/night_end", "04:45")
     view = TrainingView(config, service, settings)
-    monkeypatch.setattr(service, "export_yolo", lambda root, ratio: None)
+    monkeypatch.setattr(
+        service, "export_yolo", lambda root, ratio: config.export_dir / "yolo" / "data.yaml"
+    )
     monkeypatch.setattr(view.training_service, "create_worker", lambda cfg: None)
     view.run_combo.setCurrentIndex(view.run_combo.findData("night"))
 

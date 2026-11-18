@@ -12,6 +12,7 @@ import json
 import shutil
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 import cv2
@@ -52,15 +53,7 @@ def save_pending(data_dir: Path, frames: list[StreamFrame]) -> str:
                 "source_id": stream_frame.source_id,
                 "source_label": stream_frame.source_label,
                 "detections": [
-                    {
-                        "x1": detection.x1,
-                        "y1": detection.y1,
-                        "x2": detection.x2,
-                        "y2": detection.y2,
-                        "class_name": detection.class_name,
-                        "confidence": detection.confidence,
-                    }
-                    for detection in stream_frame.detections
+                    detection.to_dict() for detection in stream_frame.detections
                 ],
             }
         )
@@ -68,7 +61,7 @@ def save_pending(data_dir: Path, frames: list[StreamFrame]) -> str:
         group_dir / PENDING_INDEX,
         {
             "group": group_id,
-            "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "saved_at": datetime.now(UTC).isoformat(),
             "frames": payload,
         },
     )
@@ -88,15 +81,7 @@ def _load_group(group_dir: Path) -> PendingCapture | None:
             if frame is None:
                 continue
             detections = [
-                Detection(
-                    x1=float(d["x1"]),
-                    y1=float(d["y1"]),
-                    x2=float(d["x2"]),
-                    y2=float(d["y2"]),
-                    class_name=str(d["class_name"]),
-                    confidence=float(d.get("confidence", 1.0)),
-                )
-                for d in entry.get("detections", [])
+                Detection.from_dict(d) for d in entry.get("detections", [])
             ]
             frames.append(
                 StreamFrame(

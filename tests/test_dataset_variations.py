@@ -12,12 +12,12 @@ from xray_detector.domain.dataset import (
     MODE_RANDOM,
     AnnotatedImage,
     VariationSettings,
+    describe,
 )
 from xray_detector.infrastructure.dataset_store.augment import (
     adjust_color,
     apply_variation,
     apply_variations,
-    describe,
     flip,
     rotate,
     scale,

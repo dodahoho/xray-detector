@@ -18,11 +18,14 @@ import random
 import cv2
 import numpy as np
 
-from xray_detector.domain.dataset import MODE_ALL, MODE_PER_TYPE, VariationSettings
+from xray_detector.domain.dataset import (
+    MAX_SCALE,
+    MIN_SCALE,
+    MODE_ALL,
+    MODE_PER_TYPE,
+    VariationSettings,
+)
 
-# skalningen kläms hit, så en stor variation inte krymper bilden till ingenting
-MIN_SCALE = 0.25
-MAX_SCALE = 4.0
 # ljusstyrkan räknas som andel av det största värdet en kanal kan ha
 BRIGHTNESS_RANGE = 127.0
 # ytan som en rotation lägger till är vit som bildernas egen bakgrund (TASK-105)
@@ -135,31 +138,6 @@ def apply_variation(
             float(variation["brightness"]),
         )
     return frame, [dict(annotation) for annotation in annotations]
-
-
-def describe(variation) -> str:
-    """Variationen som text, till tooltip och statusrad.
-
-    En syntetisk bild kan bära flera variationer (TASK-106), och äldre dataset
-    sparade en enstaka, så båda formerna läses.
-    """
-    if isinstance(variation, list):
-        return ", ".join(describe(item) for item in variation) or "variation"
-    kind = variation.get("type")
-    if kind == "rotation":
-        return f"rotation {variation['angle']:g}°"
-    if kind == "flip":
-        return "vänd " + (
-            "horisontellt" if variation["axis"] == "horizontal" else "vertikalt"
-        )
-    if kind == "scale":
-        return f"storlek {variation['factor']:g}×"
-    if kind == "color":
-        return (
-            f"färg kontrast {variation['contrast']:g}×, "
-            f"ljusstyrka {variation['brightness']:+g}"
-        )
-    return "variation"
 
 
 def rotate(
