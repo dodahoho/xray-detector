@@ -1,7 +1,7 @@
 ---
 id: TASK-126
 title: Räkna num_objects i _save_metadata istället för fem manuella inkrement
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:50:00Z'

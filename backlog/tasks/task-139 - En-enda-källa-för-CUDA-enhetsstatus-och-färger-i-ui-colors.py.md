@@ -1,7 +1,7 @@
 ---
 id: TASK-139
 title: En enda källa för CUDA-enhetsstatus och färger i ui/colors.py
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
 updated_date: '2026-11-17T22:33:00Z'

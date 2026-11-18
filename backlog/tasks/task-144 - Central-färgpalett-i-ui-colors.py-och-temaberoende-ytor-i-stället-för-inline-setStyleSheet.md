@@ -3,7 +3,7 @@ id: TASK-144
 title: >-
   Central färgpalett i ui/colors.py och temaberoende ytor i stället för
   inline-setStyleSheet
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
 updated_date: '2026-11-17T22:36:00Z'

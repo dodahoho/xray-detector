@@ -3,7 +3,7 @@ id: TASK-135
 title: >-
   Repo-hygien: runs/ och exports/ ur git, media-videor via Git LFS eller utanför
   repot
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:51:00Z'

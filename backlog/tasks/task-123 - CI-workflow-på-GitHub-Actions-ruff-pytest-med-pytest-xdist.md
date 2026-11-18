@@ -1,7 +1,7 @@
 ---
 id: TASK-123
 title: 'CI-workflow på GitHub Actions: ruff + pytest med pytest-xdist'
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:50:00Z'

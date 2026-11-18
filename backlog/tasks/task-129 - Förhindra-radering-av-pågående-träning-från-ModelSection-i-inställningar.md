@@ -1,7 +1,7 @@
 ---
 id: TASK-129
 title: Förhindra radering av pågående träning från ModelSection i inställningar
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:51:00Z'

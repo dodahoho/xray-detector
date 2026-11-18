@@ -1,7 +1,7 @@
 ---
 id: TASK-154
 title: 'Testsvit: delade fixtures i conftest.py och slow-markör'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:54:00Z'
 updated_date: '2026-11-17T22:38:00Z'

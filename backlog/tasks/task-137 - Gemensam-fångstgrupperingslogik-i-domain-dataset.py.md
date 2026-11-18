@@ -1,7 +1,7 @@
 ---
 id: TASK-137
 title: Gemensam fångstgrupperingslogik i domain/dataset.py
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:52:00Z'

@@ -1,7 +1,7 @@
 ---
 id: TASK-138
 title: Gemensam read_manifest() för training_manifest.json
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
 updated_date: '2026-11-17T22:31:00Z'

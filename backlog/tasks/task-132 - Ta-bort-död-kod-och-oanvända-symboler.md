@@ -1,7 +1,7 @@
 ---
 id: TASK-132
 title: Ta bort död kod och oanvända symboler
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:51:00Z'

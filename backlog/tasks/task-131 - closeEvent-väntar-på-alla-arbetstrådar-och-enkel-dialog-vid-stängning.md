@@ -1,7 +1,7 @@
 ---
 id: TASK-131
 title: closeEvent väntar på alla arbetstrådar och enkel dialog vid stängning
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:51:00Z'

@@ -1,7 +1,7 @@
 ---
 id: TASK-141
 title: _write_sample() i store.py ersätter tre duplicerade skrivblock
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
 updated_date: '2026-11-17T22:35:00Z'

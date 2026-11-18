@@ -1,7 +1,7 @@
 ---
 id: TASK-125
 title: En enda inställningsnyckel för nattfönstret (training/night_start)
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:50:00Z'

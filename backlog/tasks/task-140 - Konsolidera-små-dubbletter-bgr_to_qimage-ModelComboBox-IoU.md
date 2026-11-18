@@ -1,7 +1,7 @@
 ---
 id: TASK-140
 title: 'Konsolidera små dubbletter: bgr_to_qimage, ModelComboBox, IoU'
-status: To Do
+status: Done
 assignee: []
 created_date: '2026-11-17T20:52:00Z'
 updated_date: '2026-11-17T22:35:00Z'

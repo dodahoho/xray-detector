@@ -1,7 +1,7 @@
 ---
 id: TASK-124
 title: Felhantering i DatasetStore._load_metadata vid trasig dataset.json
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:50:00Z'

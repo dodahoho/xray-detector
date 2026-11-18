@@ -1,11 +1,11 @@
 ---
 id: TASK-133
 title: Ta bort tests/prototype/ (TASK-21-spike)
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:51:00Z'
-updated_date: '2026-11-17T22:20:00Z'
+updated_date: '2026-11-17T22:21:00Z'
 labels:
   - cleanup
   - review-followup

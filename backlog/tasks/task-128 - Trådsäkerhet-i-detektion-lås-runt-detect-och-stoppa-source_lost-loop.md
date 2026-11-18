@@ -1,7 +1,7 @@
 ---
 id: TASK-128
 title: 'Trådsäkerhet i detektion: lås runt detect() och stoppa source_lost-loop'
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:51:00Z'

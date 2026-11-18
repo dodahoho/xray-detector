@@ -1,7 +1,7 @@
 ---
 id: TASK-127
 title: ANNOTATION_TAB-konstant och publik AnnotationView.save()
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-17T20:50:00Z'
