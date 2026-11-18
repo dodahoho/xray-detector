@@ -12,3 +12,9 @@ description: Läser tidigare träningars manifest och exporterar modeller.
 ---
 
 Varje träningskörning beskrivs av sitt training_manifest.json under models/trained/. Modulen läser dem till TrainingRun, läser epokhistoriken ur körningens metrics-fil och kopierar en vald körnings vikter och manifest till en katalog användaren väljer.
+
+## Relationships
+
+| Source | Target | Description | Technology |
+| --- | --- | --- | --- |
+| [xray_detector/application/training_history.py](../../../../../../xray_detector/application/training_history.py) | [xray_detector/infrastructure/training/verdict.py](../../../../../../xray_detector/infrastructure/training/verdict.py) | Räknar fram domen ur epokvärdena | direkt anrop |

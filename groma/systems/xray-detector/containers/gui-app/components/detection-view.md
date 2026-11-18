@@ -12,7 +12,7 @@ groma:
 description: Visar två live-strömmar med detektionsoverlay och fångar bildpar.
 ---
 
-Två StreamPanel med egen källväljare (UVC-enhet eller videofil), upplösning och pixelformat, plus en rad med modellväljare, konfidenströskel, enhetslabel, resursmätare för CPU, RAM och VRAM samt av/på-knapp för detektionen. Panelerna ritar detektionsoverlayn med klassfärg och klassmärken. Modellen laddas i en bakgrundsuppgift och enhetskontrollen körs separat eftersom CUDA-initieringen tar cirka en sekund. Fånga skickar bildparet vidare till annoteringsvyn via MainWindow, och träningsstarten pausar strömmarna. Panelerna, resursmätaren och overlayritningen ligger i ui/stream_panel.py, som vyn importerar (TASK-145).
+Två StreamPanel med egen källväljare (UVC-enhet eller videofil), upplösning och pixelformat, plus en rad med modellväljare, konfidenströskel, enhetslabel, resursmätare för CPU, RAM och VRAM samt av/på-knapp för detektionen. Panelerna ritar detektionsoverlayn med klassfärg och klassmärken. Modellen laddas i en bakgrundsuppgift och enhetskontrollen körs separat eftersom CUDA-initieringen tar cirka en sekund. Fånga skickar bildparet vidare till annoteringsvyn via MainWindow, och träningsstarten pausar strömmarna. Panelerna, resursmätaren och overlayritningen ligger i ui/stream_panel.py, som vyn importerar.
 
 ## Relationships
 
@@ -32,3 +32,5 @@ Två StreamPanel med egen källväljare (UVC-enhet eller videofil), upplösning 
 | [xray_detector/ui/detection_view.py](../../../../../../xray_detector/ui/detection_view.py) | [xray_detector/infrastructure/system/resources.py](../../../../../../xray_detector/infrastructure/system/resources.py) | Visar CPU- och VRAM-mätare | direkt anrop |
 | [xray_detector/ui/detection_view.py](../../../../../../xray_detector/ui/detection_view.py) | [xray_detector/infrastructure/video/devices.py](../../../../../../xray_detector/infrastructure/video/devices.py) | Listar enhetens lägen | direkt anrop |
 | [xray_detector/ui/detection_view.py](../../../../../../xray_detector/ui/detection_view.py) | [xray_detector/infrastructure/video/source.py](../../../../../../xray_detector/infrastructure/video/source.py) | Bygger videokällan | direkt anrop |
+| [xray_detector/ui/detection_view.py](../../../../../../xray_detector/ui/detection_view.py) | [xray_detector/ui/stream_panel.py](../../../../../../xray_detector/ui/stream_panel.py) | Bygger de två videopanelerna | Qt-widget |
+| [xray_detector/ui/detection_view.py](../../../../../../xray_detector/ui/detection_view.py) | [xray_detector/ui/model_combo.py](../../../../../../xray_detector/ui/model_combo.py) | Visar modellväljaren | Qt-widget |
