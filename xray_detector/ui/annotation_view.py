@@ -20,7 +20,7 @@ from xray_detector.infrastructure.dataset_store.pending import (
 )
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.busy_indicator import BusyIndicator
-from xray_detector.ui.colors import class_color
+from xray_detector.ui.colors import TEXT_LIGHT, ZOOM_PANEL_BACKGROUND, class_color
 from xray_detector.ui.image_utils import bgr_to_qimage
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import (
@@ -37,6 +37,56 @@ HANDLE_SIZE = 8
 MIN_SIZE = 8
 ZOOM_MIN = 0.2
 ZOOM_MAX = 5.0
+#: Zoomstegen för knapparna och Ctrl+hjul (TASK-163).
+ZOOM_STEP_IN = 1.25
+ZOOM_STEP_OUT = 0.8
+#: Zoompanelens mått i bildens övre vänstra hörn (TASK-163).
+ZOOM_OVERLAY_MARGIN = 8
+ZOOM_OVERLAY_BUTTON_WIDTH = 28
+ZOOM_LABEL_WIDTH = 56
+
+
+class ZoomOverlay(QWidget):
+    """Zoomkontrollerna i bildens övre vänstra hörn (TASK-163).
+
+    Panelen ligger ovanpå bilden i stället för i en rad ovanför, så varje bild
+    har sina egna kontroller och zoomningen syns där den görs. Bakgrunden är
+    halvtransparent, så den syns mot både ljusa och mörka bilder.
+    """
+
+    def __init__(self, canvas: "AnnotationCanvas") -> None:
+        super().__init__(canvas)
+        self.setObjectName("zoomOverlay")
+        # en vanlig QWidget målar ingen bakgrund utan den här attributen
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(
+            "QWidget#zoomOverlay { background: "
+            f"{ZOOM_PANEL_BACKGROUND}; border-radius: 6px; }}"
+            f"QLabel {{ color: {TEXT_LIGHT}; }}"
+        )
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+        self.zoom_out_button = button("−", width=ZOOM_OVERLAY_BUTTON_WIDTH)
+        self.zoom_out_button.setToolTip("Zooma ut")
+        self.zoom_out_button.clicked.connect(canvas.zoom_out)
+        layout.addWidget(self.zoom_out_button)
+        self.zoom_label = QLabel("100 %")
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.zoom_label.setFixedWidth(ZOOM_LABEL_WIDTH)
+        layout.addWidget(self.zoom_label)
+        self.zoom_in_button = button("+", width=ZOOM_OVERLAY_BUTTON_WIDTH)
+        self.zoom_in_button.setToolTip("Zooma in")
+        self.zoom_in_button.clicked.connect(canvas.zoom_in)
+        layout.addWidget(self.zoom_in_button)
+        self.reset_button = button("100 %")
+        self.reset_button.setToolTip("Återgå till 100 % och centrera bilden")
+        self.reset_button.clicked.connect(canvas.reset_view)
+        layout.addWidget(self.reset_button)
+
+    def set_zoom(self, zoom: float) -> None:
+        """Visar zoomnivån i procent, avrundad till hela procent."""
+        self.zoom_label.setText(f"{round(zoom * 100)} %")
 
 
 class RectItem:
@@ -76,6 +126,10 @@ class AnnotationCanvas(QWidget):
         self.dirty = False
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        # zoomkontrollerna ligger ovanpå bilden, i dess övre vänstra hörn (TASK-163)
+        self.zoom_overlay = ZoomOverlay(self)
+        self.zoom_overlay.set_zoom(self._zoom)
+        self.zoom_overlay.setVisible(False)
 
     def set_class_name(self, class_name: str) -> None:
         self.class_name = class_name
@@ -97,6 +151,8 @@ class AnnotationCanvas(QWidget):
         self.dirty = False
         self._zoom = 1.0
         self._pan = QPoint(0, 0)
+        self.zoom_overlay.set_zoom(self._zoom)
+        self.zoom_overlay.setVisible(True)
         self.selection_changed.emit(None)
         self.update()
 
@@ -138,19 +194,36 @@ class AnnotationCanvas(QWidget):
         scale = self._scale()
         desired_origin = pos - QPoint(int(image_point.x() * scale), int(image_point.y() * scale))
         self._pan = desired_origin - self._base_origin()
+        self.zoom_overlay.set_zoom(self._zoom)
+
+    def zoom_in(self) -> None:
+        """Zoomar in kring bildens mitt, som knappen i zoompanelen (TASK-163)."""
+        self.zoom_at(self.rect().center(), ZOOM_STEP_IN)
+
+    def zoom_out(self) -> None:
+        """Zoomar ut kring bildens mitt, som knappen i zoompanelen (TASK-163)."""
+        self.zoom_at(self.rect().center(), ZOOM_STEP_OUT)
 
     def reset_view(self) -> None:
+        """Återgår till 100 % och centrerad bild, som 100 %-knappen (TASK-163)."""
         self._zoom = 1.0
         self._pan = QPoint(0, 0)
+        self.zoom_overlay.set_zoom(self._zoom)
         self.update()
 
     def wheelEvent(self, event) -> None:
         if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            factor = 1.25 if event.angleDelta().y() > 0 else 0.8
+            factor = ZOOM_STEP_IN if event.angleDelta().y() > 0 else ZOOM_STEP_OUT
             self.zoom_at(event.position().toPoint(), factor)
             event.accept()
             return
         super().wheelEvent(event)
+
+    def resizeEvent(self, event) -> None:
+        """Håller zoompanelen i bildens övre vänstra hörn (TASK-163)."""
+        super().resizeEvent(event)
+        self.zoom_overlay.adjustSize()
+        self.zoom_overlay.move(ZOOM_OVERLAY_MARGIN, ZOOM_OVERLAY_MARGIN)
 
     def _to_widget(self, point: QPoint) -> QPoint:
         scale = self._scale()
