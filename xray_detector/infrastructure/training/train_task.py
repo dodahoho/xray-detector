@@ -7,7 +7,11 @@ from datetime import UTC, datetime
 from json import load as json_load
 from pathlib import Path
 
-from xray_detector.domain.training import default_batch, rfdetr_resolution_error
+from xray_detector.domain.training import (
+    DEFAULT_LEARNING_RATE,
+    default_batch,
+    rfdetr_resolution_error,
+)
 from xray_detector.infrastructure.dataset_store.json_io import atomic_write_json
 from xray_detector.infrastructure.dataset_store.yolo import read_classes
 from xray_detector.infrastructure.detectors.yolo_detector import resolve_device
@@ -38,10 +42,10 @@ DEFAULT_PATIENCE = 10
 #: ledd; ``mosaic=1.0`` limmar ihop fyra bilder till scener som inte finns på
 #: riktigt; och ``hsv_s=0.7`` ändrar mättnaden kraftigt i en nästan gråskalig
 #: bild. Värdena skrivs också i manifestet, så en genomförd körning går att
-#: läsa av efteråt.
+#: läsa av efteråt. Inlärningshastigheten (``lr0``) står utanför konstanten,
+#: eftersom den är justerbar i träningsvyn (TASK-162).
 YOLO_HYPERPARAMETERS = {
     "optimizer": "AdamW",
-    "lr0": 0.001,
     "cos_lr": True,
     "seed": DEFAULT_SEED,
     "deterministic": True,
@@ -134,6 +138,7 @@ class TrainArgs:
     epochs: int = 100
     imgsz: int = 640
     batch: int | None = None
+    learning_rate: float = DEFAULT_LEARNING_RATE
     device: str = "cuda"
     family: str = "yolo"
     workers: int = DEFAULT_WORKERS
@@ -206,8 +211,9 @@ def _hyperparameters(args: TrainArgs) -> dict:
             "resolution": args.imgsz,
             "num_workers": args.workers,
             "seed": args.seed,
+            "lr": args.learning_rate,
         }
-    return dict(YOLO_HYPERPARAMETERS)
+    return {**YOLO_HYPERPARAMETERS, "lr0": args.learning_rate}
 
 
 def _write_manifest(args: TrainArgs, run_dir: Path, state: _RunState) -> None:
@@ -347,6 +353,12 @@ def main() -> None:
         default=None,
         help="Bilder per steg; familjens default när det inte anges",
     )
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=DEFAULT_LEARNING_RATE,
+        help="Inlärningshastighet; låg default för små dataset (TASK-162)",
+    )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--family", default="yolo", choices=["yolo", "rfdetr"])
     parser.add_argument(
@@ -436,6 +448,8 @@ def _train_yolo(args: TrainArgs, device, progress: ProgressReporter) -> Path:
         exist_ok=True,
         # ultralytics egen early stopping; 0 stänger av den (TASK-118)
         patience=args.overfitting_patience if args.overfitting_guard == "on" else 0,
+        # inlärningshastigheten är justerbar i träningsvyn (TASK-162)
+        lr0=args.learning_rate,
         **YOLO_HYPERPARAMETERS,
     )
     return args.output_path / YOLO_RUN_DIR
@@ -500,6 +514,8 @@ def _train_rfdetr(args: TrainArgs, device) -> Path:
         "resolution": args.imgsz,
         "early_stopping": args.overfitting_guard == "on",
         "early_stopping_patience": args.overfitting_patience,
+        # rfdetr:s egen nyckel för inlärningshastigheten (TASK-162)
+        "lr": args.learning_rate,
     }
     kwargs = {k: v for k, v in wanted.items() if k in params or _varkw(params)}
     run_dir = args.output_path / RFDETR_RUN_DIR

@@ -230,7 +230,8 @@ def test_yolo_training_sets_the_optimizer_and_seed_explicitly(monkeypatch, tmp_p
     )
 
     assert calls[0]["optimizer"] == "AdamW"
-    assert calls[0]["lr0"] == 0.001
+    # inlärningshastigheten är justerbar och har en låg default (TASK-162)
+    assert calls[0]["lr0"] == 5e-5
     assert calls[0]["cos_lr"] is True
     assert calls[0]["seed"] == 42
     assert calls[0]["deterministic"] is True

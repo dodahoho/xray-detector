@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QPlainTextEdit,
@@ -28,6 +29,7 @@ from xray_detector.application.training_service import TrainingService
 from xray_detector.domain.config import AppConfig
 from xray_detector.domain.model_input import DEFAULT_SIZE, MAX_SIZE, MIN_SIZE, STEP
 from xray_detector.domain.training import (
+    DEFAULT_LEARNING_RATE,
     NIGHT_END_KEY,
     NIGHT_START_KEY,
     TrainConfig,
@@ -206,6 +208,16 @@ class TrainingView(QWidget):
             "med batch 16 vid bildstorlek 704, så RF-DETR utgår från 4."
         )
         form.addRow("Batch:", self.batch_spin)
+        self.lr_spin = QDoubleSpinBox()
+        self.lr_spin.setDecimals(6)
+        self.lr_spin.setRange(0.000001, 0.01)
+        self.lr_spin.setSingleStep(0.00001)
+        self.lr_spin.setValue(DEFAULT_LEARNING_RATE)
+        self.lr_spin.setToolTip(
+            "Inlärningshastighet (learning rate). Ett dataset under 1000 samples "
+            "överanpassas snabbt, så default är 0.00005 (5e-5)."
+        )
+        form.addRow("Inlärningshastighet:", self.lr_spin)
         self.run_combo = QComboBox()
         self.run_combo.addItem("Direkt", "direct")
         self.run_combo.addItem("Nattetid (schema)", "night")
@@ -322,6 +334,12 @@ class TrainingView(QWidget):
         saved_batch = self.settings.value("training/batch", type=int)
         if saved_batch:
             self._set_batch(saved_batch, user=True)
+        # inlärningshastigheten följer varken familj eller dataset, så den sparas alltid (TASK-162)
+        self.lr_spin.setValue(
+            self.settings.value(
+                "training/learning_rate", DEFAULT_LEARNING_RATE, type=float
+            )
+        )
         # utan sparat val fortsätter storleken att följa datasetet (TASK-80)
         saved_imgsz = self.settings.value("training/imgsz", type=int)
         if saved_imgsz:
@@ -353,6 +371,7 @@ class TrainingView(QWidget):
             self.settings.setValue("training/imgsz", self.imgsz_spin.value())
         if self._batch_user_set:
             self.settings.setValue("training/batch", self.batch_spin.value())
+        self.settings.setValue("training/learning_rate", self.lr_spin.value())
         self.settings.setValue(
             "training/overfitting_guard", self.overfitting_check.isChecked()
         )
@@ -428,6 +447,7 @@ class TrainingView(QWidget):
             epochs=self.epochs_spin.value(),
             imgsz=self.imgsz_spin.value(),
             batch=self.batch_spin.value(),
+            learning_rate=self.lr_spin.value(),
             family=family,
             overfitting_guard=self.overfitting_check.isChecked(),
             name=self._trained_name(spec, now),
@@ -511,7 +531,8 @@ class TrainingView(QWidget):
             f"[{self.run_id}] Startar träning: {worker.config.weights} på "
             f"{worker.config.dataset_yaml} "
             f"({worker.config.epochs} epoker, imgsz {worker.config.imgsz}, "
-            f"batch {worker.config.batch_size()}) "
+            f"batch {worker.config.batch_size()}, "
+            f"lr {worker.config.learning_rate:g}) "
             f"-> {worker.config.output_dir}"
         )
         self.log.appendPlainText(header)

@@ -62,6 +62,8 @@ class TrainingWorker(QObject):
             str(self.config.imgsz),
             "--batch",
             str(self.config.batch_size()),
+            "--learning-rate",
+            str(self.config.learning_rate),
             "--family",
             str(self.config.family),
             "--overfitting-guard",

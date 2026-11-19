@@ -13,6 +13,11 @@ RFDETR_RESOLUTION_DIVISOR = 32
 #: det, så RF-DETR utgår från en mindre batch.
 DEFAULT_BATCH = {"yolo": 16, "rfdetr": 4}
 
+#: Inlärningshastighetens default (TASK-162). Ett dataset under 1000 samples
+#: överanpassas snabbt, så träningen utgår från en låg hastighet i stället för
+#: ramverkens egna 0.001 respektive 1e-4.
+DEFAULT_LEARNING_RATE = 5e-5
+
 #: Nattfönstret: en inställningsnyckel per gräns med värdet "HH:MM", delad av
 #: träningsvyn, inställningsdialogen och schemaläggaren (TASK-125).
 NIGHT_START_KEY = "training/night_start"
@@ -95,6 +100,8 @@ class TrainConfig:
     epochs: int = 100
     imgsz: int = DEFAULT_SIZE
     batch: int | None = None
+    #: inlärningshastighet, justerbar i träningsvyn (TASK-162)
+    learning_rate: float = DEFAULT_LEARNING_RATE
     family: str = "yolo"
     overfitting_guard: bool = True
     #: visningsnamn för den tränade modellen (TASK-108)

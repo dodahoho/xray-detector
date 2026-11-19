@@ -107,6 +107,7 @@ def test_training_fields_and_buttons_fit_the_card(qapp, window):
         view.epochs_spin,
         view.imgsz_spin,
         view.batch_spin,
+        view.lr_spin,
         view.run_combo,
         view.start_button,
         view.abort_button,
