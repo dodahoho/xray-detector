@@ -1,7 +1,7 @@
 ---
 id: TASK-163
 title: Annotering - Zooma i bild
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-19T09:30:00Z'
@@ -33,7 +33,7 @@ Om man ska annotera små objekt så finns behov av att kunna zooma i bilden. Lä
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
