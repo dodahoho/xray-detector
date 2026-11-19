@@ -1,7 +1,7 @@
 ---
 id: TASK-162
 title: Träning - Learning rate som parameter
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-19T09:13:00Z'
@@ -36,7 +36,7 @@ Lägg in learning rate som en justerbar parameter i träningsvyn och sätt defau
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
