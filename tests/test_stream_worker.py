@@ -244,6 +244,33 @@ def test_frame_is_emitted_before_detection(qapp, video_file, fake_detector):
     assert any(frame.detections for frame in received), "detektionerna ska komma på en senare ram"
 
 
+def test_stream_worker_passes_the_frame_interval_to_the_smoother(
+    qapp, video_file, fake_detector, monkeypatch
+):
+    """Utjämningen får tiden mellan ramarna, så rutan kan extrapoleras (TASK-174)."""
+    worker = StreamWorker("left", FileSource(video_file))
+    steps = []
+    original = worker._smoother.update
+
+    def record(detections, dt):
+        steps.append(dt)
+        return original(detections, dt)
+
+    monkeypatch.setattr(worker._smoother, "update", record)
+    received = []
+    worker.frame_ready.connect(lambda frame: received.append(frame))
+    worker.set_detector(fake_detector)
+    worker.start()
+    try:
+        assert wait_for(qapp, lambda: len(steps) >= 3), "utjämningen anropades inte"
+    finally:
+        worker.stop()
+
+    # första ramen saknar intervall, därefter är dt en verklig ramtid
+    assert steps[0] == 0.0
+    assert all(0 < dt < 1.0 for dt in steps[1:])
+
+
 def test_detached_detector_leaves_no_stale_detections(qapp, video_file, fake_detector):
     """Bortkopplad detektor får inte lämna kvar föregående frames rutor (TASK-38)."""
     import time

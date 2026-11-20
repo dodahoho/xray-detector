@@ -24,6 +24,7 @@ class StreamWorker(QThread):
         self._detections: list[Detection] = []
         self._smoother = DetectionSmoother()
         self._sequence = 0
+        self._last_frame_time: float | None = None
         self._fps_window_start = time.perf_counter()
         self._fps_window_count = 0
         self._fps: float | None = None
@@ -34,6 +35,8 @@ class StreamWorker(QThread):
         # ingen föregående detektion att visa (TASK-38).
         self._detections = []
         self._smoother.reset()
+        # första ramen efter ett byte saknar tidsintervall att extrapolera med
+        self._last_frame_time = None
 
     def _next_sequence(self) -> int:
         self._sequence += 1
@@ -75,6 +78,11 @@ class StreamWorker(QThread):
                 # Ramen skickas direkt: detektionens varierande körtid får inte
                 # förskjuta visningen (TASK-37). Overlayn visar därför senaste
                 # ramens detektioner, alltså en ram efter bilden.
+                # Tiden mellan två ramar är den tid rutan ska extrapoleras:
+                # detektionen på den här ramen ritas på nästa (TASK-174).
+                now = time.perf_counter()
+                dt = 0.0 if self._last_frame_time is None else now - self._last_frame_time
+                self._last_frame_time = now
                 self.frame_ready.emit(
                     StreamFrame(
                         self.source_id,
@@ -88,7 +96,7 @@ class StreamWorker(QThread):
                 detector = self._detector
                 if detector is not None:
                     try:
-                        detections = self._smoother.update(detector.detect(frame))
+                        detections = self._smoother.update(detector.detect(frame), dt)
                     except Exception as exc:
                         self.error_occurred.emit(self.source_id, str(exc))
                         self.msleep(500)
