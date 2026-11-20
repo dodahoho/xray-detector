@@ -1,11 +1,11 @@
 ---
 id: TASK-164
 title: Annotering och Detektion - Möjlighet att maximera en bildkälla
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-19T09:38:00Z'
-updated_date: '2026-11-20T13:49:00Z'
+updated_date: '2026-11-20T13:51:00Z'
 labels: []
 dependencies: []
 references:
@@ -34,20 +34,20 @@ Kanske till och med göra ramen i mitten justerbar så att man kan justera storl
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Varje bildpanel i annoterings- och detektionsvyn har en knapp som maximerar panelen och fäller ihop den andra.
-- [ ] #2 Knappen på den maximerade panelen visar båda bilderna igen, med samma storlekar som före maximeringen.
-- [ ] #3 Ramen mellan de två panelerna går att dra för att ändra storlekarna dynamiskt.
-- [ ] #4 Ett nytt bildpar i annoteringsvyn börjar med båda bilderna synliga.
-- [ ] #5 docs/beteende.md beskriver maximeringen och den justerbara ramen.
+- [x] #1 Varje bildpanel i annoterings- och detektionsvyn har en knapp som maximerar panelen och fäller ihop den andra.
+- [x] #2 Knappen på den maximerade panelen visar båda bilderna igen, med samma storlekar som före maximeringen.
+- [x] #3 Ramen mellan de två panelerna går att dra för att ändra storlekarna dynamiskt.
+- [x] #4 Ett nytt bildpar i annoteringsvyn börjar med båda bilderna synliga.
+- [x] #5 docs/beteende.md beskriver maximeringen och den justerbara ramen.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -60,3 +60,23 @@ Kanske till och med göra ramen i mitten justerbar så att man kan justera storl
 5. load_captures återställer båda bilderna, så ett nytt bildpar alltid börjar med två synliga bilder.
 6. Tester i tests/test_panel_split.py och uppdatering av docs/beteende.md.
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Den gemensamma ytan ligger i `xray_detector/ui/panel_split.py`. `PanelSplit` är en QSplitter med `setChildrenCollapsible(False)`, så ramen bara går att dra så långt att båda panelerna syns, och en maximering gömmer den andra panelen i stället för att dra ramen till kanten. Storlekarna sparas före maximeringen och sätts tillbaka vid återställning, så en storlek man dragit fram inte tappas.
+
+Maximera-knappen ligger först i panelens egen rad: i `ZoomOverlay` för annoteringsvyn och i `StreamPanel`s rad ovanför bilden för detektionsvyn. Ikonerna `maximize_icon()` och `restore_icon()` ritas som streckade rutor i `ui/tool_icons.py`, i samma stil som pennan och handen, och knappen byter ikon och verktygstips när panelen är maximerad.
+
+Verifiering: `uv run ruff check xray_detector tests` rent. `uv run pytest -q -n auto --ignore=tests/test_shortcuts.py` gav 1012 passed, 1 skipped; `uv run pytest tests/test_shortcuts.py -q` gav 32 passed. `tests/test_shortcuts.py` är flaky under pytest-xdist (tre olika test fallerar från körning till körning); samma flakiness finns på orörd kod med ändringarna stashade, så den hör inte till den här uppgiften.
+<!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+De två bildpanelerna i annoterings- och detektionsvyn delar nu ytan med en QSplitter i stället för en QHBoxLayout. Ramen i mitten går att dra, så storlekarna ändras dynamiskt, och först i varje panels egen rad sitter en maximera-knapp som fäller ihop den andra panelen. Ett klick till visar båda igen med samma storlekar som före maximeringen. Ramen kan inte dras ihop till noll, så en bild aldrig försvinner, och ett nytt bildpar i annoteringsvyn börjar alltid med båda bilderna synliga.
+
+Den gemensamma ytan ligger i `xray_detector/ui/panel_split.py` och används av båda vyerna. Ikonerna för maximera och återställ ritas med QPainter i `ui/tool_icons.py`, så de följer paletten och behöver ingen bildfil. `docs/beteende.md` beskriver knappen och den justerbara ramen i både Detektion- och Annotation-avsnittet.
+
+Verifierat med `tests/test_panel_split.py` (13 tester) och `tests/test_tool_icons.py`, plus hela sviten: 1012 passed och 1 skipped parallellt, 32 passed för `tests/test_shortcuts.py` seriellt, och ruff rent. `tests/test_shortcuts.py` är flaky under pytest-xdist även på orörd kod, så den körningen bör hållas seriell i CI.
+<!-- SECTION:FINAL_SUMMARY:END -->
