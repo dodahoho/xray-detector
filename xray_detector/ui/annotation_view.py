@@ -195,6 +195,8 @@ class AnnotationCanvas(QWidget):
         desired_origin = pos - QPoint(int(image_point.x() * scale), int(image_point.y() * scale))
         self._pan = desired_origin - self._base_origin()
         self.zoom_overlay.set_zoom(self._zoom)
+        # utan ompritning här syns den nya nivån först vid nästa händelse i vyn (TASK-166)
+        self.update()
 
     def zoom_in(self) -> None:
         """Zoomar in kring bildens mitt, som knappen i zoompanelen (TASK-163)."""

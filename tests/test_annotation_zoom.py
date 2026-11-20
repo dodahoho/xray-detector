@@ -7,7 +7,7 @@ den syns där zoomningen görs, och etiketten följer både knapparna och Ctrl+h
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QWheelEvent
 
 from tests.conftest import synthetic_frame
@@ -46,6 +46,29 @@ def wheel(canvas, delta: int, modifiers=Qt.KeyboardModifier.ControlModifier) -> 
         False,
     )
     canvas.wheelEvent(event)
+
+
+class PaintRecorder(QObject):
+    """Samlar de ytor canvasen ritar om, så en utebliven ompritning syns (TASK-166)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.regions: list[QRect] = []
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.Paint:
+            self.regions.append(event.region().boundingRect())
+        return False
+
+    def take(self) -> list[QRect]:
+        regions, self.regions = self.regions, []
+        return regions
+
+
+def record_paints(canvas) -> PaintRecorder:
+    recorder = PaintRecorder()
+    canvas.installEventFilter(recorder)
+    return recorder
 
 
 def test_the_zoom_panel_sits_in_the_top_left_corner(qapp):
@@ -91,6 +114,34 @@ def test_the_buttons_zoom_in_and_out_and_update_the_label(qapp):
     overlay.zoom_out_button.click()
     assert canvas._zoom == pytest.approx(1.0)
     assert overlay.zoom_label.text() == "100 %"
+
+
+def test_the_buttons_repaint_the_image_at_once(qapp):
+    """Zoomningen syns direkt, utan ett extra klick i vyn (TASK-166)."""
+    canvas = make_canvas(qapp)
+    overlay = canvas.zoom_overlay
+    recorder = record_paints(canvas)
+
+    for name, clicked in (
+        ("+", overlay.zoom_in_button),
+        ("−", overlay.zoom_out_button),
+        ("100 %", overlay.reset_button),
+    ):
+        recorder.take()
+        clicked.click()
+        qapp.processEvents()
+        assert canvas.rect() in recorder.take(), f"bilden ritades inte om efter {name}"
+
+
+def test_ctrl_wheel_repaints_the_image_at_once(qapp):
+    """Även Ctrl+hjul går genom zoom_at, så bilden ritas om direkt (TASK-166)."""
+    canvas = make_canvas(qapp)
+    recorder = record_paints(canvas)
+
+    wheel(canvas, 120)
+    qapp.processEvents()
+
+    assert canvas.rect() in recorder.take()
 
 
 def test_the_buttons_zoom_around_the_image_center(qapp):
