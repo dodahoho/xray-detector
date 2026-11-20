@@ -1,7 +1,7 @@
 ---
 id: TASK-175
 title: Appen avslutas inte när fönstret stängs - processen hänger kvar
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-20T23:03:00Z'
 updated_date: '2026-11-20T23:05:00Z'
@@ -38,7 +38,7 @@ Fönstret stängs, alltså kör closeEvent klart och app.exec() returnerar. Det 
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
