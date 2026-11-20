@@ -1,7 +1,7 @@
 ---
 id: TASK-168
 title: Annotering - Växla läge mellan rita och panorera vid inzoomad bild
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-20T11:08:00Z'
@@ -30,20 +30,20 @@ Panoreringsläge är endast relevant om bilden inte ryms i den tillgängliga yta
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Zoompanelen visar verktygen Rita och Panorera när bilden är så inzoomad att hela bilden inte ryms i ytan.
-- [ ] #2 Rita är valt från början och ett klick och drag i bildytan ritar en ny annotering som förut.
-- [ ] #3 I panorera-läget flyttar ett klick och drag i bildytan den synliga delen av bilden i stället för att rita.
-- [ ] #4 Verktygsvalet döljs och läget går tillbaka till Rita när hela bilden ryms i ytan igen.
-- [ ] #5 docs/beteende.md beskriver verktygsvalet.
+- [x] #1 Zoompanelen visar verktygen Rita och Panorera när bilden är så inzoomad att hela bilden inte ryms i ytan.
+- [x] #2 Rita är valt från början och ett klick och drag i bildytan ritar en ny annotering som förut.
+- [x] #3 I panorera-läget flyttar ett klick och drag i bildytan den synliga delen av bilden i stället för att rita.
+- [x] #4 Verktygsvalet döljs och läget går tillbaka till Rita när hela bilden ryms i ytan igen.
+- [x] #5 docs/beteende.md beskriver verktygsvalet.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -76,3 +76,9 @@ Noteringar:
 - load_captures återställer en canvas som inte får någon bild med reset_view(), så zoom och verktyg inte ligger kvar från föregående bildpar.
 - Pan-offseten kläms inte, så bilden kan dras ur vyn; 100 %-knappen tar tillbaka den. Samma beteende som mittenknappen hade före uppgiften.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Annoteringsvyns zoompanel har fått två verktyg: Rita, som är valt från början och ritar en box vid klick och drag, och Panorera, där samma drag flyttar den synliga delen av den inzoomade bilden och pekaren blir en öppen hand. Verktygen syns bara när bilden är så inzoomad att hela bilden inte ryms i ytan; när bilden ryms igen döljs de och läget går tillbaka till Rita. Mittenknappens panorering finns kvar i båda lägena, och en canvas som inte får någon bild nollställs så zoom och verktyg inte ligger kvar från föregående bildpar. Verifierat med uv run pytest -q -p no:xdist (1019 passed, 1 skipped) och uv run ruff check . (inga anmärkningar), plus en manuell rendering av panelen i båda lägena. Pan-offseten kläms inte, så bilden kan dras ur vyn; 100 %-knappen tar tillbaka den, samma beteende som mittenknappen hade före uppgiften.
+<!-- SECTION:FINAL_SUMMARY:END -->
