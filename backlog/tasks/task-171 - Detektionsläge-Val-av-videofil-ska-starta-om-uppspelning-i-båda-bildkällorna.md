@@ -1,7 +1,7 @@
 ---
 id: TASK-171
 title: Detektionsläge - Val av videofil ska starta om uppspelning i båda bildkällorna
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-20T17:30:00Z'
@@ -27,19 +27,19 @@ Detta pga att videofiler väljs så att de visar samma innehål fast från två 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 När en videofil väljs i en panel och den andra panelen redan spelar en videofil startar båda om från första ramen samtidigt.
-- [ ] #2 De två filerna håller samma uppspelningsposition, så samma ögonblick syns i båda bildkällorna.
-- [ ] #3 En UVC-kamera eller tom källa i den andra panelen påverkas inte av filvalet.
-- [ ] #4 docs/beteende.md beskriver att de två videofilerna startar om tillsammans.
+- [x] #1 När en videofil väljs i en panel och den andra panelen redan spelar en videofil startar båda om från första ramen samtidigt.
+- [x] #2 De två filerna håller samma uppspelningsposition, så samma ögonblick syns i båda bildkällorna.
+- [x] #3 En UVC-kamera eller tom källa i den andra panelen påverkas inte av filvalet.
+- [x] #4 docs/beteende.md beskriver att de två videofilerna startar om tillsammans.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -59,3 +59,13 @@ FileSource tar en valfri start_at (perf_counter-tid) som sätter första deadlin
 
 Verifiering: tests/test_video_file_sync.py (7 tester) plus hela sviten: 1030 passed, 1 skipped. Negativ kontroll med två StreamWorker på samma fil där den andra startas 100 ms senare: utan gemensam starttid 99,5 ms isär, med gemensam starttid 0,0 ms isär. ruff check . är ren; ruff format --check flaggar en rad i detection_view.py som redan fanns i HEAD och lämnades orörd.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Val av videofil startar nu om båda bildkällorna synkroniserat. FileSource tar en valfri start_at som sätter första deadlinen, och read() öppnar källan innan den väntar så ramtiden och starttiden är kända redan för första ramen. build_source skickar starttiden vidare. DetectionView._start_file_sources ger den valda filen och den andra panelens fil samma starttid 100 ms framåt, så båda hinner öppnas innan första ramen; en UVC-källa eller tom källa i den andra panelen rörs inte.
+
+Verifiering: tests/test_video_file_sync.py (7 tester) och hela sviten (1030 passed, 1 skipped). Negativ kontroll med två StreamWorker på samma fil där den andra startas 100 ms senare gav 99,5 ms isär utan gemensam starttid och 0,0 ms isär med. ruff check . är ren.
+
+Kvar att känna till: starttiden är 100 ms framåt, så en fil som tar längre tid än så att öppna (till exempel på en långsam nätverksenhet) faller tillbaka på att börja spela direkt och då inte exakt i takt. Uppspelningen synkas vid val, återställning vid start och återupptagning efter träning; filerna loopar var för sig och kan glida isär igen efter ett varv om de har olika längd.
+<!-- SECTION:FINAL_SUMMARY:END -->
