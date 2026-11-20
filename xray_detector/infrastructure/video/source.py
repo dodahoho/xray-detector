@@ -88,9 +88,11 @@ class UvcSource(VideoSource):
 
 
 class FileSource(VideoSource):
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, start_at: float | None = None) -> None:
         super().__init__(SourceInfo(label=path.name))
         self.path = path
+        # gemensam starttid för två filer som ska spelas upp i takt (TASK-171)
+        self.start_at = start_at
         self._deadline: float | None = None
         self._frame_interval = 0.0
 
@@ -98,10 +100,13 @@ class FileSource(VideoSource):
         capture = cv2.VideoCapture(str(self.path))
         fps = capture.get(cv2.CAP_PROP_FPS)
         self._frame_interval = 1.0 / fps if fps and fps > 0 else 1.0 / 30.0
-        self._deadline = None
+        self._deadline = self.start_at
         return capture
 
     def read(self) -> np.ndarray | None:
+        # källan öppnas först, så ramtiden och en gemensam starttid är kända
+        # redan innan första ramen väntas in (TASK-171)
+        self.open()
         self._wait_for_next_frame()
         frame = super().read()
         if frame is None:
@@ -136,10 +141,11 @@ def build_source(
     kind: str,
     value: object,
     mode: VideoMode | None = None,
+    start_at: float | None = None,
 ) -> VideoSource | None:
     """Bygger källan för en källtyp; None när värdet saknas (TASK-142)."""
     if kind == "uvc" and value is not None:
         return UvcSource(int(value), mode)
     if kind == "file" and value:
-        return FileSource(Path(value))
+        return FileSource(Path(value), start_at)
     return None

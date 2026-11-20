@@ -19,7 +19,7 @@ from xray_detector.infrastructure.detectors.base import BaseDetector
 from xray_detector.infrastructure.system.resources import ResourceMonitor, ResourceUsage
 from xray_detector.infrastructure.video.camera_service import CameraService
 from xray_detector.infrastructure.video.devices import list_devices
-from xray_detector.infrastructure.video.source import build_source
+from xray_detector.infrastructure.video.source import VideoSource, build_source
 from xray_detector.ui.badge import (
     badge_delays,
     badge_swap_frames,
@@ -49,6 +49,9 @@ CLASSES_OFF_PREFIX = "detection/classes_off"
 MANAGE_MODELS_TITLE = "Hantera modeller"
 # luften mellan modellväljaren, tröskeln, enheten och resursstaplarna
 CONTROL_GAP = 16
+# tiden från att en videofil valts till att båda filerna börjar spela, så att
+# båda hinner öppnas innan första ramen (TASK-171)
+FILE_SYNC_LEAD_SECONDS = 0.1
 
 
 def _fraction(value: int | None, total: int | None) -> float | None:
@@ -374,14 +377,34 @@ class DetectionView(QWidget):
     def _on_source_requested(
         self, source_id: str, kind: str, value: object, mode: VideoMode | None = None
     ) -> None:
-        worker = self.camera_service.set_source(
-            source_id, build_source(kind, value, mode)
-        )
+        if kind == "file":
+            self._start_file_sources(source_id, value)
+            return
+        self._start_source(source_id, build_source(kind, value, mode))
+
+    def _start_source(self, source_id: str, source: VideoSource | None) -> None:
+        worker = self.camera_service.set_source(source_id, source)
         if worker is not None:
             worker.frame_ready.connect(self._on_frame)
             worker.source_lost.connect(self._on_source_lost)
             worker.error_occurred.connect(self._on_error)
             worker.set_detector(self._active_detector())
+
+    def _start_file_sources(self, source_id: str, path: object) -> None:
+        """Startar videofilerna från början samtidigt (TASK-171).
+
+        Filerna väljs för att visa samma förlopp från två vinklar, så den andra
+        panelens fil startas om med samma starttid när en fil väljs. Bara
+        filkällor påverkas: en UVC-kamera i den andra panelen rörs inte.
+        """
+        other = self.right if source_id == "left" else self.left
+        other_kind, other_value = other.current_source()
+        start_at = time.perf_counter() + FILE_SYNC_LEAD_SECONDS
+        self._start_source(source_id, build_source("file", path, None, start_at))
+        if other_kind == "file" and other_value:
+            self._start_source(
+                other.source_id, build_source("file", other_value, None, start_at)
+            )
 
     def _on_frame(self, stream_frame: StreamFrame) -> None:
         panel = self.left if stream_frame.source_id == "left" else self.right
