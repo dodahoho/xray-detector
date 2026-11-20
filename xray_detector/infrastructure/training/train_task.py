@@ -33,7 +33,7 @@ DEFAULT_WORKERS = 8
 DEFAULT_SEED = 42
 #: Epoker utan förbättrat valvärde innan ramverkets early stopping stoppar
 #: träningen (TASK-118).
-DEFAULT_PATIENCE = 10
+DEFAULT_PATIENCE = 15
 
 #: YOLO:ts hyperparametrar för röntgenbilder (TASK-92).
 #:
