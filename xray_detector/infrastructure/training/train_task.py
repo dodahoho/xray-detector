@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from json import load as json_load
 from pathlib import Path
 
+from xray_detector.domain.dataset import repair_mojibake
 from xray_detector.domain.training import (
     DEFAULT_LEARNING_RATE,
     default_batch,
@@ -80,7 +81,7 @@ def _read_data_classes(dataset: Path) -> list[str]:
         try:
             with open(coco_json, encoding="utf-8") as file:
                 categories = json_load(file).get("categories", [])
-            return [str(category["name"]) for category in categories]
+            return [repair_mojibake(str(category["name"])) for category in categories]
         except (OSError, ValueError):
             return []
     # samma läsare som datasetvyn, så manifestet och vyn alltid är överens

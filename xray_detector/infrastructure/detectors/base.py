@@ -4,6 +4,7 @@ from collections.abc import Iterable
 
 import numpy as np
 
+from xray_detector.domain.dataset import repair_mojibake
 from xray_detector.domain.detection import Detection
 
 
@@ -12,13 +13,14 @@ def class_names_from(names, source: str) -> list[str]:
 
     Ultralytics ger {index: namn} och rfdetr en lista. Saknas namnen går
     klasserna inte att namnge, och då är ett tydligt fel bättre än att
-    overlayn visar index.
+    overlayn visar index. Ett namn som sparats som mojibake rättas här, så
+    märket visar klassens riktiga namn (TASK-165).
     """
     if isinstance(names, dict):
         names = [names[index] for index in sorted(names)]
     if not names:
         raise ValueError(f"Kunde inte läsa klassnamnen ur {source}")
-    return [str(name) for name in names]
+    return [repair_mojibake(str(name)) for name in names]
 
 
 def cuda_device_label() -> str:

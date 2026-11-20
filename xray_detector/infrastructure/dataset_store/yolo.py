@@ -14,6 +14,8 @@ from pathlib import Path
 
 import yaml
 
+from xray_detector.domain.dataset import repair_mojibake
+
 DATA_YAML = "data.yaml"
 
 
@@ -41,9 +43,9 @@ def read_classes(path: Path) -> list[str]:
     """
     names = read_data(path).get("names")
     if isinstance(names, dict):
-        return [str(names[key]) for key in sorted(names)]
+        return [repair_mojibake(str(names[key])) for key in sorted(names)]
     if isinstance(names, (list, tuple)):
-        return [str(name) for name in names]
+        return [repair_mojibake(str(name)) for name in names]
     return []
 
 
@@ -60,10 +62,12 @@ def write_data_yaml(
     delningen i stället, där val är en egen delmängd.
 
     Klassnamnen skrivs som en JSON-lista, som är giltig YAML, så ett namn med
-    apostrof eller citattecken inte bryter filen.
+    apostrof eller citattecken inte bryter filen. Ett namn som kommit in som
+    mojibake rättas här, så filen läker nästa gång den skrivs (TASK-165).
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    names = [repair_mojibake(str(name)) for name in names]
     path.write_text(
         "\n".join(
             [

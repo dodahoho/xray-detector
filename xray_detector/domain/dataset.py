@@ -44,6 +44,22 @@ def describe(variation) -> str:
     return "variation"
 
 
+def repair_mojibake(text: str) -> str:
+    """Rättar ett klassnamn som lästs som latin-1 i stället för UTF-8 (TASK-165).
+
+    "lÃ¶pare" är UTF-8-byten för "löpare" tolkade som latin-1. Tecknen i
+    intervallet 0x80-0xFF kan bilda giltiga UTF-8-sekvenser, och då är den
+    tolkningen rätt. Ett namn som redan är korrekt innehåller ingen sådan
+    sekvens och lämnas orört, så funktionen kan användas på alla namn.
+    """
+    if not text or text.isascii():
+        return text
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+
+
 def capture_group(image: dict) -> object:
     """Fångstgruppen en bild hör till: grupp-id, annars bildens eget id (TASK-137)."""
     return image.get("group") or image["id"]
