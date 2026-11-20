@@ -1,11 +1,11 @@
 ---
 id: TASK-166
 title: Annotering - Zoomfunktion direkt efter klick på knappar + eller -
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-20T11:00:00Z'
-updated_date: '2026-11-20T11:31:00Z'
+updated_date: '2026-11-20T11:32:00Z'
 labels: []
 dependencies: []
 references:
@@ -27,11 +27,11 @@ När jag trycker på knappar för + (zooma in) eller - (zooma ut) så sker inte 
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -55,3 +55,19 @@ Verifiering: ett Paint-händelsefilter på canvasen visar att hela ytan (0,0,400
 
 Dokumentation: docs/beteende.md säger nu att bilden ritas om direkt när nivån ändras.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Bilden i annoteringsvyn ritas nu om direkt när zoomnivån ändras, så ett klick på + eller − syns utan att man klickar i vyn efteråt.
+
+Orsaken var att zoom_at() uppdaterade _zoom, _pan och etiketten men aldrig anropade update(). Canvasen ritar bara om när något begär det, så bilden stod kvar på den gamla nivån tills ett musklick i vyn råkade anropa update(). Etiketten uppdaterades däremot direkt, eftersom QLabel ritar om sig själv.
+
+Rättningen är ett self.update() sist i zoom_at(). Både +, −, 100 % och Ctrl+hjul går genom zoom_at, så alla fyra ritar om bilden direkt; reset_view() anropade redan update().
+
+Verifiering: ett Paint-händelsefilter på canvasen visar att hela ytan ritas om direkt efter klick på +, − och 100 % och efter Ctrl+hjul, där bara etikettens yta rittades om före rättningen. Två nya tester i tests/test_annotation_zoom.py fäller utan rättningen och passerar med den. Hela sviten: 1003 passed, 1 skipped. ruff check: All checks passed.
+
+Dokumentation: docs/beteende.md säger nu att bilden ritas om direkt när nivån ändras.
+
+Kvar utanför uppgiften: TASK-167 (Ctrl+hjul kring pekaren) och TASK-168 (växla mellan rita och panorera) är egna uppgifter. Ctrl+hjul zoomar redan kring pekaren, men den här rättningen ändrar inte det beteendet.
+<!-- SECTION:FINAL_SUMMARY:END -->
