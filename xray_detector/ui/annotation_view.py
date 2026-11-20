@@ -2,6 +2,7 @@ import numpy as np
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QComboBox,
     QHBoxLayout,
     QInputDialog,
@@ -44,6 +45,9 @@ ZOOM_STEP_OUT = 0.8
 ZOOM_OVERLAY_MARGIN = 8
 ZOOM_OVERLAY_BUTTON_WIDTH = 28
 ZOOM_LABEL_WIDTH = 56
+#: Verktygen i zoompanelen: rita (standard) och panorera (TASK-168).
+TOOL_DRAW = "draw"
+TOOL_PAN = "pan"
 
 
 class ZoomOverlay(QWidget):
@@ -52,6 +56,9 @@ class ZoomOverlay(QWidget):
     Panelen ligger ovanpå bilden i stället för i en rad ovanför, så varje bild
     har sina egna kontroller och zoomningen syns där den görs. Bakgrunden är
     halvtransparent, så den syns mot både ljusa och mörka bilder.
+
+    Verktygen Rita och Panorera ligger i samma panel men syns bara när bilden
+    är så inzoomad att hela bilden inte ryms i ytan (TASK-168).
     """
 
     def __init__(self, canvas: "AnnotationCanvas") -> None:
@@ -83,10 +90,40 @@ class ZoomOverlay(QWidget):
         self.reset_button.setToolTip("Återgå till 100 % och centrera bilden")
         self.reset_button.clicked.connect(canvas.reset_view)
         layout.addWidget(self.reset_button)
+        self.draw_button = button("Rita")
+        self.draw_button.setCheckable(True)
+        self.draw_button.setToolTip("Klicka och dra i bilden ritar en ny annotering")
+        self.draw_button.clicked.connect(lambda: canvas.set_tool(TOOL_DRAW))
+        layout.addWidget(self.draw_button)
+        self.pan_button = button("Panorera")
+        self.pan_button.setCheckable(True)
+        self.pan_button.setToolTip(
+            "Klicka och dra i bilden flyttar den synliga delen av den inzoomade bilden"
+        )
+        self.pan_button.clicked.connect(lambda: canvas.set_tool(TOOL_PAN))
+        layout.addWidget(self.pan_button)
+        # en exklusiv grupp, så exakt ett av verktygen är valt
+        self.tool_group = QButtonGroup(self)
+        self.tool_group.setExclusive(True)
+        self.tool_group.addButton(self.draw_button)
+        self.tool_group.addButton(self.pan_button)
+        self.draw_button.setChecked(True)
 
     def set_zoom(self, zoom: float) -> None:
         """Visar zoomnivån i procent, avrundad till hela procent."""
         self.zoom_label.setText(f"{round(zoom * 100)} %")
+
+    def set_tool(self, tool: str) -> None:
+        """Markerar det valda verktyget (TASK-168)."""
+        # gruppen är exklusiv, så det andra verktyget avmarkeras automatiskt
+        selected = self.draw_button if tool == TOOL_DRAW else self.pan_button
+        selected.setChecked(True)
+
+    def set_tool_available(self, available: bool) -> None:
+        """Visar verktygen först när bilden inte ryms i ytan (TASK-168)."""
+        self.draw_button.setVisible(available)
+        self.pan_button.setVisible(available)
+        self.adjustSize()
 
 
 class RectItem:
@@ -123,6 +160,8 @@ class AnnotationCanvas(QWidget):
         self._zoom = 1.0
         self._pan = QPoint(0, 0)
         self._pan_start = QPoint()
+        # rita är standard; panorera väljs i zoompanelen när bilden inte ryms (TASK-168)
+        self._tool = TOOL_DRAW
         self.dirty = False
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
@@ -130,6 +169,7 @@ class AnnotationCanvas(QWidget):
         self.zoom_overlay = ZoomOverlay(self)
         self.zoom_overlay.set_zoom(self._zoom)
         self.zoom_overlay.setVisible(False)
+        self._update_tool_availability()
 
     def set_class_name(self, class_name: str) -> None:
         self.class_name = class_name
@@ -153,6 +193,7 @@ class AnnotationCanvas(QWidget):
         self._pan = QPoint(0, 0)
         self.zoom_overlay.set_zoom(self._zoom)
         self.zoom_overlay.setVisible(True)
+        self._update_tool_availability()
         self.selection_changed.emit(None)
         self.update()
 
@@ -184,6 +225,41 @@ class AnnotationCanvas(QWidget):
     def _scale(self) -> float:
         return self._base_scale() * self._zoom
 
+    def _fits(self) -> bool:
+        """Sant när hela bilden ryms i ytan på den aktuella zoomnivån (TASK-168)."""
+        if self.image is None:
+            return True
+        scale = self._scale()
+        return (
+            int(self.image.width() * scale) <= self.width()
+            and int(self.image.height() * scale) <= self.height()
+        )
+
+    def _tool_cursor(self) -> Qt.CursorShape:
+        """Pekaren visar att ett drag panorerar i panorera-läget (TASK-168)."""
+        if self._tool == TOOL_PAN:
+            return Qt.CursorShape.OpenHandCursor
+        return Qt.CursorShape.ArrowCursor
+
+    def set_tool(self, tool: str) -> None:
+        """Väljer om ett drag ritar eller panorerar bilden (TASK-168).
+
+        Panorera är bara meningsfullt när bilden inte ryms i ytan, så valet
+        faller tillbaka på rita när hela bilden syns.
+        """
+        if tool == TOOL_PAN and self._fits():
+            tool = TOOL_DRAW
+        self._tool = tool
+        self.zoom_overlay.set_tool(tool)
+        self.setCursor(self._tool_cursor())
+
+    def _update_tool_availability(self) -> None:
+        """Visar verktygsvalet först när bilden inte ryms i ytan (TASK-168)."""
+        available = not self._fits()
+        self.zoom_overlay.set_tool_available(available)
+        if not available and self._tool == TOOL_PAN:
+            self.set_tool(TOOL_DRAW)
+
     def zoom_at(self, pos: QPoint, factor: float) -> None:
         """Zoomar kring muspositionen; bildpunkten under pekaren blir kvar."""
         if self.image is None:
@@ -195,6 +271,7 @@ class AnnotationCanvas(QWidget):
         desired_origin = pos - QPoint(int(image_point.x() * scale), int(image_point.y() * scale))
         self._pan = desired_origin - self._base_origin()
         self.zoom_overlay.set_zoom(self._zoom)
+        self._update_tool_availability()
         # utan ompritning här syns den nya nivån först vid nästa händelse i vyn (TASK-166)
         self.update()
 
@@ -211,6 +288,7 @@ class AnnotationCanvas(QWidget):
         self._zoom = 1.0
         self._pan = QPoint(0, 0)
         self.zoom_overlay.set_zoom(self._zoom)
+        self._update_tool_availability()
         self.update()
 
     def wheelEvent(self, event) -> None:
@@ -224,6 +302,7 @@ class AnnotationCanvas(QWidget):
     def resizeEvent(self, event) -> None:
         """Håller zoompanelen i bildens övre vänstra hörn (TASK-163)."""
         super().resizeEvent(event)
+        self._update_tool_availability()
         self.zoom_overlay.adjustSize()
         self.zoom_overlay.move(ZOOM_OVERLAY_MARGIN, ZOOM_OVERLAY_MARGIN)
 
@@ -316,6 +395,8 @@ class AnnotationCanvas(QWidget):
         self.update()
 
     def _hover_cursor(self, pos: QPoint) -> Qt.CursorShape:
+        if self._tool == TOOL_PAN:
+            return Qt.CursorShape.OpenHandCursor
         if self._hit_label(pos) is not None:
             return Qt.CursorShape.PointingHandCursor
         handle = self._hit_handle(pos)
@@ -395,6 +476,13 @@ class AnnotationCanvas(QWidget):
             self._mode = "pan"
             self._pan_start = pos
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            return
+        # i panorera-läget flyttar ett vänsterdrag bilden i stället för att rita (TASK-168)
+        if self._tool == TOOL_PAN and event.button() == Qt.MouseButton.LeftButton:
+            self._mode = "pan"
+            self._pan_start = pos
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            self.setFocus(Qt.FocusReason.MouseFocusReason)
             return
         label_item = self._hit_label(pos) if event.button() == Qt.MouseButton.LeftButton else None
         if label_item is not None:
@@ -492,7 +580,7 @@ class AnnotationCanvas(QWidget):
             self._mark_dirty()
         if self._mode == "pan":
             self._mode = "idle"
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.setCursor(self._tool_cursor())
             self.update()
             return
         self._mode = "idle"
@@ -745,7 +833,8 @@ class AnnotationView(QWidget):
             canvas.frame = None
             canvas.rects = []
             canvas.selected = None
-            canvas.update()
+            # en tom bild ska inte behålla zoom eller verktyg från förra paret (TASK-168)
+            canvas.reset_view()
         self.mark_clean()
 
     def _on_class_changed(self, class_name: str) -> None:
