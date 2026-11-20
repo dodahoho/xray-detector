@@ -1,7 +1,7 @@
 ---
 id: TASK-169
 title: Annotering - Ctrl+drag panorerar och ikoner på verktygsknapparna
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-20T11:58:00Z'
@@ -29,20 +29,20 @@ Uppföljning på TASK-168. Panoreringen ska gå snabbt att komma åt utan att f�
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Så länge Ctrl hålls intryckt flyttar ett klick och drag i bildytan den inzoomade bilden, oavsett vilket verktyg som är valt.
-- [ ] #2 När Ctrl släpps gäller det valda verktyget igen, och Ctrl+scroll zoomar fortfarande som förut.
-- [ ] #3 Pekaren visar en öppen hand när Ctrl hålls intryckt över bilden.
-- [ ] #4 Verktygsknapparna visar ikoner för rita och panorera i stället för text, med kvarvarande verktygstips.
-- [ ] #5 docs/beteende.md beskriver Ctrl+drag och ikonerna.
+- [x] #1 Så länge Ctrl hålls intryckt flyttar ett klick och drag i bildytan den inzoomade bilden, oavsett vilket verktyg som är valt.
+- [x] #2 När Ctrl släpps gäller det valda verktyget igen, och Ctrl+scroll zoomar fortfarande som förut.
+- [x] #3 Pekaren visar en öppen hand när Ctrl hålls intryckt över bilden.
+- [x] #4 Verktygsknapparna visar ikoner för rita och panorera i stället för text, med kvarvarande verktygstips.
+- [x] #5 docs/beteende.md beskriver Ctrl+drag och ikonerna.
 <!-- AC:END -->
 
 ## Definition of Done
 <!-- DOD:BEGIN -->
-- [ ] #1 Task description completed
-- [ ] #2 Code reviewed for quality, simplicity, and maintainability
-- [ ] #3 All tests pass
-- [ ] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #1 Task description completed
+- [x] #2 Code reviewed for quality, simplicity, and maintainability
+- [x] #3 All tests pass
+- [x] #4 Documentation updated
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
@@ -74,3 +74,9 @@ Noteringar:
 - Ctrl+drag panorerar även när hela bilden ryms, som mittenknappen redan gjorde; 100 %-knappen centrerar bilden igen.
 - Nya filen xray_detector/ui/tool_icons.py har ingen ägare i groma-arkitekturen än ("no enabled scanner reads it"); den hör till komponenten annotation-view, som referensen pekar på.
 <!-- SECTION:NOTES:END -->
+
+## Final Summary
+
+<!-- SECTION:FINAL_SUMMARY:BEGIN -->
+Så länge Ctrl hålls intryckt panorerar ett klick och drag i annoteringsvyns bildyta den inzoomade bilden, oavsett vilket verktyg som är valt, och pekaren blir en öppen hand. Ctrl ändrar inte det valda verktyget, så rita gäller direkt när tangenten släpps, och Ctrl+hjul zoomar som förut. Verktygsknapparna i zoompanelen visar nu en penna för rita och en hand för panorera i stället för text, med verktygstips och tillgängliga namn kvar; ikonerna ritas med QPainter i ui/tool_icons.py och har en grå variant för den ovalda knappen och en ljus för den valda, så de syns mot den blå bakgrunden. Panelen blev 106 px smalare. Verifierat med uv run pytest -q -p no:xdist (1031 passed, 1 skipped) och uv run ruff check . (inga anmärkningar), plus en manuell rendering av panelen och en manuell Ctrl+drag och Ctrl+hjul i canvasen. Ctrl+drag panorerar även när hela bilden ryms, som mittenknappen redan gjorde; 100 %-knappen centrerar bilden igen.
+<!-- SECTION:FINAL_SUMMARY:END -->
