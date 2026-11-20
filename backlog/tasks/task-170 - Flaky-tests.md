@@ -5,7 +5,7 @@ status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-20T15:18:00Z'
-updated_date: '2026-11-20T16:25:00Z'
+updated_date: '2026-11-20T16:48:00Z'
 labels: []
 dependencies: []
 type: enhancement
@@ -61,6 +61,8 @@ Rättat i stället för borttaget: test_training_history.py::test_the_evaluate_b
 Behållet medvetet: frånvaro-kontroller som vaktar dokumenterade beslut (test_annotation_view_has_no_delete_button, test_classes_are_not_stored_in_the_settings, test_config_has_no_class_list_of_its_own), fallback- och felvägar, gränsvärden samt etikettkontroller som ingen annan test täcker.
 
 Verifiering: 70 upprepade körningar av tests/test_shortcuts.py med -n 4 gav 0 fel (före åtgärden föll 1-4 tester i varje körning). Hela sviten: 1023 passed, 1 skipped med -n 4 i fem körningar i rad, 44 s. Snabba sviten med -m 'not slow': 781 passed, 1 skipped, 28 s. ruff check . utan anmärkning. Sviten gick från 1044 till 1023 testfall.
+
+Observation efter commit: en enstaka worker-krasch ('worker gw1 crashed') i tests/test_dataset_variation_view.py::test_extend_adds_the_variations_from_the_dialog, alltså ett bakgrundstrådtest utan koppling till tangentborden. 25 fullständiga körningar efteråt var gröna (16 med -n 4 och 9 med -n auto), så det är en sällsynt kvarvarande flake i samma klass som TASK-34 beskrev, inte något som åtgärden införde. Med -n auto tar hela sviten cirka 21 s.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
