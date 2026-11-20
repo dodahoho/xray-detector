@@ -1,7 +1,7 @@
 ---
 id: TASK-170
 title: Flaky tests
-status: In Progress
+status: Done
 assignee:
   - '@vibe'
 created_date: '2026-11-20T15:18:00Z'
@@ -34,7 +34,7 @@ Passa även på att gå igenom testsviten och kontrollera om det finns testfall 
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
