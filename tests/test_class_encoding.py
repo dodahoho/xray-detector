@@ -6,6 +6,11 @@ modellens vikter, och då visar klassmärket fel tecken. Läsarna rättar därf�
 namnet, så hela kedjan dataset -> träning -> detektion får samma tecken.
 """
 
+import sys
+import types
+
+import numpy as np
+
 from xray_detector.domain.dataset import repair_mojibake
 from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.infrastructure.dataset_store.yolo import read_classes, write_data_yaml
@@ -88,3 +93,45 @@ def test_class_names_from_repairs_a_mojibake_name():
 
 def test_class_names_from_repairs_a_mojibake_name_in_a_list():
     assert class_names_from([MOJIBAKE, "zipper"], "vikter.pth") == [CORRECT, "zipper"]
+
+
+class _FakeRfDetr:
+    """Modell vars vikter bär mojibake, som en snapshot tränad före TASK-165."""
+
+    class_names = (MOJIBAKE,)
+
+    def predict(self, image, threshold=0.5):
+        return types.SimpleNamespace(
+            xyxy=np.array([[0.0, 0.0, 10.0, 10.0]]),
+            class_id=np.array([0]),
+            confidence=np.array([0.9]),
+            data={"class_name": np.array([MOJIBAKE], dtype=object)},
+        )
+
+
+def _fake_rfdetr(monkeypatch):
+    fake = types.ModuleType("rfdetr")
+    fake.RFDETRSmall = lambda: _FakeRfDetr()
+    monkeypatch.setitem(sys.modules, "rfdetr", fake)
+
+
+def test_rfdetr_detection_repairs_the_name_so_the_class_filter_keeps_it(monkeypatch):
+    """Detektionens namn måste matcha detektorns rättade klasslista (TASK-172).
+
+    Klassfiltret jämför detektionens class_name mot detektorns class_names.
+    Rättas bara den ena sidan filtreras varje detektion bort och modellen ser
+    ut att inte hitta något alls.
+    """
+    _fake_rfdetr(monkeypatch)
+
+    from xray_detector.infrastructure.detectors.rfdetr_detector import RfDetrDetector
+
+    detector = RfDetrDetector("rfdetr-small", 0.4)
+    assert detector.class_names == [CORRECT]
+
+    # detektionsvyn ger detektorn modellens egna klasser som filter
+    detector.set_enabled_classes(detector.class_names)
+
+    detections = detector.detect(np.zeros((10, 10, 3), np.uint8))
+
+    assert [detection.class_name for detection in detections] == [CORRECT]

@@ -4,6 +4,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from xray_detector.domain.dataset import repair_mojibake
 from xray_detector.domain.detection import Detection
 from xray_detector.infrastructure.detectors.base import (
     BaseDetector,
@@ -144,9 +145,15 @@ class RfDetrDetector(BaseDetector):
         return self.filter_detections(detections)
 
     def _class_name(self, names, index: int, class_id: int) -> str:
-        """Modellens eget klassnamn, annars modellens klasslista, annars id:t."""
+        """Modellens eget klassnamn, annars modellens klasslista, annars id:t.
+
+        rfdetr:s egen lista kan bära ett namn som sparats som mojibake, medan
+        class_names_from rättar detektorns lista. Namnet rättas därför här med,
+        annars matchar detektionen aldrig klassfiltret och allt filtreras bort
+        (TASK-172).
+        """
         if names is not None and index < len(names) and names[index]:
-            return str(names[index])
+            return repair_mojibake(str(names[index]))
         if 0 <= class_id < len(self.class_names):
             return self.class_names[class_id]
         return str(class_id)
