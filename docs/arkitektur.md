@@ -35,6 +35,8 @@ Regeln som håller lagren åtskilda är att **`infrastructure` aldrig importerar
 
 Modellväljaren är avstängd medan en modell laddas, så två laddningar inte kan köra samtidigt. En misslyckad laddning ger samma felmeddelande som förut och lämnar detektorn avstängd. Mätt på RTX 5080 tar RF-DETR nano 6,3 s att ladda; under hela den tiden animeras snurran och fönstret ritas om. Datasetvyns bildavkodning var den dyra delen av omladdningen (826 av 870 ms för 200 bilder) och ligger därför i arbetstråden, medan widgetbygget (cirka 45 ms) sker i GUI-tråden. Enhetskontrollen, som initierar CUDA-kontexten på cirka 1 s, har ingen indikator: den flyttades bara bort från `MainWindow.__init__` så fönstret kan visas direkt.
 
+När fönstret stängs väntar `closeEvent` in arbetstrådarna och synkar inställningarna. Därefter väntar `app.py` in Qt:s globala trådpool i högst 5 s och avslutar processen explicit med `os._exit`, eftersom både trådpoolen och CUDA:s statiska destructorer annars kan hålla kvar den utan tidsgräns (TASK-175). Loggen får raden `Avslutar: stänger processen`, så en hängning går att skilja från en ren avslutning.
+
 ## Modeller
 
 RF-DETR finns i storlekarna nano, small, medium och large. Vald storlek styr både vilka vikter detektionen laddar och vilken modell träningen utgår från. På GPU optimeras RF-DETR för inferens med FP16, vilket mätt gav 17,8 → 9,2 ms per ram med rutor inom 0,8 px från den ooptimerade modellen.

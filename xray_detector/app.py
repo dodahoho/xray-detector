@@ -1,9 +1,10 @@
 import ctypes
+import logging
 import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import qInstallMessageHandler
+from PySide6.QtCore import QThreadPool, qInstallMessageHandler
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -25,6 +26,8 @@ UTF8_ENV = "PYTHONUTF8"
 #: Markör som gör att omstarten sker högst en gång, även om kommandoraden
 #: själv stänger av UTF-8-läget med -X utf8=0.
 RESTARTED_ENV = "XRAY_UTF8_RESTARTED"
+#: Hur länge avslutet väntar in Qt:s trådpool innan processen avslutas ändå.
+SHUTDOWN_TIMEOUT_MS = 5000
 
 
 def _install_message_filter() -> None:
@@ -85,6 +88,26 @@ def _ensure_utf8_mode(utf8_mode: bool | None = None) -> None:
     os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
 
 
+def _finish(code: int, log: logging.Logger) -> None:
+    """Avslutar processen när fönstret är stängt (TASK-175).
+
+    Qt:s globala trådpool väntar in pågående arbete när den rivs, och CUDA:s
+    statiska destructorer kan blockera när GPU:n är upptagen. Ingen av dem har
+    en tidsgräns, så processen kunde bli kvar efter att fönstret stängts.
+    closeEvent har redan synkat inställningarna och väntat in arbetstrådarna,
+    så här väntas trådpoolen en kort stund och processen avslutas sedan
+    explicit i stället för att hänga i destructorerna.
+    """
+    if not QThreadPool.globalInstance().waitForDone(SHUTDOWN_TIMEOUT_MS):
+        log.warning(
+            "Trådpoolen blev inte klar inom %d ms; avslutar processen",
+            SHUTDOWN_TIMEOUT_MS,
+        )
+    log.info("Avslutar: stänger processen")
+    logging.shutdown()
+    os._exit(code)
+
+
 def main() -> int:
     _install_message_filter()
     _set_app_user_model_id()
@@ -100,7 +123,8 @@ def main() -> int:
     _log_startup(config, config_file, log)
     window = MainWindow(config)
     window.show_window()
-    return app.exec()
+    _finish(app.exec(), log)
+    return 0
 
 
 if __name__ == "__main__":
