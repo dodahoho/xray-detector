@@ -1,4 +1,5 @@
 import ctypes
+import os
 import sys
 from pathlib import Path
 
@@ -17,6 +18,13 @@ from xray_detector.ui.translations import install_swedish_translations
 
 ICON_PATH = Path(__file__).parent / "ui" / "assets" / "app.ico"
 APP_USER_MODEL_ID = "xray-detector"
+#: Tolken läser flaggan när den startar, så den sätts i miljön för
+#: barnprocesserna och slås på med en omstart när appen startats utan den
+#: (TASK-173).
+UTF8_ENV = "PYTHONUTF8"
+#: Markör som gör att omstarten sker högst en gång, även om kommandoraden
+#: själv stänger av UTF-8-läget med -X utf8=0.
+RESTARTED_ENV = "XRAY_UTF8_RESTARTED"
 
 
 def _install_message_filter() -> None:
@@ -55,6 +63,28 @@ def _log_startup(config, config_file, log) -> None:
     log.info("Konfigvärden: %s", config_values(config))
 
 
+def _ensure_utf8_mode(utf8_mode: bool | None = None) -> None:
+    """Ser till att appen och processerna den startar läser text som UTF-8 (TASK-173).
+
+    Ett klassnamn med nationella tecken får inte tolkas som cp1252: då blir
+    "löpare" till "lÃ¶pare" i de tränade vikterna, och detektorns klassfilter
+    släpper inte igenom någon detektion. PYTHONUTF8 läses när tolken startar,
+    så flaggan kan inte slås på under körning. Miljövariabeln sätts därför för
+    barnprocesserna (träningen), och processen startas om en gång med samma
+    kommandorad när läget är av. Omstarten sker före Qt skapas, så inget
+    fönster hinner ritas. Markören i miljön gör att den sker högst en gång,
+    även om kommandoraden själv stänger av läget med -X utf8=0.
+
+    utf8_mode är läget som ska råda; None läser processens verkliga läge.
+    """
+    os.environ[UTF8_ENV] = "1"
+    active = sys.flags.utf8_mode if utf8_mode is None else utf8_mode
+    if active or os.environ.get(RESTARTED_ENV):
+        return
+    os.environ[RESTARTED_ENV] = "1"
+    os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
+
+
 def main() -> int:
     _install_message_filter()
     _set_app_user_model_id()
@@ -74,4 +104,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _ensure_utf8_mode()
     sys.exit(main())
