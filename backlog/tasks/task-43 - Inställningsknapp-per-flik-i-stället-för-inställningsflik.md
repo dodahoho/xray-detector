@@ -16,7 +16,7 @@ modified_files:
   - groma/systems/xray-detector/containers/gui-app/components/settings-view.md
 priority: medium
 type: enhancement
-ordinal: 257000
+ordinal: 425000
 ---
 
 ## Description

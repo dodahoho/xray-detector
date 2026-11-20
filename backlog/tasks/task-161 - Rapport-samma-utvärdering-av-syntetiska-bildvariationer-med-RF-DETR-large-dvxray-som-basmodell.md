@@ -16,7 +16,7 @@ references:
   - docs/rapporter/bildvariationer.md
 priority: medium
 type: docs
-ordinal: 297000
+ordinal: 310000
 ---
 
 ## Description

@@ -19,7 +19,7 @@ modified_files:
   - >-
     groma/systems/xray-detector/containers/training-process/components/overfitting.md
 type: enhancement
-ordinal: 182000
+ordinal: 350000
 ---
 
 ## Description

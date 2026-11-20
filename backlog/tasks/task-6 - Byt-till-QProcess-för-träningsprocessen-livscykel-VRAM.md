@@ -22,7 +22,7 @@ modified_files:
   - tests/test_training_worker.py
 priority: high
 type: enhancement
-ordinal: 291000
+ordinal: 459000
 ---
 
 ## Description

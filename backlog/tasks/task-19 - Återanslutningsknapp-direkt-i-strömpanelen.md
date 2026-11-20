@@ -18,7 +18,7 @@ modified_files:
   - tests/test_reconnect.py
 priority: medium
 type: enhancement
-ordinal: 283000
+ordinal: 451000
 ---
 
 ## Description

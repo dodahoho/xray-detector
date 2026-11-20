@@ -67,7 +67,7 @@ modified_files:
     groma/systems/xray-detector/containers/training-process/components/train-task.md
 priority: high
 type: task
-ordinal: 278000
+ordinal: 446000
 ---
 
 ## Description

@@ -23,7 +23,7 @@ modified_files:
   - runs/detect/runs/probe/results.csv
 priority: medium
 type: chore
-ordinal: 172000
+ordinal: 340000
 ---
 
 ## Description

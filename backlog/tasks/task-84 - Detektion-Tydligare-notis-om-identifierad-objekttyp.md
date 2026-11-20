@@ -14,7 +14,7 @@ modified_files:
   - xray_detector/ui/settings_dialog.py
   - tests/test_detection_badge.py
   - README.md
-ordinal: 216000
+ordinal: 384000
 ---
 
 ## Description

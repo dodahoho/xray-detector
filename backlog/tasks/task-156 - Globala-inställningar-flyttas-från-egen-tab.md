@@ -36,7 +36,7 @@ modified_files:
   - groma/systems/xray-detector/containers/gui-app/components/model-settings.md
   - groma/systems/xray-detector/containers/gui-app/components/main-window.md
 type: enhancement
-ordinal: 500
+ordinal: 315000
 ---
 
 ## Description

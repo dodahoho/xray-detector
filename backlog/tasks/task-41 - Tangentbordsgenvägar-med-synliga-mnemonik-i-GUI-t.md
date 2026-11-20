@@ -28,7 +28,7 @@ modified_files:
   - groma/systems/xray-detector/containers/gui-app/components/shortcuts.md
 priority: medium
 type: enhancement
-ordinal: 259000
+ordinal: 427000
 ---
 
 ## Description

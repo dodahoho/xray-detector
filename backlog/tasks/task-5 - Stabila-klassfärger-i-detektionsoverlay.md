@@ -20,7 +20,7 @@ modified_files:
   - tests/test_colors.py
 priority: high
 type: bug
-ordinal: 290000
+ordinal: 458000
 ---
 
 ## Description

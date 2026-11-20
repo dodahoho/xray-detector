@@ -17,7 +17,7 @@ modified_files:
   - tests/test_inference_resolution.py
   - README.md
 type: enhancement
-ordinal: 221000
+ordinal: 389000
 ---
 
 ## Description

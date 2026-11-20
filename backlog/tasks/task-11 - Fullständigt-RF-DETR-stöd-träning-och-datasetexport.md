@@ -24,7 +24,7 @@ modified_files:
   - tests/test_rfdetr.py
 priority: medium
 type: feature
-ordinal: 286000
+ordinal: 454000
 ---
 
 ## Description

@@ -39,7 +39,7 @@ modified_files:
   - tests/test_video_modes.py
 priority: medium
 type: enhancement
-ordinal: 164000
+ordinal: 332000
 ---
 
 ## Description

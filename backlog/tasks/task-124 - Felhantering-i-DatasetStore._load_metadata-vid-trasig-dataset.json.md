@@ -19,7 +19,7 @@ modified_files:
   - tests/test_gui_smoke.py
 priority: high
 type: bug
-ordinal: 175000
+ordinal: 343000
 ---
 
 ## Description

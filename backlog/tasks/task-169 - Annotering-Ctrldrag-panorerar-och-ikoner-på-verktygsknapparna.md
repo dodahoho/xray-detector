@@ -18,7 +18,7 @@ modified_files:
   - tests/test_tool_icons.py
   - docs/beteende.md
 type: feature
-ordinal: 305000
+ordinal: 152000
 ---
 
 ## Description

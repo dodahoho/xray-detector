@@ -22,7 +22,7 @@ modified_files:
   - tests/test_colors.py
 priority: medium
 type: enhancement
-ordinal: 163000
+ordinal: 331000
 ---
 
 ## Description

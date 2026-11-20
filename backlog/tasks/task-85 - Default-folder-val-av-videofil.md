@@ -19,7 +19,7 @@ modified_files:
   - >-
     groma/systems/xray-detector/containers/gui-app/components/video-file-dialog.md
   - groma/systems/xray-detector/containers/gui-app/components/detection-view.md
-ordinal: 215000
+ordinal: 383000
 ---
 
 ## Description

@@ -19,7 +19,7 @@ modified_files:
   - tests/test_rfdetr.py
   - README.md
 type: enhancement
-ordinal: 239000
+ordinal: 407000
 ---
 
 ## Description

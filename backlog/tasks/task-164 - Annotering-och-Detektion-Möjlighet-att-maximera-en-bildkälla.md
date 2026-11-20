@@ -21,7 +21,7 @@ modified_files:
   - tests/test_panel_split.py
   - docs/beteende.md
 type: feature
-ordinal: 300000
+ordinal: 307000
 ---
 
 ## Description

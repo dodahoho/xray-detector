@@ -18,7 +18,7 @@ modified_files:
   - docs/decision-annotation-canvas.md
 priority: medium
 type: enhancement
-ordinal: 284000
+ordinal: 452000
 ---
 
 ## Description

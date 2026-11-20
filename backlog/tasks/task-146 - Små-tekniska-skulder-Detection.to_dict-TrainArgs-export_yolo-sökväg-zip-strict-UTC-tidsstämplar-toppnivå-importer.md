@@ -16,7 +16,7 @@ references:
   - review_vibe_deepseek41_flash.md
 priority: medium
 type: enhancement
-ordinal: 154000
+ordinal: 322000
 ---
 
 ## Description

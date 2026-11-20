@@ -22,7 +22,7 @@ modified_files:
   - xray_detector/ui/main_window.py
 priority: high
 type: feature
-ordinal: 287000
+ordinal: 455000
 ---
 
 ## Description

@@ -18,7 +18,7 @@ modified_files:
   - tests/test_training_chart.py
 priority: medium
 type: feature
-ordinal: 253000
+ordinal: 421000
 ---
 
 ## Description

@@ -14,7 +14,7 @@ references:
   - tests/test_resources.py
 priority: medium
 type: bug
-ordinal: 266000
+ordinal: 434000
 ---
 
 ## Description

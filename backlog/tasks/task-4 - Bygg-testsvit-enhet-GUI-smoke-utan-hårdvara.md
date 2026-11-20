@@ -26,7 +26,7 @@ modified_files:
   - xray_detector/ui/main_window.py
 priority: high
 type: task
-ordinal: 289000
+ordinal: 457000
 ---
 
 ## Description

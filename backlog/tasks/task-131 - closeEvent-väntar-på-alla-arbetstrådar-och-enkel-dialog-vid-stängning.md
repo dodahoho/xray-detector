@@ -19,7 +19,7 @@ modified_files:
   - tests/test_annotation_ux.py
 priority: high
 type: bug
-ordinal: 168000
+ordinal: 336000
 ---
 
 ## Description

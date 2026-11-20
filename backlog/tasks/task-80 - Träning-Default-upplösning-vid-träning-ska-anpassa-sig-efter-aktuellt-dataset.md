@@ -19,7 +19,7 @@ modified_files:
   - tests/test_training_imgsz.py
   - README.md
 type: feature
-ordinal: 220000
+ordinal: 388000
 ---
 
 ## Description

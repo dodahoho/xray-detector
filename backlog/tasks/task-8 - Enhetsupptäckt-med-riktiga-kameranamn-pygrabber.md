@@ -22,7 +22,7 @@ modified_files:
   - tests/test_devices.py
 priority: medium
 type: enhancement
-ordinal: 293000
+ordinal: 461000
 ---
 
 ## Description

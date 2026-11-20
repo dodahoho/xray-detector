@@ -43,7 +43,7 @@ modified_files:
   - groma/systems/xray-detector/containers/gui-app/components/annotation-view.md
 priority: medium
 type: enhancement
-ordinal: 260000
+ordinal: 428000
 ---
 
 ## Description

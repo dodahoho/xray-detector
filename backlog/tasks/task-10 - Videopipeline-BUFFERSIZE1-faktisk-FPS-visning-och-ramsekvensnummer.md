@@ -22,7 +22,7 @@ modified_files:
   - tests/test_stream_worker.py
 priority: medium
 type: enhancement
-ordinal: 285000
+ordinal: 453000
 ---
 
 ## Description

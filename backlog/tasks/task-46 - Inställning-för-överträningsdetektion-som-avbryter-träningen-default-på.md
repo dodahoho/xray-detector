@@ -28,7 +28,7 @@ modified_files:
   - tests/test_log_layout.py
 priority: high
 type: feature
-ordinal: 254000
+ordinal: 422000
 ---
 
 ## Description

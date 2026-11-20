@@ -41,7 +41,7 @@ modified_files:
   - groma/systems/xray-detector/containers/gui-app/components/trainer.md
   - groma/flows/träna-om-modellen.md
 type: enhancement
-ordinal: 243000
+ordinal: 411000
 ---
 
 ## Description

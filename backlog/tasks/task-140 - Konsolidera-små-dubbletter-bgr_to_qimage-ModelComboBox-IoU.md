@@ -24,7 +24,7 @@ modified_files:
   - tests/test_ui_shared.py
 priority: medium
 type: enhancement
-ordinal: 159000
+ordinal: 327000
 ---
 
 ## Description

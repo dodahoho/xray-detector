@@ -28,7 +28,7 @@ modified_files:
   - xray_detector/ui/colors.py
 priority: low
 type: enhancement
-ordinal: 153000
+ordinal: 321000
 ---
 
 ## Description

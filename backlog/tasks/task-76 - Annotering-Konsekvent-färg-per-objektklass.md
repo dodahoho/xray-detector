@@ -18,7 +18,7 @@ modified_files:
   - tests/test_detection_overlay.py
   - README.md
 type: bug
-ordinal: 224000
+ordinal: 392000
 ---
 
 ## Description

@@ -16,7 +16,7 @@ modified_files:
   - tests/test_annotation_zoom.py
   - docs/beteende.md
 type: bug
-ordinal: 302000
+ordinal: 305000
 ---
 
 ## Description
