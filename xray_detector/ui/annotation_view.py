@@ -1,5 +1,5 @@
 import numpy as np
-from PySide6.QtCore import QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -33,6 +33,7 @@ from xray_detector.ui.shortcuts import (
 )
 from xray_detector.ui.style import ICON_BUTTON_WIDTH, button
 from xray_detector.ui.theme_toggle import ThemeToggle
+from xray_detector.ui.tool_icons import ICON_SIZE, draw_icon, pan_icon
 
 HANDLE_SIZE = 8
 MIN_SIZE = 8
@@ -90,15 +91,22 @@ class ZoomOverlay(QWidget):
         self.reset_button.setToolTip("Återgå till 100 % och centrera bilden")
         self.reset_button.clicked.connect(canvas.reset_view)
         layout.addWidget(self.reset_button)
-        self.draw_button = button("Rita")
+        self.draw_button = button("", width=ZOOM_OVERLAY_BUTTON_WIDTH)
         self.draw_button.setCheckable(True)
-        self.draw_button.setToolTip("Klicka och dra i bilden ritar en ny annotering")
+        self.draw_button.setIcon(draw_icon())
+        self.draw_button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        self.draw_button.setAccessibleName("Rita")
+        self.draw_button.setToolTip("Rita: klicka och dra i bilden ritar en ny annotering")
         self.draw_button.clicked.connect(lambda: canvas.set_tool(TOOL_DRAW))
         layout.addWidget(self.draw_button)
-        self.pan_button = button("Panorera")
+        self.pan_button = button("", width=ZOOM_OVERLAY_BUTTON_WIDTH)
         self.pan_button.setCheckable(True)
+        self.pan_button.setIcon(pan_icon())
+        self.pan_button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        self.pan_button.setAccessibleName("Panorera")
         self.pan_button.setToolTip(
-            "Klicka och dra i bilden flyttar den synliga delen av den inzoomade bilden"
+            "Panorera: klicka och dra i bilden flyttar den synliga delen av den "
+            "inzoomade bilden (Ctrl+drag panorerar utan att verktyget är valt)"
         )
         self.pan_button.clicked.connect(lambda: canvas.set_tool(TOOL_PAN))
         layout.addWidget(self.pan_button)
@@ -394,8 +402,13 @@ class AnnotationCanvas(QWidget):
         self._mark_dirty()
         self.update()
 
-    def _hover_cursor(self, pos: QPoint) -> Qt.CursorShape:
-        if self._tool == TOOL_PAN:
+    def _hover_cursor(
+        self,
+        pos: QPoint,
+        modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier,
+    ) -> Qt.CursorShape:
+        # Ctrl panorerar så länge tangenten hålls intryckt, oavsett valt verktyg (TASK-169)
+        if self._tool == TOOL_PAN or modifiers & Qt.KeyboardModifier.ControlModifier:
             return Qt.CursorShape.OpenHandCursor
         if self._hit_label(pos) is not None:
             return Qt.CursorShape.PointingHandCursor
@@ -477,8 +490,12 @@ class AnnotationCanvas(QWidget):
             self._pan_start = pos
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
             return
-        # i panorera-läget flyttar ett vänsterdrag bilden i stället för att rita (TASK-168)
-        if self._tool == TOOL_PAN and event.button() == Qt.MouseButton.LeftButton:
+        # i panorera-läget, och så länge Ctrl hålls intryckt, flyttar ett
+        # vänsterdrag bilden i stället för att rita (TASK-168, TASK-169)
+        if event.button() == Qt.MouseButton.LeftButton and (
+            self._tool == TOOL_PAN
+            or event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        ):
             self._mode = "pan"
             self._pan_start = pos
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
@@ -497,14 +514,14 @@ class AnnotationCanvas(QWidget):
             self._mode = "resize"
             self._handle = handle
             self._drag_start = pos
-            self.setCursor(self._hover_cursor(pos))
+            self.setCursor(self._hover_cursor(pos, event.modifiers()))
             self.setFocus(Qt.FocusReason.MouseFocusReason)
             return
         hit = self._hit_rect(pos)
         if hit is not None:
             self.selected = hit
             self._mode = "move"
-            self.setCursor(self._hover_cursor(pos))
+            self.setCursor(self._hover_cursor(pos, event.modifiers()))
             self.setFocus(Qt.FocusReason.MouseFocusReason)
             image_pos = self._to_image(pos - self._image_origin())
             self._move_offset = image_pos - QPoint(hit.rect.x(), hit.rect.y())
@@ -530,7 +547,7 @@ class AnnotationCanvas(QWidget):
             self.update()
             return
         if self._mode == "idle":
-            self.setCursor(self._hover_cursor(pos))
+            self.setCursor(self._hover_cursor(pos, event.modifiers()))
             return
         if self._mode == "draw":
             self._drag_rect = QRect(self._drag_start, pos).normalized()
@@ -580,12 +597,15 @@ class AnnotationCanvas(QWidget):
             self._mark_dirty()
         if self._mode == "pan":
             self._mode = "idle"
-            self.setCursor(self._tool_cursor())
+            # pekaren följer Ctrl även efter draget, så handen syns så länge tangenten hålls (TASK-169)
+            self.setCursor(
+                self._hover_cursor(event.position().toPoint(), event.modifiers())
+            )
             self.update()
             return
         self._mode = "idle"
         self._drag_rect = None
-        self.setCursor(self._hover_cursor(event.position().toPoint()))
+        self.setCursor(self._hover_cursor(event.position().toPoint(), event.modifiers()))
         self.update()
 
     def _mark_dirty(self) -> None:

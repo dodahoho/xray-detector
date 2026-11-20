@@ -28,6 +28,10 @@ BORDER = "#444"
 IDLE_BORDER = "#555"
 CARD_BORDER = "#666"
 GEAR_COLOR = "#8a8a8a"
+#: Ikonerna på annoteringsvyns verktygsknappar (TASK-169). Samma grå som
+#: kugghjulet, så den syns både på knappens vanliga yta och på den valda
+#: knappens blåa bakgrund.
+TOOL_ICON_COLOR = "#8a8a8a"
 SELECTED_BORDER = "#4da3ff"
 SELECTED_BACKGROUND = "#1d3b57"
 IDLE_BACKGROUND = "#2b2b2b"

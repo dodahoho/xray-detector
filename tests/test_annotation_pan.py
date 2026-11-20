@@ -9,7 +9,7 @@ bilden ryms finns inget att panorera, så då döljs valet och läget är rita.
 import numpy as np
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QMouseEvent, QWheelEvent
 
 from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
@@ -36,23 +36,47 @@ def make_canvas(qapp, width=400, height=300) -> AnnotationCanvas:
     return canvas
 
 
-def _mouse(event_type, x, y, button=Qt.MouseButton.LeftButton, old=Qt.MouseButton.NoButton):
+def _mouse(
+    event_type,
+    x,
+    y,
+    button=Qt.MouseButton.LeftButton,
+    old=Qt.MouseButton.NoButton,
+    modifiers=Qt.KeyboardModifier.NoModifier,
+):
     return QMouseEvent(
         event_type,
         QPointF(x, y),
         QPointF(x, y),
         button,
         old,
-        Qt.KeyboardModifier.NoModifier,
+        modifiers,
     )
 
 
-def drag(canvas, x1, y1, x2, y2, button=Qt.MouseButton.LeftButton):
-    canvas.mousePressEvent(_mouse(QEvent.Type.MouseButtonPress, x1, y1, button))
+def drag(canvas, x1, y1, x2, y2, button=Qt.MouseButton.LeftButton, modifiers=None):
+    modifiers = Qt.KeyboardModifier.NoModifier if modifiers is None else modifiers
+    canvas.mousePressEvent(_mouse(QEvent.Type.MouseButtonPress, x1, y1, button, modifiers=modifiers))
     canvas.mouseMoveEvent(
-        _mouse(QEvent.Type.MouseMove, x2, y2, button, button)
+        _mouse(QEvent.Type.MouseMove, x2, y2, button, button, modifiers)
     )
-    canvas.mouseReleaseEvent(_mouse(QEvent.Type.MouseButtonRelease, x2, y2, button))
+    canvas.mouseReleaseEvent(
+        _mouse(QEvent.Type.MouseButtonRelease, x2, y2, button, modifiers=modifiers)
+    )
+
+
+def wheel(canvas, delta: int, modifiers=Qt.KeyboardModifier.ControlModifier) -> None:
+    event = QWheelEvent(
+        QPointF(80, 60),
+        QPointF(80, 60),
+        QPoint(0, 0),
+        QPoint(0, delta),
+        Qt.MouseButton.NoButton,
+        modifiers,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    canvas.wheelEvent(event)
 
 
 def zoomed_canvas(qapp) -> AnnotationCanvas:
@@ -196,6 +220,93 @@ def test_the_middle_button_still_pans_in_draw_mode(qapp):
 
     assert canvas._tool == TOOL_DRAW
     assert canvas._image_origin() == origin + QPoint(-20, -10)
+
+
+def test_ctrl_drag_pans_while_ctrl_is_held(qapp):
+    """Ctrl panorerar utan att panorera-verktyget är valt (TASK-169)."""
+    canvas = zoomed_canvas(qapp)
+    origin = canvas._image_origin()
+
+    drag(canvas, 200, 150, 150, 120, modifiers=Qt.KeyboardModifier.ControlModifier)
+
+    assert canvas._image_origin() == origin + QPoint(-50, -30)
+
+
+def test_ctrl_drag_does_not_draw_a_box(qapp):
+    canvas = zoomed_canvas(qapp)
+
+    drag(canvas, 40, 40, 200, 160, modifiers=Qt.KeyboardModifier.ControlModifier)
+
+    assert canvas.rects == []
+    assert not canvas.dirty
+
+
+def test_ctrl_drag_keeps_the_selected_tool(qapp):
+    """Ctrl är ett tillfälligt lån av panoreringen, inte ett verktygsbyte."""
+    canvas = zoomed_canvas(qapp)
+
+    drag(canvas, 200, 150, 150, 120, modifiers=Qt.KeyboardModifier.ControlModifier)
+
+    assert canvas._tool == TOOL_DRAW
+    assert canvas.zoom_overlay.draw_button.isChecked()
+
+
+def test_drawing_works_again_when_ctrl_is_released(qapp):
+    canvas = zoomed_canvas(qapp)
+    drag(canvas, 200, 150, 150, 120, modifiers=Qt.KeyboardModifier.ControlModifier)
+
+    drag(canvas, 40, 40, 200, 160)
+
+    assert len(canvas.rects) == 1
+
+
+def test_ctrl_drag_pans_even_when_the_pan_tool_is_selected(qapp):
+    canvas = zoomed_canvas(qapp)
+    canvas.zoom_overlay.pan_button.click()
+    origin = canvas._image_origin()
+
+    drag(canvas, 200, 150, 150, 120, modifiers=Qt.KeyboardModifier.ControlModifier)
+
+    assert canvas._image_origin() == origin + QPoint(-50, -30)
+
+
+def test_ctrl_wheel_still_zooms_and_does_not_pan(qapp):
+    """Ctrl+hjul behåller zoomningen, så Ctrl+drag inte tar över hjulet (TASK-169)."""
+    canvas = make_canvas(qapp)
+    origin = canvas._image_origin()
+
+    wheel(canvas, 120)
+
+    assert canvas._zoom == pytest.approx(1.25)
+    assert canvas._image_origin() != origin
+
+
+def test_the_cursor_shows_the_open_hand_while_ctrl_is_held(qapp):
+    canvas = make_canvas(qapp)
+
+    canvas.mouseMoveEvent(
+        _mouse(
+            QEvent.Type.MouseMove,
+            200,
+            150,
+            Qt.MouseButton.NoButton,
+            modifiers=Qt.KeyboardModifier.ControlModifier,
+        )
+    )
+
+    assert canvas.cursor().shape() == Qt.CursorShape.OpenHandCursor
+
+
+def test_the_tool_buttons_show_icons_instead_of_text(qapp):
+    """Knapparna visar en penna och en hand, med texten kvar som tillgängligt namn."""
+    canvas = zoomed_canvas(qapp)
+    overlay = canvas.zoom_overlay
+
+    for widget, name in ((overlay.draw_button, "Rita"), (overlay.pan_button, "Panorera")):
+        assert widget.text() == ""
+        assert not widget.icon().isNull()
+        assert widget.accessibleName() == name
+        assert widget.toolTip().startswith(name)
 
 
 def test_the_panel_shrinks_when_the_tool_buttons_are_hidden(qapp):
