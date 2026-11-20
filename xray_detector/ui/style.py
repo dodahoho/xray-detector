@@ -13,6 +13,9 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox, QPushButton, QWidget
 
 BUTTON_HEIGHT = 32
 ICON_BUTTON_WIDTH = 36
+#: Bredden på maximera-knappen i bildpanelerna (TASK-164). Samma mått som
+#: zoompanelens ikonknappar, så knapparna i bildens hörn är lika stora.
+MAXIMIZE_BUTTON_WIDTH = 28
 # bredden på ett kort med formulärfält respektive med en lista och knapprader
 FORM_MAX_WIDTH = 520
 LIST_MAX_WIDTH = 640

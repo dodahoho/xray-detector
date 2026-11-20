@@ -2,13 +2,20 @@
 
 Knapparna visar en penna för rita och en hand för panorera i stället för text.
 Ikonerna ritas med QPainter, så de hämtar sin färg ur paletten och behöver
-ingen bildfil.
+ingen bildfil. Samma modul ritar rutorna för maximera och återställ i
+bildpanelerna (TASK-164).
 """
 
 from PySide6.QtCore import QSize
 
 from xray_detector.ui.colors import TOOL_ICON_COLOR
-from xray_detector.ui.tool_icons import ICON_SIZE, draw_icon, pan_icon
+from xray_detector.ui.tool_icons import (
+    ICON_SIZE,
+    draw_icon,
+    maximize_icon,
+    pan_icon,
+    restore_icon,
+)
 
 
 def _image(icon, size: int = ICON_SIZE):
@@ -59,3 +66,27 @@ def test_the_icons_leave_the_corners_transparent(qapp):
         )
         for x, y in corners:
             assert image.pixelColor(x, y).alpha() == 0, (x, y)
+
+
+def test_the_maximize_and_restore_icons_are_drawn_at_the_requested_size(qapp):
+    for icon in (maximize_icon(), restore_icon()):
+        assert not icon.isNull()
+        image = _image(icon)
+        assert (image.width(), image.height()) == (ICON_SIZE, ICON_SIZE)
+
+
+def test_the_maximize_and_restore_icons_are_different_shapes(qapp):
+    """En ruta för maximera, två ovanpå varandra för återställ."""
+    assert _opaque_pixels(_image(maximize_icon())) != _opaque_pixels(_image(restore_icon()))
+
+
+def test_the_maximize_icons_use_the_shared_icon_color(qapp):
+    for icon in (maximize_icon(), restore_icon()):
+        image = _image(icon)
+        colors = {
+            image.pixelColor(x, y).name()
+            for x in range(image.width())
+            for y in range(image.height())
+            if image.pixelColor(x, y).alpha() == 255
+        }
+        assert TOOL_ICON_COLOR in colors

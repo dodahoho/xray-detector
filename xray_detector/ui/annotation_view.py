@@ -23,6 +23,7 @@ from xray_detector.infrastructure.dataset_store.store import DatasetStore
 from xray_detector.ui.busy_indicator import BusyIndicator
 from xray_detector.ui.colors import TEXT_LIGHT, ZOOM_PANEL_BACKGROUND, class_color
 from xray_detector.ui.image_utils import bgr_to_qimage
+from xray_detector.ui.panel_split import PanelSplit
 from xray_detector.ui.settings_dialog import settings_button
 from xray_detector.ui.shortcuts import (
     bind_default_action,
@@ -31,7 +32,7 @@ from xray_detector.ui.shortcuts import (
     mnemonic,
     with_hint,
 )
-from xray_detector.ui.style import ICON_BUTTON_WIDTH, button
+from xray_detector.ui.style import ICON_BUTTON_WIDTH, MAXIMIZE_BUTTON_WIDTH, button
 from xray_detector.ui.theme_toggle import ThemeToggle
 from xray_detector.ui.tool_icons import ICON_SIZE, draw_icon, pan_icon
 
@@ -59,7 +60,8 @@ class ZoomOverlay(QWidget):
     halvtransparent, så den syns mot både ljusa och mörka bilder.
 
     Verktygen Rita och Panorera ligger i samma panel men syns bara när bilden
-    är så inzoomad att hela bilden inte ryms i ytan (TASK-168).
+    är så inzoomad att hela bilden inte ryms i ytan (TASK-168). Först i panelen
+    står maximera-knappen, som fäller ihop den andra bilden (TASK-164).
     """
 
     def __init__(self, canvas: "AnnotationCanvas") -> None:
@@ -75,6 +77,12 @@ class ZoomOverlay(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
+        # maximera-knappen står först, så den sitter på samma plats vare sig
+        # verktygen syns eller inte (TASK-164)
+        self.maximize_button = button("", width=MAXIMIZE_BUTTON_WIDTH)
+        self.maximize_button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        self.maximize_button.setAccessibleName("Maximera bilden")
+        layout.addWidget(self.maximize_button)
         self.zoom_out_button = button("−", width=ZOOM_OVERLAY_BUTTON_WIDTH)
         self.zoom_out_button.setToolTip("Zooma ut")
         self.zoom_out_button.clicked.connect(canvas.zoom_out)
@@ -676,7 +684,9 @@ class AnnotationView(QWidget):
         self.theme_toggle = ThemeToggle(self.settings)
         bar.addWidget(self.theme_toggle)
         layout.addLayout(bar)
-        panels = QHBoxLayout()
+        # panelerna delar ytan med en justerbar ram och kan maximeras var för
+        # sig, så en bild går att se stor medan den andra fälls ihop (TASK-164)
+        self.panels = PanelSplit()
         self.canvases: list[AnnotationCanvas] = [AnnotationCanvas("Bild 1"), AnnotationCanvas("Bild 2")]
         for canvas in self.canvases:
             canvas.selection_changed.connect(self._on_selection_changed)
@@ -684,8 +694,8 @@ class AnnotationView(QWidget):
             canvas.class_label_clicked.connect(
                 lambda item, canvas=canvas: self._on_class_label_clicked(canvas, item)
             )
-            panels.addWidget(canvas, 1)
-        layout.addLayout(panels, 1)
+            self.panels.add_panel(canvas, canvas.zoom_overlay.maximize_button)
+        layout.addWidget(self.panels, 1)
         self.busy = BusyIndicator(self)
         bind_shortcut(self, "Esc", self.cancelled.emit)
         # Enter sparar som knappen, så annoteringen går att spara från tangentbordet (TASK-116)
@@ -844,6 +854,9 @@ class AnnotationView(QWidget):
             for capture in captures
             if getattr(capture, "dataset_id", None) is not None
         ]
+        # ett nytt bildpar börjar med båda bilderna synliga, så en maximering
+        # från förra paret inte gömmer den ena bilden (TASK-164)
+        self.panels.restore()
         for canvas in self.canvases:
             canvas.set_class_name(self.class_combo.currentText())
         for canvas, capture in zip(self.canvases, captures, strict=False):

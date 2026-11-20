@@ -30,6 +30,7 @@ from xray_detector.ui.colors import (
 )
 from xray_detector.ui.model_combo import ModelComboBox
 from xray_detector.ui.model_settings import ModelSection
+from xray_detector.ui.panel_split import PanelSplit
 from xray_detector.ui.settings_dialog import (
     NO_CLASSES,
     BadgeSection,
@@ -177,7 +178,9 @@ class DetectionView(QWidget):
         self.theme_toggle = ThemeToggle(settings)
         bar.addWidget(self.theme_toggle)
         layout.addLayout(bar)
-        panels = QHBoxLayout()
+        # panelerna delar ytan med en justerbar ram och kan maximeras var för
+        # sig, så en ström går att se stor medan den andra fälls ihop (TASK-164)
+        self.panels = PanelSplit()
         devices = list_devices()
         logging.getLogger("xray").info(
             "Kameror: %s",
@@ -193,8 +196,8 @@ class DetectionView(QWidget):
         )
         for panel in (self.left, self.right):
             panel.source_requested.connect(self._on_source_requested)
-            panels.addWidget(panel, 1)
-        layout.addLayout(panels, 1)
+            self.panels.add_panel(panel, panel.maximize_button)
+        layout.addWidget(self.panels, 1)
         self.resource_timer = QTimer(self)
         self.resource_timer.setInterval(1000)
         self.resource_timer.timeout.connect(self._update_resources)

@@ -8,10 +8,13 @@ paletten i stället för att vara bildfiler.
 En vald knapp har blå bakgrund, så ikonen finns i två varianter: en grå för den
 ovalda knappen och en ljus för den valda. Qt byter variant själv när knappen
 markeras.
+
+Här ligger också ikonerna för maximera och återställ i bildpanelerna (TASK-164).
+De är streckade rutor i stället för fyllda former, så de läses som fönster.
 """
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 from xray_detector.ui.colors import TEXT_LIGHT, TOOL_ICON_COLOR
 
@@ -32,6 +35,11 @@ FINGER_BOTTOM = 0.52
 THUMB_ORIGIN = (0.26, 0.54)
 THUMB_ANGLE = -40
 THUMB = (-0.05, -0.18, 0.10, 0.24)
+#: Streckets tjocklek och rutornas mått för maximera och återställ (TASK-164).
+STROKE_WIDTH = 0.09
+MAXIMIZE_RECT = (0.16, 0.16, 0.68, 0.68)
+RESTORE_BACK = (0.34, 0.12, 0.54, 0.54)
+RESTORE_FRONT = (0.12, 0.34, 0.54, 0.54)
 
 
 def _scaled(rect: tuple[float, float, float, float], size: int) -> QRectF:
@@ -92,6 +100,40 @@ def _icon(shape, size: int) -> QIcon:
     return icon
 
 
+def _outline_pixmap(shape, size: int, color: str) -> QPixmap:
+    """Samma yta som _pixmap, men formen ritas som ett streck i stället för fyllt."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(QColor(color))
+    pen.setWidthF(STROKE_WIDTH * size)
+    pen.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    shape(painter, size)
+    painter.end()
+    return pixmap
+
+
+def _outline_icon(shape, size: int) -> QIcon:
+    icon = QIcon()
+    icon.addPixmap(
+        _outline_pixmap(shape, size, TOOL_ICON_COLOR), QIcon.Mode.Normal, QIcon.State.Off
+    )
+    icon.addPixmap(_outline_pixmap(shape, size, TEXT_LIGHT), QIcon.Mode.Normal, QIcon.State.On)
+    return icon
+
+
+def _maximize(painter: QPainter, size: int) -> None:
+    painter.drawRect(_scaled(MAXIMIZE_RECT, size))
+
+
+def _restore(painter: QPainter, size: int) -> None:
+    painter.drawRect(_scaled(RESTORE_BACK, size))
+    painter.drawRect(_scaled(RESTORE_FRONT, size))
+
+
 def draw_icon(size: int = ICON_SIZE) -> QIcon:
     """Penna: ett klick väljer rita-verktyget."""
     return _icon(_pencil, size)
@@ -100,3 +142,13 @@ def draw_icon(size: int = ICON_SIZE) -> QIcon:
 def pan_icon(size: int = ICON_SIZE) -> QIcon:
     """Öppen hand: ett klick väljer panorera-verktyget."""
     return _icon(_hand, size)
+
+
+def maximize_icon(size: int = ICON_SIZE) -> QIcon:
+    """En ruta: ett klick maximerar panelen och fäller ihop den andra (TASK-164)."""
+    return _outline_icon(_maximize, size)
+
+
+def restore_icon(size: int = ICON_SIZE) -> QIcon:
+    """Två rutor: ett klick visar båda panelerna igen (TASK-164)."""
+    return _outline_icon(_restore, size)

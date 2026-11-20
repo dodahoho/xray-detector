@@ -4,12 +4,15 @@ Panelerna låg tidigare i detection_view.py och flyttades hit när vyfilen
 delades upp. StreamPanel äger en videoström: källväljare, upplösning, format,
 bildruta, märken och återanslutning. ResourceMeter visar en resurs som etikett,
 stapel och värde.
+
+Panelen har också en maximera-knapp (TASK-164). Den gör inget förrän vyn
+kopplar den till en PanelSplit, så panelen går att använda utan den.
 """
 
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
@@ -34,7 +37,8 @@ from xray_detector.ui.badge import (
 from xray_detector.ui.colors import ERROR_COLOR, MUTED_TEXT, class_color
 from xray_detector.ui.image_utils import bgr_to_qimage
 from xray_detector.ui.shortcuts import mnemonic
-from xray_detector.ui.style import button
+from xray_detector.ui.style import MAXIMIZE_BUTTON_WIDTH, button
+from xray_detector.ui.tool_icons import ICON_SIZE
 from xray_detector.ui.video_file_dialog import remember_video_file, video_file_dir
 from xray_detector.ui.video_settings import (
     clear_video_mode,
@@ -148,6 +152,12 @@ class StreamPanel(QFrame):
         self.setFrameShape(QFrame.Shape.Box)
         layout = QVBoxLayout(self)
         top = QHBoxLayout()
+        # maximera-knappen står först i raden, så den sitter på samma plats i
+        # båda panelerna och oavsett vilka källkontroller som syns (TASK-164)
+        self.maximize_button = button("", width=MAXIMIZE_BUTTON_WIDTH)
+        self.maximize_button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        self.maximize_button.setAccessibleName("Maximera bilden")
+        top.addWidget(self.maximize_button)
         self.fps_label = QLabel()
         self.fps_label.setFont(QFont("", 12, QFont.Weight.Bold))
         self.source_combo = QComboBox()
