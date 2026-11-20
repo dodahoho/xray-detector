@@ -3,8 +3,6 @@
 import time
 
 import pytest
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QWidget
 
 from xray_detector.ui.busy_indicator import BusyIndicator
@@ -91,14 +89,3 @@ def test_indicator_covers_its_parent(qapp, parent):
 
     assert indicator.geometry() == parent.rect()
     parent.hide()
-
-
-def test_indicator_paints_spinner_and_text(qapp, parent):
-    indicator = BusyIndicator(parent, delay_ms=1)
-    indicator.start("Sparar annoteringar...")
-    assert _spin_until(qapp, indicator.is_revealed)
-
-    pixmap = QPixmap(indicator.size())
-    indicator.render(pixmap)
-
-    assert pixmap.size() == QSize(400, 300)

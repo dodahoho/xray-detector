@@ -406,18 +406,19 @@ def test_a_checked_row_survives_a_refresh(qapp, tmp_path):
 
 
 def test_the_evaluate_button_needs_a_checked_row(qapp, tmp_path):
+    """Jämförelsen kräver både ett dataset och en markerad rad (TASK-158)."""
     from PySide6.QtCore import Qt
 
-    from xray_detector.ui.training_history import CHECK_COLUMN
+    from xray_detector.ui.training_history import CHECK_COLUMN, TrainingHistoryView
 
     _write_run(tmp_path, "korning")
-    view = _history_view(qapp, tmp_path)
+    view = TrainingHistoryView(tmp_path, dataset=object())
 
     assert not view.evaluate_button.isEnabled()
 
     view.table.item(0, CHECK_COLUMN).setCheckState(Qt.CheckState.Checked)
 
-    assert not view.evaluate_button.isEnabled()
+    assert view.evaluate_button.isEnabled()
 
 
 def test_wait_for_evaluation_waits_for_the_open_dialog(qapp, tmp_path):

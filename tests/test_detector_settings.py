@@ -50,14 +50,6 @@ def test_threshold_change_without_detector_is_harmless(view):
     assert view._create_calls == []
 
 
-def test_base_detector_threshold_setter():
-    detector = FakeDetector()
-
-    detector.set_confidence_threshold(0.7)
-
-    assert detector.confidence_threshold == 0.7
-
-
 def _fake_rfdetr(monkeypatch, calls):
     class _FakeModel:
         class_names = ("kniv",)

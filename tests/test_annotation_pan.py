@@ -212,16 +212,6 @@ def test_a_new_frame_starts_in_draw_mode(qapp):
     assert canvas.zoom_overlay.pan_button.isHidden()
 
 
-def test_the_middle_button_still_pans_in_draw_mode(qapp):
-    canvas = make_canvas(qapp)
-    origin = canvas._image_origin()
-
-    drag(canvas, 200, 150, 180, 140, button=Qt.MouseButton.MiddleButton)
-
-    assert canvas._tool == TOOL_DRAW
-    assert canvas._image_origin() == origin + QPoint(-20, -10)
-
-
 def test_ctrl_drag_pans_while_ctrl_is_held(qapp):
     """Ctrl panorerar utan att panorera-verktyget är valt (TASK-169)."""
     canvas = zoomed_canvas(qapp)

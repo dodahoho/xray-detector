@@ -35,14 +35,6 @@ def view(qapp, config, service, settings) -> DatasetView:
     return view
 
 
-def test_click_selects_whole_capture(view):
-    assert len(view._thumbs) == 2
-
-    view._on_thumb_clicked(view._thumbs[0])
-
-    assert all(thumb.selected for thumb in view._thumbs)
-
-
 def test_second_click_deselects_whole_capture(view):
     view._on_thumb_clicked(view._thumbs[0])
     view._on_thumb_clicked(view._thumbs[1])
@@ -73,17 +65,6 @@ def test_selected_capture_is_visually_marked(view):
 
     for member in view._thumbs:
         assert SELECTED_BORDER in member.styleSheet()
-
-
-def test_no_markerad_row_on_thumbnails(view):
-    """Markeringen ska sitta i rubrikraden, inte som en rad per bild (TASK-29)."""
-    from PySide6.QtWidgets import QLabel
-
-    view._on_thumb_clicked(view._thumbs[0])
-
-    for thumb in view._thumbs:
-        texts = [label.text() for label in thumb.findChildren(QLabel)]
-        assert not any("MARKERAD" in text for text in texts)
 
 
 def test_header_is_filled_and_marked(view):

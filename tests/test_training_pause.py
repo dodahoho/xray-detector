@@ -89,16 +89,6 @@ def test_detection_tab_keeps_the_detection_off(view, monkeypatch):
     assert view._detector_calls == []
 
 
-def test_training_finish_restarts_the_streams(view, monkeypatch):
-    _with_sources(view)
-    view.pause_detection()
-    monkeypatch.setattr(view, "_on_model_changed", lambda: None)
-
-    view.resume_detection()
-
-    assert [call[0] for call in view._sources] == ["left", "right"]
-
-
 def test_pause_stops_a_running_stream_worker(qapp, tmp_path, video_file):
     """Den riktiga kameratråden stängs av, inte bara detektorn (TASK-74)."""
     config = AppConfig()

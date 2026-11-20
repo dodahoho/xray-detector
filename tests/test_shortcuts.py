@@ -1,10 +1,12 @@
 """Tangentbordsgenvägar med synliga mnemonik (TASK-41, TASK-116)."""
 
+import warnings
+
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QDialog, QMessageBox, QPushButton
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QPushButton
 
 from tests.conftest import synthetic_frame
 from xray_detector.domain.capture import StreamFrame
@@ -44,9 +46,26 @@ def window(qapp, tmp_path):
     window.close()
 
 
+def press(window, key, modifier=Qt.KeyboardModifier.NoModifier) -> None:
+    """Skickar tangenten till fönstrets fokuswidget som Qt:s aktiva fönster (TASK-170).
+
+    Qt kör genvägar och mnemonik bara i det aktiva fönstret. activateWindow()
+    går via skrivbordet, och under pytest-xdist kämpar flera processer om
+    förgrunden, så fönstret kan tappa aktiveringen mitt i ett test.
+    setActiveWindow() sätter Qt:s aktiva fönster direkt, utan skrivbordet.
+    processEvents() först ser till att en väntande avaktivering inte hinner
+    köras inne i keyClick().
+    """
+    QApplication.processEvents()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        QApplication.setActiveWindow(window)
+    QTest.keyClick(window.focusWidget() or window, key, modifier)
+
+
 def alt(qapp, window, key) -> None:
     """Alt+bokstav; en knapp aktiveras först när animateClick-timern löst ut."""
-    QTest.keyClick(window.windowHandle(), key, Qt.KeyboardModifier.AltModifier)
+    press(window, key, Qt.KeyboardModifier.AltModifier)
     QTest.qWait(150)
     qapp.processEvents()
 
@@ -248,7 +267,7 @@ def test_space_captures_like_the_button(qapp, window):
     window.tabs.setCurrentIndex(0)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    press(window, Qt.Key.Key_Space)
     qapp.processEvents()
 
     assert messages == ["Ingen videokälla att fånga ifrån"]
@@ -260,7 +279,7 @@ def test_space_does_not_fire_on_inactive_tab(qapp, window):
     window.tabs.setCurrentIndex(2)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    press(window, Qt.Key.Key_Space)
     qapp.processEvents()
 
     assert messages == []
@@ -274,7 +293,7 @@ def test_space_captures_while_the_threshold_field_has_focus(qapp, window):
     window.detection_view.conf_spin.setFocus()
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    press(window, Qt.Key.Key_Space)
     qapp.processEvents()
 
     assert messages == ["Ingen videokälla att fånga ifrån"]
@@ -288,7 +307,7 @@ def test_space_captures_while_a_button_has_focus(qapp, window):
     window.detection_view.detection_button.setFocus()
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Space)
+    press(window, Qt.Key.Key_Space)
     qapp.processEvents()
 
     assert messages == ["Ingen videokälla att fånga ifrån"]
@@ -302,7 +321,7 @@ def test_escape_cancels_annotation_view(qapp, window):
     window.tabs.setCurrentIndex(1)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Escape)
+    press(window, Qt.Key.Key_Escape)
     qapp.processEvents()
 
     assert cancelled == [True]
@@ -314,7 +333,7 @@ def test_escape_does_not_fire_on_inactive_tab(qapp, window):
     window.tabs.setCurrentIndex(0)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Escape)
+    press(window, Qt.Key.Key_Escape)
     qapp.processEvents()
 
     assert cancelled == []
@@ -350,7 +369,7 @@ def test_escape_aborts_training(qapp, window, monkeypatch):
     window.tabs.setCurrentIndex(3)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Escape)
+    press(window, Qt.Key.Key_Escape)
     qapp.processEvents()
 
     assert calls == ["scheduler"]
@@ -368,17 +387,13 @@ def test_class_list_shortcuts(qapp, window, monkeypatch):
     combo = window.annotation_view.class_combo
     combo.setEditText("ny_klass")
 
-    QTest.keyClick(
-        window.windowHandle(), Qt.Key.Key_Plus, Qt.KeyboardModifier.ControlModifier
-    )
+    press(window, Qt.Key.Key_Plus, Qt.KeyboardModifier.ControlModifier)
     qapp.processEvents()
 
     assert combo.findText("ny_klass") >= 0
 
     combo.setCurrentIndex(combo.findText("ny_klass"))
-    QTest.keyClick(
-        window.windowHandle(), Qt.Key.Key_Minus, Qt.KeyboardModifier.ControlModifier
-    )
+    press(window, Qt.Key.Key_Minus, Qt.KeyboardModifier.ControlModifier)
     qapp.processEvents()
 
     assert combo.findText("ny_klass") < 0
@@ -413,7 +428,7 @@ def test_enter_saves_the_annotation(qapp, window, monkeypatch):
     qapp.processEvents()
     assert window.tabs.currentIndex() == 1
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    press(window, Qt.Key.Key_Return)
     window.annotation_view.wait_for_save()
     qapp.processEvents()
 
@@ -432,7 +447,7 @@ def test_enter_in_the_class_field_saves_the_class_name(qapp, window):
     combo.lineEdit().setFocus()
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    press(window, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert combo.findText("ny_klass") >= 0
@@ -451,7 +466,7 @@ def test_enter_does_not_save_a_pair_that_is_already_in_the_dataset(qapp, window)
     qapp.processEvents()
     assert not window.annotation_view.save_button.isEnabled()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    press(window, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert group_count(window.dataset_store.load_dataset()["images"]) == 1
@@ -467,7 +482,7 @@ def test_enter_opens_the_selected_pair(qapp, window):
     window.tabs.setCurrentIndex(2)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    press(window, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert window.tabs.currentIndex() == 1
@@ -482,7 +497,7 @@ def test_enter_without_a_selection_opens_nothing(qapp, window):
     window.tabs.setCurrentIndex(2)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    press(window, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert window.tabs.currentIndex() == 2
@@ -504,7 +519,7 @@ def test_delete_key_removes_the_selected_pairs(qapp, window, monkeypatch, key):
     window.tabs.setCurrentIndex(2)
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), key)
+    press(window, key)
     view.wait_for_refresh()
     qapp.processEvents()
 
@@ -524,7 +539,7 @@ def test_enter_in_a_field_confirms_the_field(qapp, window):
     window.training_view.epochs_spin.setFocus()
     qapp.processEvents()
 
-    QTest.keyClick(window.windowHandle(), Qt.Key.Key_Return)
+    press(window, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert messages == []
@@ -536,7 +551,7 @@ def test_enter_closes_the_settings_dialog(qapp):
     dialog.show()
     qapp.processEvents()
 
-    QTest.keyClick(dialog, Qt.Key.Key_Return)
+    press(dialog, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert not dialog.isVisible()
@@ -550,7 +565,7 @@ def test_enter_extends_in_the_variation_dialog(qapp):
     dialog.show()
     qapp.processEvents()
 
-    QTest.keyClick(dialog, Qt.Key.Key_Return)
+    press(dialog, Qt.Key.Key_Return)
     qapp.processEvents()
 
     assert dialog.result() == QDialog.DialogCode.Accepted
@@ -562,7 +577,7 @@ def test_escape_cancels_the_variation_dialog(qapp):
     dialog.show()
     qapp.processEvents()
 
-    QTest.keyClick(dialog, Qt.Key.Key_Escape)
+    press(dialog, Qt.Key.Key_Escape)
     qapp.processEvents()
 
     assert dialog.result() == QDialog.DialogCode.Rejected

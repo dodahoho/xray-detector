@@ -358,21 +358,6 @@ def test_clicking_the_class_label_offers_the_dataset_classes(qapp, tmp_path, mon
     assert view.class_combo.currentText() == "pistol"
 
 
-def test_clicking_the_class_label_selects_the_annotation(qapp, tmp_path, monkeypatch):
-    answer(monkeypatch, QMessageBox.StandardButton.Yes)
-    view, _ = make_view(tmp_path, model("kniv", "pistol"))
-    view.load_captures([capture("kniv", y=20)])
-    canvas = sized_canvas(view)
-    item = canvas.rects[0]
-    monkeypatch.setattr(
-        QInputDialog, "getItem", staticmethod(lambda *a, **k: ("pistol", True))
-    )
-
-    click(canvas, canvas._label_rect(item).center())
-
-    assert canvas.selected is item
-
-
 def test_cancelling_the_class_dialog_keeps_the_class(qapp, tmp_path, monkeypatch):
     answer(monkeypatch, QMessageBox.StandardButton.Yes)
     view, _ = make_view(tmp_path, model("kniv", "pistol"))

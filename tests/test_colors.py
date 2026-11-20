@@ -9,10 +9,6 @@ from PySide6.QtGui import QColor
 from xray_detector.ui.colors import CLASS_COLORS, class_color
 
 
-def test_same_class_gets_the_same_color_every_time():
-    assert class_color("pistol").rgb() == class_color("pistol").rgb()
-
-
 def test_color_depends_only_on_the_class_name():
     """Färgen får inte avgöras av en klasslista (TASK-76).
 

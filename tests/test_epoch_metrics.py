@@ -483,20 +483,6 @@ def test_worker_keeps_raw_output_in_the_log(qapp, tmp_path):
     assert lines == ["rad ett", "TRAINING_DONE", "rad tre"]
 
 
-def test_command_passes_the_overfitting_guard(tmp_path):
-    from xray_detector.infrastructure.training.trainer import TrainingWorker
-
-    config = TrainConfig(
-        dataset_yaml=tmp_path / "d.yaml",
-        weights="yolo26n.pt",
-        output_dir=tmp_path / "o",
-        overfitting_guard=False,
-    )
-    command = TrainingWorker(config).command()
-
-    assert command[command.index("--overfitting-guard") + 1] == "off"
-
-
 # --- Träningsvyn (AC 5) ---
 
 

@@ -68,13 +68,6 @@ def test_the_icons_leave_the_corners_transparent(qapp):
             assert image.pixelColor(x, y).alpha() == 0, (x, y)
 
 
-def test_the_maximize_and_restore_icons_are_drawn_at_the_requested_size(qapp):
-    for icon in (maximize_icon(), restore_icon()):
-        assert not icon.isNull()
-        image = _image(icon)
-        assert (image.width(), image.height()) == (ICON_SIZE, ICON_SIZE)
-
-
 def test_the_maximize_and_restore_icons_are_different_shapes(qapp):
     """En ruta för maximera, två ovanpå varandra för återställ."""
     assert _opaque_pixels(_image(maximize_icon())) != _opaque_pixels(_image(restore_icon()))

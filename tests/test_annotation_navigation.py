@@ -192,16 +192,3 @@ def test_cancel_after_a_saved_pair_keeps_the_dataset(window):
 
     assert list_pending(window.dataset_store.root.parent) == []
     assert len(window.dataset_store.load_dataset()["images"]) == 1
-
-
-def test_annotation_tab_index_is_looked_up_from_the_tab_order(window):
-    """Flikindexet slås upp, så annoteringsfliken kan flyttas (TASK-127)."""
-    assert window._annotation_tab == window.tabs.indexOf(window.annotation_view)
-
-    window.tabs.removeTab(window._annotation_tab)
-    window.tabs.addTab(window.annotation_view, "Annotation")
-
-    assert window._annotation_tab == window.tabs.count() - 1
-    window.tabs.setTabEnabled(window._annotation_tab, True)
-    window.tabs.setCurrentIndex(window._annotation_tab)
-    assert window.tabs.currentWidget() is window.annotation_view

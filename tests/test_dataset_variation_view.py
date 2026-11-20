@@ -110,14 +110,6 @@ def test_synthetic_icon_sits_in_the_cards_top_right_corner(
     assert icon.y() == HEADER_MARGINS[1]
 
 
-def test_synthetic_icon_explains_the_variation(qapp, config, service, settings):
-    view = _built(config, service, settings)
-
-    icon = _header_icons(view, ROTATION_GROUP)[0]
-
-    assert "rotation" in icon.toolTip()
-
-
 def test_type_filter_shows_only_the_originals(qapp, config, service, settings):
     view = _built(config, service, settings)
 

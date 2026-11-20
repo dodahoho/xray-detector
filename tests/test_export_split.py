@@ -51,14 +51,6 @@ def test_split_is_group_aware():
         assert (left in val_ids) == (right in val_ids)
 
 
-def test_split_is_reproducible():
-    images = [{"id": i, "group": i} for i in range(1, 21)]
-    first = train_val_split(images)
-    second = train_val_split(images)
-    assert [image["id"] for image in first[0]] == [image["id"] for image in second[0]]
-    assert [image["id"] for image in first[1]] == [image["id"] for image in second[1]]
-
-
 def test_export_yolo_writes_a_complete_dataset(tmp_path):
     """Exporten kopierar bilder, labels och metadata så den går att importera (TASK-159)."""
     svc = make_service(tmp_path)

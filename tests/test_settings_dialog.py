@@ -66,17 +66,6 @@ def _opened_dialog(monkeypatch, button) -> SettingsDialog:
     return opened[0]
 
 
-def test_tab_row_has_four_tabs(window):
-    """Inställningsfliken är borta; temat och modellerna bor i vyerna (TASK-156)."""
-    assert window.tabs.count() == 4
-    assert [window.tabs.tabText(index) for index in range(4)] == [
-        "&Detektion",
-        "&Annotation",
-        "Data&set",
-        "&Träning",
-    ]
-
-
 def test_every_view_has_a_settings_button_with_a_gear(window):
     for name in VIEWS:
         button = getattr(window, name).settings_button

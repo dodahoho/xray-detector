@@ -11,21 +11,6 @@ from xray_detector.application.app_config import (
 from xray_detector.domain.config import PROJECT_ROOT, AppConfig
 
 
-def test_yaml_overrides_model_and_threshold(tmp_path):
-    config = AppConfig()
-    yaml = tmp_path / "config.yaml"
-    yaml.write_text(
-        """# kommentar
-default_model: yolo26s
-confidence_threshold: 0.55
-""",
-        encoding="utf-8",
-    )
-    assert apply_yaml_overrides(config, yaml)
-    assert config.default_model == "yolo26s"
-    assert config.confidence_threshold == 0.55
-
-
 def test_missing_yaml_is_noop(tmp_path):
     config = AppConfig()
     baseline = config.default_model

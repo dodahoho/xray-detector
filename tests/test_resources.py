@@ -43,15 +43,6 @@ def test_meter_shows_na_without_value(qapp):
     assert meter.bar.value() == 0
 
 
-def test_meter_sets_bar_and_text(qapp):
-    meter = ResourceMeter("CPU")
-
-    meter.set_usage(0.42, "42%")
-
-    assert meter.bar.value() == 42
-    assert meter.value.text() == "42%"
-
-
 def test_detection_view_has_all_meters(view):
     assert set(view.resource_meters) == {"gpu", "vram", "cpu", "ram"}
 

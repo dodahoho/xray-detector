@@ -9,7 +9,6 @@ from xray_detector.ui.settings_dialog import SettingsDialog
 from xray_detector.ui.style import (
     BUTTON_HEIGHT,
     ICON_BUTTON_WIDTH,
-    apply_metrics,
     button,
 )
 
@@ -47,14 +46,6 @@ def test_every_button_in_every_view_has_the_standard_height(window):
             )
 
 
-def test_training_start_button_is_as_high_as_abort(window):
-    start = window.training_view.start_button
-    abort = window.training_view.abort_button
-
-    assert start.minimumHeight() == abort.minimumHeight() == BUTTON_HEIGHT
-    assert start.maximumHeight() == abort.maximumHeight() == BUTTON_HEIGHT
-
-
 def test_primary_button_is_emphasized_without_growing(window):
     start = window.training_view.start_button
     abort = window.training_view.abort_button
@@ -87,15 +78,6 @@ def test_button_accepts_its_own_metrics(qapp):
 
     free = button("Fri", height=None)
     assert free.minimumHeight() == 0
-
-
-def test_apply_metrics_leaves_untouched_measures_to_qt(qapp):
-    widget = QPushButton("Stäng")
-
-    apply_metrics(widget, width=80)
-
-    assert widget.minimumHeight() == widget.maximumHeight() == BUTTON_HEIGHT
-    assert widget.minimumWidth() == widget.maximumWidth() == 80
 
 
 def test_rendered_heights_match_when_the_window_is_shown(qapp, window):

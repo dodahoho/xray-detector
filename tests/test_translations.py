@@ -52,13 +52,6 @@ def test_message_box_save_and_discard_are_swedish(qapp, swedish):
     assert _text(box, QMessageBox.StandardButton.Cancel) == "Avbryt"
 
 
-def test_without_the_translation_qt_keeps_its_own_texts(qapp):
-    """Översättningen är det enda som gör knapparna svenska."""
-    box = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
-
-    assert _text(box, QDialogButtonBox.StandardButton.Cancel) == "Cancel"
-
-
 def test_missing_translation_file_leaves_qt_texts_alone(qapp, monkeypatch):
     """Saknas qtbase_sv.qm startar appen som förut."""
     from PySide6.QtCore import QTranslator

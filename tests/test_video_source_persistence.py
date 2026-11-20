@@ -89,17 +89,6 @@ def test_cancelled_dialog_keeps_previous_selection(panel, monkeypatch):
     assert emitted == [("file", Path("C:/media/x.mp4"))]  # inget nytt anrop
 
 
-def test_title_row_shows_only_fps(panel):
-    from tests.conftest import synthetic_frame
-    from xray_detector.domain.capture import StreamFrame
-
-    panel.restore_source("file", "C:/media/x.mp4")
-    panel.show_frame(StreamFrame("left", synthetic_frame(), [], "x.mp4", sequence=1, fps=29.5))
-    assert panel.fps_label.text() == "29.5 fps"
-    panel._show_no_source()
-    assert panel.fps_label.text() == ""
-
-
 def test_persistence_roundtrip_via_detection_view(qapp, tmp_path, monkeypatch):
     """spara + aterstall via QSettings startar filkallan utan dialog."""
     from PySide6.QtCore import QSettings

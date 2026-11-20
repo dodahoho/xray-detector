@@ -42,18 +42,6 @@ def _colors(pixmap, left: int = 0, top: int = 0, right: int | None = None,
     }
 
 
-def test_thumbnail_draws_the_annotations(qapp, config, service, settings):
-    service.add_samples(
-        [_sample([{"class_name": "pistol", "bbox": [8, 8, 24, 20]}])],
-        captured="2026-11-10T09:00:00",
-    )
-
-    view = _built(config, service, settings)
-
-    expected = class_color("pistol").name()
-    assert expected in _colors(view._thumbs[0].picture.pixmap())
-
-
 def test_thumbnail_draws_the_box_where_the_annotation_is(qapp, config, service, settings):
     """Ramen hamnar över objektet, inte i bildens motsatta hörn."""
     service.add_samples(

@@ -87,6 +87,8 @@ uv run pytest -q -n auto
 
 `-n auto` fördelar filerna över alla kärnor med [pytest-xdist](https://pytest-xdist.readthedocs.io/) och tar sviten från cirka 270 s till under 90 s. Markören `slow` är registrerad i `pyproject.toml` för tester som startar `MainWindow`, så `uv run pytest -m "not slow"` kan köra sviten utan dem.
 
+`tests/test_shortcuts.py` skickar sina tangenter genom `press()`, som sätter Qt:s aktiva fönster med `QApplication.setActiveWindow()` innan tangenten går till fönstrets fokuswidget. Genvägar och mnemonik körs bara i det aktiva fönstret, och under `-n auto` kämpar flera processer om skrivbordets förgrund, så `activateWindow()` räcker inte: fönstret kan tappa aktiveringen mitt i ett test (TASK-170).
+
 Vid push och pull request kör GitHub Actions `.github/workflows/ci.yml` `ruff check` och hela sviten med `-n auto` på en Ubuntu-runner. Testerna ritar i Qt utan skärm, så workflowen sätter `QT_QPA_PLATFORM=offscreen` och installerar de systembibliotek PySide6 och OpenCV länkar mot.
 
 Körs sviten med `QT_QPA_PLATFORM=offscreen` på Windows måste Qt hitta ett teckensnitt, annars blir textmåtten fel och märkestesterna fallerar. CI löser det med `fonts-dejavu-core`; lokalt räcker det att köra sviten utan variabeln.
