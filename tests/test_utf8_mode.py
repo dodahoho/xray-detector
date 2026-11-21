@@ -1,17 +1,23 @@
-"""UTF-8-läge för hela appen (TASK-173).
+"""UTF-8-läge för hela appen (TASK-173, TASK-176).
 
 Utan UTF-8-läget läser tredjeparten klassnamn som cp1252, och då blir
 "löpare" till "lÃ¶pare" i de tränade vikterna. Flaggan läses när tolken
 startar, så appen sätter den i miljön och startar om sig själv en gång när
-läget är av.
+läget är av. Omstarten väntar på den nya processen, så terminalen stannar
+kvar hos appen och kommandoprompten kommer tillbaka när appen stängs.
 """
 
 import os
+import subprocess
 import sys
 
 from PySide6.QtCore import QProcess
 
 from xray_detector.app import RESTARTED_ENV, UTF8_ENV, _ensure_utf8_mode
+
+
+def _completed(args, code=0):
+    return subprocess.CompletedProcess(args, code)
 
 
 def test_the_flag_is_set_for_child_processes(monkeypatch):
@@ -23,33 +29,52 @@ def test_the_flag_is_set_for_child_processes(monkeypatch):
 
 
 def test_no_restart_when_the_process_already_reads_utf8(monkeypatch):
-    restarts = []
-    monkeypatch.setattr(os, "execv", lambda *args: restarts.append(args))
+    runs = []
+    monkeypatch.setattr(subprocess, "run", lambda args: runs.append(args))
 
     _ensure_utf8_mode(utf8_mode=True)
 
-    assert restarts == []
+    assert runs == []
 
 
 def test_the_restart_reuses_the_command_line(monkeypatch):
     monkeypatch.delenv(RESTARTED_ENV, raising=False)
-    restarts = []
-    monkeypatch.setattr(os, "execv", lambda *args: restarts.append(args))
+    runs = []
+    exits = []
+
+    def fake_run(args):
+        runs.append(args)
+        return _completed(args)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(sys, "exit", exits.append)
 
     _ensure_utf8_mode(utf8_mode=False)
 
-    assert restarts == [(sys.executable, [sys.executable, *sys.orig_argv[1:]])]
+    assert runs == [[sys.executable, *sys.orig_argv[1:]]]
+    assert exits == [0]
+
+
+def test_the_restart_returns_the_childs_exit_code(monkeypatch):
+    monkeypatch.delenv(RESTARTED_ENV, raising=False)
+    exits = []
+    monkeypatch.setattr(subprocess, "run", lambda args: _completed(args, 3))
+    monkeypatch.setattr(sys, "exit", exits.append)
+
+    _ensure_utf8_mode(utf8_mode=False)
+
+    assert exits == [3]
 
 
 def test_the_restart_happens_at_most_once(monkeypatch):
     """En kommandorad med -X utf8=0 slår miljövariabeln och får inte loopa."""
     monkeypatch.setenv(RESTARTED_ENV, "1")
-    restarts = []
-    monkeypatch.setattr(os, "execv", lambda *args: restarts.append(args))
+    runs = []
+    monkeypatch.setattr(subprocess, "run", lambda args: runs.append(args))
 
     _ensure_utf8_mode(utf8_mode=False)
 
-    assert restarts == []
+    assert runs == []
 
 
 def test_a_child_process_inherits_the_flag(qapp, monkeypatch):

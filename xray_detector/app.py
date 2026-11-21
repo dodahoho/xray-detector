@@ -1,7 +1,10 @@
 import ctypes
 import logging
 import os
+import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QThreadPool, qInstallMessageHandler
@@ -28,6 +31,8 @@ UTF8_ENV = "PYTHONUTF8"
 RESTARTED_ENV = "XRAY_UTF8_RESTARTED"
 #: Hur länge avslutet väntar in Qt:s trådpool innan processen avslutas ändå.
 SHUTDOWN_TIMEOUT_MS = 5000
+#: Hur länge vakt-tråden väntar på att destructorerna ska bli klara.
+FORCE_EXIT_SECONDS = 3.0
 
 
 def _install_message_filter() -> None:
@@ -78,6 +83,11 @@ def _ensure_utf8_mode(utf8_mode: bool | None = None) -> None:
     fönster hinner ritas. Markören i miljön gör att den sker högst en gång,
     även om kommandoraden själv stänger av läget med -X utf8=0.
 
+    Omstarten väntar på den nya processen i stället för att ersätta den med
+    os.execv: på Windows lämnar execv kvar en föräldralös process som
+    terminalen inte längre väntar på, och då kommer kommandoprompten inte
+    tillbaka när appen stängs (TASK-176).
+
     utf8_mode är läget som ska råda; None läser processens verkliga läge.
     """
     os.environ[UTF8_ENV] = "1"
@@ -85,7 +95,17 @@ def _ensure_utf8_mode(utf8_mode: bool | None = None) -> None:
     if active or os.environ.get(RESTARTED_ENV):
         return
     os.environ[RESTARTED_ENV] = "1"
-    os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
+    try:
+        result = subprocess.run([sys.executable, *sys.orig_argv[1:]])
+    except KeyboardInterrupt:
+        sys.exit(130)
+    sys.exit(result.returncode)
+
+
+def _force_exit(code: int) -> None:
+    """Avslutar processen om destructorerna inte hinner klart (TASK-175)."""
+    time.sleep(FORCE_EXIT_SECONDS)
+    os._exit(code)
 
 
 def _finish(code: int, log: logging.Logger) -> None:
@@ -95,8 +115,9 @@ def _finish(code: int, log: logging.Logger) -> None:
     statiska destructorer kan blockera när GPU:n är upptagen. Ingen av dem har
     en tidsgräns, så processen kunde bli kvar efter att fönstret stängts.
     closeEvent har redan synkat inställningarna och väntat in arbetstrådarna,
-    så här väntas trådpoolen en kort stund och processen avslutas sedan
-    explicit i stället för att hänga i destructorerna.
+    så här väntas trådpoolen en kort stund. En vakt-tråd avslutar processen om
+    destructorerna ändå inte hinner klart, så en vanlig stängning fortfarande
+    städar efter sig.
     """
     if not QThreadPool.globalInstance().waitForDone(SHUTDOWN_TIMEOUT_MS):
         log.warning(
@@ -105,7 +126,7 @@ def _finish(code: int, log: logging.Logger) -> None:
         )
     log.info("Avslutar: stänger processen")
     logging.shutdown()
-    os._exit(code)
+    threading.Thread(target=_force_exit, args=(code,), daemon=True).start()
 
 
 def main() -> int:
@@ -123,8 +144,9 @@ def main() -> int:
     _log_startup(config, config_file, log)
     window = MainWindow(config)
     window.show_window()
-    _finish(app.exec(), log)
-    return 0
+    code = app.exec()
+    _finish(code, log)
+    return code
 
 
 if __name__ == "__main__":
