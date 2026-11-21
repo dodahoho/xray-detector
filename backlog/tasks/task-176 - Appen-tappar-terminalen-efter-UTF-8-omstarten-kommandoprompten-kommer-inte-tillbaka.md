@@ -3,7 +3,7 @@ id: TASK-176
 title: >-
   Appen tappar terminalen efter UTF-8-omstarten - kommandoprompten kommer inte
   tillbaka
-status: In Progress
+status: Done
 assignee: []
 created_date: '2026-11-21T00:39:00Z'
 updated_date: '2026-11-21T00:39:00Z'
@@ -38,7 +38,7 @@ Före TASK-173 körde appen i förgrunden, och processen avslutades när fönstr
 - [x] #2 Code reviewed for quality, simplicity, and maintainability
 - [x] #3 All tests pass
 - [x] #4 Documentation updated
-- [ ] #5 Code committed
+- [x] #5 Code committed
 <!-- DOD:END -->
 
 ## Implementation Plan
