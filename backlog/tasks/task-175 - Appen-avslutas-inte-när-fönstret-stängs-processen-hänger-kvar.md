@@ -4,7 +4,7 @@ title: Appen avslutas inte när fönstret stängs - processen hänger kvar
 status: Done
 assignee: []
 created_date: '2026-11-20T23:03:00Z'
-updated_date: '2026-11-20T23:05:00Z'
+updated_date: '2026-11-21T00:40:00Z'
 labels: []
 dependencies: []
 modified_files:
@@ -61,6 +61,8 @@ Utredning: appen avslutades rent i alla mina reproduktioner (offscreen, riktig p
 Åtgärd: app.py väntar in QThreadPool.globalInstance() i högst 5 s, loggar 'Avslutar: stänger processen' och avslutar sedan processen med os._exit. closeEvent har redan synkat inställningarna, väntat in arbetstrådarna och stängt källorna, så destructorerna behövs inte. Loggarna stängs med logging.shutdown() före exit.
 
 Verifiering: två nya tester i test_app_shutdown.py (trådpoolen blir klar respektive hänger), hela sviten 1043 passed, 1 skipped, ruff check går igenom. Kört appen med en timer som stänger fönstret: processen avslutas direkt efter app.exec() och loggen får avslutsraden.
+
+Uppföljning (TASK-176): os._exit anropas nu från en vakt-tråd i stället för direkt i _finish. En vanlig stängning hinner därför städa efter sig, och QThreadStorage-varningarna som os._exit gav försvinner; en hängning bryts fortfarande efter 3 s.
 <!-- SECTION:NOTES:END -->
 
 ## Final Summary
